@@ -266,6 +266,14 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
           <span class="val" id="opEnd_v">0</span>
         </div>
       </div>
+      <div class="sub-label" style="margin-top:5px">Opacity Curve
+        <input type="checkbox" id="opLifeCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#f90;margin-left:6px;vertical-align:middle">
+        <span style="font-size:10px;color:#555"> override Start/End</span>
+      </div>
+      <div id="oplcPanel" style="margin-bottom:4px">
+        <div id="oplc-editor"></div>
+        <canvas id="oplc-preview" width="286" height="38" style="display:block;border:1px solid #333;border-radius:2px;margin-top:2px"></canvas>
+      </div>
       <div class="row"><label>Spin (°/s)</label>
         <input type="range" id="spinRate" min="-720" max="720" value="0" oninput="syncVal(this,'spinRate_v');onCfgChange()">
         <span class="val" id="spinRate_v">0</span>
@@ -823,6 +831,58 @@ function updateOpPathPreview(){
   ctx2.fillText('start',2,h-2); ctx2.fillText('end',w-20,h-2);
 }
 
+// ============================================================
+//  OPACITY-OVER-LIFETIME CURVE
+// ============================================================
+var opLifeRows=[];
+(function buildOpLifeUI(){
+  var editor=document.getElementById('oplc-editor');
+  var defPos=[0,0.25,0.75,1], defVal=[0,1,1,0];
+  for(var i=0;i<4;i++){
+    var div=document.createElement('div');
+    div.className='grad-stop';
+    div.innerHTML='<span style="font-size:10px;color:#777;width:12px">'+(i+1)+'</span>'+
+      '<input type="range" class="olcPos" min="0" max="1" step="0.01" value="'+defPos[i]+'">'+
+      '<span class="stop-pos">'+defPos[i].toFixed(2)+'</span>'+
+      '<input type="number" class="olcVal" min="0" max="1" step="0.01" value="'+defVal[i]+'" style="width:44px;background:#2a2a2a;border:1px solid #444;border-radius:2px;color:#f0c050;font-size:11px;padding:2px 4px;font-family:monospace">';
+    editor.appendChild(div);
+    var row={pos:div.querySelector('.olcPos'),posLbl:div.querySelector('.stop-pos'),val:div.querySelector('.olcVal')};
+    row.pos.oninput=(function(r){return function(){r.posLbl.textContent=parseFloat(r.pos.value).toFixed(2);updateOpLifePreview();onCfgChange();};})(row);
+    row.val.onchange=function(){updateOpLifePreview();onCfgChange();};
+    opLifeRows.push(row);
+  }
+  updateOpLifePreview();
+})();
+
+function getOpLifeCurve(){
+  var stops=opLifeRows.map(function(r){
+    return {pos:parseFloat(r.pos.value),val:clamp(parseFloat(r.val.value)||0,0,1)};
+  });
+  stops.sort(function(a,b){return a.pos-b.pos;});
+  return stops;
+}
+function updateOpLifePreview(){
+  var cv=document.getElementById('oplc-preview');
+  if(!cv) return;
+  var ctx2=cv.getContext('2d'),w=cv.width,h=cv.height;
+  ctx2.fillStyle='#141414'; ctx2.fillRect(0,0,w,h);
+  var stops=getOpLifeCurve();
+  ctx2.beginPath(); ctx2.strokeStyle='#f0c050'; ctx2.lineWidth=1.5;
+  for(var i=0;i<=w;i++){
+    var v=sampleSzCurve(i/w,stops);
+    var py=h-(v)*(h-4)-2;
+    if(i===0) ctx2.moveTo(i,py); else ctx2.lineTo(i,py);
+  }
+  ctx2.stroke();
+  ctx2.fillStyle='#f90';
+  stops.forEach(function(s){
+    var px=s.pos*w, py=h-(s.val)*(h-4)-2;
+    ctx2.beginPath(); ctx2.arc(px,py,3,0,Math.PI*2); ctx2.fill();
+  });
+  ctx2.fillStyle='#666'; ctx2.font='9px monospace';
+  ctx2.fillText('birth',2,10); ctx2.fillText('death',w-26,10);
+}
+
 function getSubShapes(){
   return shapeRows.map(function(r){
     return {en:r.en.checked,type:r.type.value,sz:parseFloat(r.sz.value),ox:parseFloat(r.ox.value)||0,oy:parseFloat(r.oy.value)||0,
@@ -852,6 +912,8 @@ function getConfig(){
     sizeCurveStops:getSizeCurve(),
     opPathCurveEn:document.getElementById('opPathCurveEn').checked,
     opPathCurveStops:getOpPathCurve(),
+    opLifeCurveEn:document.getElementById('opLifeCurveEn').checked,
+    opLifeCurveStops:getOpLifeCurve(),
     opStart:V('opStart'), opEnd:V('opEnd'),
     spinRate:V('spinRate'), spinJitter:V('spinJitter'),
     spinDamping:V('spinDamping'),
@@ -1076,6 +1138,7 @@ function saveCfgToEmitter(idx){
   // size curve
   data._szc=szcRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
   data._opc=opPathRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
+  data._oplc=opLifeRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
   // sub shapes
   data._shapes=shapeRows.map(function(r){
     return{en:r.en.checked,type:r.type.value,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
@@ -1119,6 +1182,12 @@ function restoreCfgFromEmitter(idx){
       if(opPathRows[i]){opPathRows[i].pos.value=s.pos;opPathRows[i].posLbl.textContent=parseFloat(s.pos).toFixed(2);opPathRows[i].val.value=s.val;}
     });
     updateOpPathPreview();
+  }
+  if(data._oplc){
+    data._oplc.forEach(function(s,i){
+      if(opLifeRows[i]){opLifeRows[i].pos.value=s.pos;opLifeRows[i].posLbl.textContent=parseFloat(s.pos).toFixed(2);opLifeRows[i].val.value=s.val;}
+    });
+    updateOpLifePreview();
   }
   if(data._shapes){
     data._shapes.forEach(function(s,i){
@@ -1458,8 +1527,13 @@ function drawParticle(ctx, p, t, cfg, proj){
   var perspScale=proj?proj.scale:1;
   sz*=perspScale;
   if(sz<=0) return;
-  var op=lerp(p.opStart,p.opEnd,lifeT);
-  // Opacity-along-path curve
+  var op;
+  if(cfg.opLifeCurveEn && cfg.opLifeCurveStops && cfg.opLifeCurveStops.length){
+    op=sampleSzCurve(lifeT, cfg.opLifeCurveStops);
+  } else {
+    op=lerp(p.opStart,p.opEnd,lifeT);
+  }
+  // Opacity-along-path curve (multiplicative)
   if(cfg.opPathCurveEn && cfg.opPathCurveStops && cfg.opPathCurveStops.length && p.spawnPathT!==undefined){
     op*=sampleSzCurve(p.spawnPathT, cfg.opPathCurveStops);
   }
@@ -1882,7 +1956,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
   strFields.forEach(function(k){
     c[k]=(snap[k]!==undefined?snap[k]:globalCfg[k]);
   });
-  var boolFields=['rotAlignVel','sizeCurveEn','pngTint','glowAutoColor','opPathCurveEn'];
+  var boolFields=['rotAlignVel','sizeCurveEn','pngTint','glowAutoColor','opPathCurveEn','opLifeCurveEn'];
   boolFields.forEach(function(k){
     c[k]=(snap[k]!==undefined?!!snap[k]:globalCfg[k]);
   });
@@ -1901,6 +1975,10 @@ function buildCfgFromSnapshot(snap, globalCfg){
   c.opPathCurveStops=snap._opc?snap._opc.map(function(r){
     return{pos:parseFloat(r.pos),val:clamp(parseFloat(r.val)||0,0,1)};
   }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.opPathCurveStops;
+  // Opacity-over-lifetime curve
+  c.opLifeCurveStops=snap._oplc?snap._oplc.map(function(r){
+    return{pos:parseFloat(r.pos),val:clamp(parseFloat(r.val)||0,0,1)};
+  }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.opLifeCurveStops;
   // Sub-shapes
   c.subShapes=snap._shapes?snap._shapes.filter(function(s){return s.en;}).map(function(s){
     return{en:true,type:s.type,sz:parseFloat(s.sz),ox:parseFloat(s.ox)||0,oy:parseFloat(s.oy)||0,
@@ -2310,6 +2388,7 @@ function applyPresetData(pd){
   setR('sizeJitter',pd.sizeJitter!=null?pd.sizeJitter:40);
   setC('sizeCurveEn',pd.sizeCurveEn||false);
   setC('opPathCurveEn',pd.opPathCurveEn||false);
+  setC('opLifeCurveEn',pd.opLifeCurveEn||false);
   setR('opStart',pd.opStart!=null?pd.opStart:1);
   setR('opEnd',pd.opEnd!=null?pd.opEnd:0);
   setR('spinRate',pd.spinRate!=null?pd.spinRate:0);
