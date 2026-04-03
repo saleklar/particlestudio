@@ -1796,9 +1796,10 @@ function buildCfgFromSnapshot(snap, globalCfg){
   });
   // Ensure sizeJitter is fractional
   if(c.sizeJitter>1) c.sizeJitter/=100;
-  // Gradient stops
+  // Gradient stops — must match {pos,r,g,b} format expected by gradientColor()
   c.gradientStops=snap._grad?snap._grad.filter(function(s){return s.en;}).map(function(s){
-    return {pos:parseFloat(s.pos),col:hex2rgb(s.col)};
+    var rgb=hex2rgb(s.col);
+    return {pos:parseFloat(s.pos),r:rgb[0],g:rgb[1],b:rgb[2]};
   }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.gradientStops;
   // Size curve
   c.sizeCurveStops=snap._szc?snap._szc.map(function(r){
