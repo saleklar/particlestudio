@@ -54,8 +54,15 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
 .grad-stop input[type=color]{width:28px;height:20px;padding:1px}
 .grad-stop .stop-pos{width:28px;font-size:10px;color:#888;text-align:right;font-family:monospace}
 #grad-preview{display:block;width:100%;height:14px;border-radius:3px;margin-bottom:5px;border:1px solid #333}
-/* Sub-shapes */
-.shape-row{background:#252525;border-radius:3px;padding:4px 6px;margin-bottom:4px}
+/* Texture gallery */
+.tex-gallery{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0 4px}
+.tex-thumb{position:relative;width:52px;height:52px;border-radius:3px;cursor:pointer;border:2px solid #333;overflow:hidden;flex-shrink:0;background:repeating-conic-gradient(#2a2a2a 0% 25%,#1a1a1a 0% 50%) 0 0/10px 10px}
+.tex-thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.tex-thumb:hover{border-color:#777}
+.tex-thumb.sel{border-color:#f90;box-shadow:0 0 4px #f905}
+.tex-thumb .tex-del{position:absolute;top:0;right:0;width:15px;height:15px;background:rgba(0,0,0,.75);color:#f88;font-size:10px;text-align:center;line-height:15px;cursor:pointer;display:none;border-radius:0 0 0 3px}
+.tex-thumb:hover .tex-del{display:block}
+.tex-thumb .tex-name{position:absolute;bottom:0;left:0;right:0;font-size:8px;color:#aaa;background:rgba(0,0,0,.6);text-align:center;padding:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .shape-row .shape-header{display:flex;align-items:center;gap:5px;margin-bottom:3px}
 .shape-row .shape-header label{flex:1;font-size:11px;color:#aaa}
 /* Emitter tabs */
@@ -216,6 +223,12 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
         <div class="sub-label" style="margin-bottom:5px">PNG / PNG Sequence</div>
         <label class="btn" style="display:block;width:100%;margin-bottom:4px;text-align:center;cursor:pointer;box-sizing:border-box">&#128193; Load PNG(s)&#8230;<input type="file" id="pngFileInput" accept="image/png,image/gif,image/webp" multiple style="display:none" onchange="loadCustomImages(this)"></label>
         <button class="btn" style="display:block;width:100%;margin-bottom:4px;text-align:center;cursor:pointer;box-sizing:border-box;background:#1a1a2a;border-color:#44f;color:#aaf" onclick="openPainter()">🖌 Paint Particle Texture…</button>
+        <!-- Texture gallery -->
+        <div id="tex-gallery-wrap" style="display:none">
+          <div class="sub-label" style="margin-bottom:3px;color:#aaf">Saved Textures <span style="color:#555;font-size:9px">(click = use, ✕ = remove)</span></div>
+          <div id="tex-gallery" class="tex-gallery"></div>
+          <div style="height:1px;background:#333;margin:6px 0"></div>
+        </div>
         <div id="pngInfo" style="font-size:10px;color:#666;text-align:center;margin-bottom:5px">No images loaded — files sorted A→Z = sequence order</div>
         <div class="row"><label>Playback</label>
           <select id="pngSeqMode" onchange="onPngModeChange()">
@@ -1184,11 +1197,70 @@ function project3D(wx, wy, wz, cfg){
 }
 
 // ============================================================
-//  CUSTOM PNG IMAGE STORE
+//  TEXTURE GALLERY
 // ============================================================
-var customImages = [];
-var customImageNames = [];
-function loadCustomImages(input){
+var _texGallery=[];  // [{name,dataURL,img}]
+var _texSelIdx=-1;
+
+function addToTextureGallery(name,dataURL){
+  var img=new Image();
+  img.src=dataURL;
+  _texGallery.push({name:name,dataURL:dataURL,img:img});
+  _texSelIdx=_texGallery.length-1;
+  renderTextureGallery();
+  // activate this texture immediately
+  customImages=[img];
+  customImageNames=[name];
+  document.getElementById('pngInfo').textContent='Texture: '+name;
+  document.getElementById('particleShape').value='custompng';
+  onParticleShapeChange();
+}
+
+function renderTextureGallery(){
+  var wrap=document.getElementById('tex-gallery-wrap');
+  var grid=document.getElementById('tex-gallery');
+  if(!grid) return;
+  grid.innerHTML='';
+  wrap.style.display=_texGallery.length?'block':'none';
+  _texGallery.forEach(function(t,i){
+    var div=document.createElement('div');
+    div.className='tex-thumb'+(i===_texSelIdx?' sel':'');
+    div.title=t.name;
+    var img=document.createElement('img');
+    img.src=t.dataURL;
+    var nm=document.createElement('div');
+    nm.className='tex-name';
+    nm.textContent=t.name;
+    var del=document.createElement('div');
+    del.className='tex-del';
+    del.textContent='✕';
+    del.onclick=(function(idx){return function(e){e.stopPropagation();removeTextureTile(idx);};})(i);
+    div.onclick=(function(idx){return function(){selectTextureTile(idx);};})(i);
+    div.appendChild(img);
+    div.appendChild(nm);
+    div.appendChild(del);
+    grid.appendChild(div);
+  });
+}
+
+function selectTextureTile(idx){
+  if(idx<0||idx>=_texGallery.length) return;
+  _texSelIdx=idx;
+  var t=_texGallery[idx];
+  customImages=[t.img];
+  customImageNames=[t.name];
+  document.getElementById('pngInfo').textContent='Texture: '+t.name;
+  document.getElementById('particleShape').value='custompng';
+  onParticleShapeChange();
+  renderTextureGallery();
+}
+
+function removeTextureTile(idx){
+  _texGallery.splice(idx,1);
+  if(_texSelIdx>=_texGallery.length) _texSelIdx=_texGallery.length-1;
+  if(_texSelIdx>=0) selectTextureTile(_texSelIdx);
+  else renderTextureGallery();
+}
   if(!input.files||!input.files.length) return;
   var files=Array.prototype.slice.call(input.files).sort(function(a,b){return a.name.localeCompare(b.name);});
   customImages=[];
@@ -1196,15 +1268,22 @@ function loadCustomImages(input){
   var total=files.length;
   var loaded=0;
   files.forEach(function(file,idx){
-    customImageNames.push(file.name.replace(/\.[^.]+$/,''));
+    var nm=file.name.replace(/\.[^.]+$/,'');
+    customImageNames.push(nm);
     var img=new Image();
     img.onload=function(){
       loaded++;
-      document.getElementById('pngInfo').textContent=loaded+'/'+total+' loaded — '+files[idx].name+(total>1?' (+'+( total-1)+' more)':'');
+      // add each to gallery via FileReader for dataURL
     };
     img.onerror=function(){ loaded++; };
     img.src=URL.createObjectURL(file);
     customImages.push(img);
+    // also add to gallery
+    var reader=new FileReader();
+    reader.onload=(function(name){ return function(ev){
+      addToTextureGallery(name,ev.target.result);
+    };})(nm);
+    reader.readAsDataURL(file);
   });
   document.getElementById('pngInfo').textContent='0/'+total+' loading…';
 }
@@ -3449,16 +3528,9 @@ function ptPos(cv,e){
 function ptUseAsParticle(){
   var cv=document.getElementById('painter-cv');
   var dataURL=cv.toDataURL('image/png');
-  var img=new Image();
-  img.onload=function(){
-    customImages=[img];
-    customImageNames=['painted'];
-    document.getElementById('pngInfo').textContent='1 painted texture loaded';
-    document.getElementById('particleShape').value='custompng';
-    onParticleShapeChange();
-    closePainter();
-  };
-  img.src=dataURL;
+  var n=_texGallery.length+1;
+  addToTextureGallery('painted-'+n,dataURL);
+  closePainter();
 }
 </script>
 
