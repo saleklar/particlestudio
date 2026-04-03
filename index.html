@@ -741,8 +741,25 @@ function updateGradPreview(){
 //  SUB-SHAPES UI
 // ============================================================
 var SHAPE_TYPES=['glow','circle','ring','square','diamond','triangle','pentagon','hexagon','star5','star6','star4','cross','arrow','heart'];
+var SHAPE_TYPE_LABELS={'same':'★ same as main particle','custompng':'🖼️ custom (gallery)'};
 var SHAPE_COUNT=4;
 var shapeRows=[];
+function _buildSTypeOptions(){
+  return SHAPE_TYPES.map(function(t){return '<option value="'+t+'">'+t+'</option>';}).join('')+
+    '<option value="same">★ same as main</option>'+
+    '<option value="custompng">🖼 custom (gallery)</option>';
+}
+function refreshShapeTexPickers(){
+  shapeRows.forEach(function(r){
+    if(!r.texPicker) return;
+    var cur=r.texPicker.value;
+    r.texPicker.innerHTML=_texGallery.length
+      ?_texGallery.map(function(t,i){return '<option value="'+i+'">'+t.name+'</option>';}).join('')
+      :'<option value="0">(no textures)</option>';
+    r.texPicker.value=cur;
+    r.texPicker.style.display=(r.type.value==='custompng')?'block':'none';
+  });
+}
 (function buildShapesUI(){
   var body=document.getElementById('shapesBody');
   for(var i=0;i<SHAPE_COUNT;i++){
@@ -751,7 +768,8 @@ var shapeRows=[];
     div.innerHTML='<div class="shape-header">'+
       '<input type="checkbox" class="sEn" '+(i===0?'checked':'')+'>'+
       '<label>Sub-Shape '+(i+1)+'</label>'+
-      '<select class="sType">'+SHAPE_TYPES.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select>'+
+      '<select class="sType">'+_buildSTypeOptions()+'</select>'+
+      '<select class="sTexPicker" style="display:none;font-size:10px;max-width:110px;background:#222;color:#ddd;border:1px solid #555;border-radius:3px"><option value="0">(no textures)</option></select>'+
       '</div>'+
       '<div class="row"><label>Size Factor</label><input type="range" class="sSz" min="0.1" max="5" step="0.05" value="0.6"><span class="val sSzV">0.6</span></div>'+
       '<div class="two-col">'+
@@ -760,12 +778,17 @@ var shapeRows=[];
       '</div>'+
       '<div class="row"><label>Color</label><input type="color" class="sCol" value="#ffffff"><label style="margin-left:6px;color:#888">Opacity</label><input type="range" class="sOp" min="0" max="1" step="0.01" value="0.7"><span class="val sOpV">0.7</span></div>';
     body.appendChild(div);
-    var row={en:div.querySelector('.sEn'),type:div.querySelector('.sType'),sz:div.querySelector('.sSz'),szV:div.querySelector('.sSzV'),
+    var row={en:div.querySelector('.sEn'),type:div.querySelector('.sType'),texPicker:div.querySelector('.sTexPicker'),
+      sz:div.querySelector('.sSz'),szV:div.querySelector('.sSzV'),
       ox:div.querySelector('.sOX'),oy:div.querySelector('.sOY'),col:div.querySelector('.sCol'),op:div.querySelector('.sOp'),opV:div.querySelector('.sOpV')};
     div.querySelector('.sSz').oninput=function(r){return function(){r.szV.textContent=parseFloat(r.sz.value).toFixed(2);onCfgChange();}}(row);
     div.querySelector('.sOp').oninput=function(r){return function(){r.opV.textContent=parseFloat(r.op.value).toFixed(2);onCfgChange();}}(row);
     div.querySelector('.sEn').onchange=onCfgChange;
-    div.querySelector('.sType').onchange=onCfgChange;
+    div.querySelector('.sType').onchange=(function(r){return function(){
+      r.texPicker.style.display=(r.type.value==='custompng')?'block':'none';
+      onCfgChange();
+    };})(row);
+    div.querySelector('.sTexPicker').onchange=onCfgChange;
     div.querySelector('.sCol').onchange=onCfgChange;
     div.querySelector('.sOX').onchange=onCfgChange;
     div.querySelector('.sOY').onchange=onCfgChange;
@@ -1105,7 +1128,8 @@ function oplcPreset(name){
 
 function getSubShapes(){
   return shapeRows.map(function(r){
-    return {en:r.en.checked,type:r.type.value,sz:parseFloat(r.sz.value),ox:parseFloat(r.ox.value)||0,oy:parseFloat(r.oy.value)||0,
+    return {en:r.en.checked,type:r.type.value,texIdx:r.texPicker?parseInt(r.texPicker.value)||0:0,
+      sz:parseFloat(r.sz.value),ox:parseFloat(r.ox.value)||0,oy:parseFloat(r.oy.value)||0,
       col:hex2rgb(r.col.value),op:parseFloat(r.op.value)};
   }).filter(function(s){return s.en;});
 }
@@ -1211,6 +1235,7 @@ function addToTextureGallery(name,dataURL){
   _texGallery.push({name:name,dataURL:dataURL,img:img});
   _texSelIdx=_texGallery.length-1;
   renderTextureGallery();
+  refreshShapeTexPickers();
   // activate this texture immediately
   customImages=[img];
   customImageNames=[name];
@@ -1263,6 +1288,7 @@ function removeTextureTile(idx){
   if(_texSelIdx>=_texGallery.length) _texSelIdx=_texGallery.length-1;
   if(_texSelIdx>=0) selectTextureTile(_texSelIdx);
   else renderTextureGallery();
+  refreshShapeTexPickers();
 }
 
 var customImages=[];
@@ -1450,7 +1476,7 @@ function saveCfgToEmitter(idx){
   data._oplc=_oplcPts.slice();
   // sub shapes
   data._shapes=shapeRows.map(function(r){
-    return{en:r.en.checked,type:r.type.value,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
+    return{en:r.en.checked,type:r.type.value,texIdx:r.texPicker?parseInt(r.texPicker.value)||0:0,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
   });
   // path
   data._path=em.path.slice();
@@ -1504,6 +1530,7 @@ function restoreCfgFromEmitter(idx){
     data._shapes.forEach(function(s,i){
       if(shapeRows[i]){
         shapeRows[i].en.checked=s.en;shapeRows[i].type.value=s.type;
+        if(shapeRows[i].texPicker){shapeRows[i].texPicker.value=s.texIdx||0;shapeRows[i].texPicker.style.display=(s.type==='custompng')?'block':'none';}
         shapeRows[i].sz.value=s.sz;shapeRows[i].szV.textContent=parseFloat(s.sz).toFixed(2);
         shapeRows[i].ox.value=s.ox;shapeRows[i].oy.value=s.oy;
         shapeRows[i].col.value=s.col;shapeRows[i].op.value=s.op;
@@ -1953,7 +1980,26 @@ function drawParticle(ctx, p, t, cfg, proj){
         ctx.save();
         ctx.translate(sh.ox*perspScale, sh.oy*perspScale);
         var ssz=sz*sh.sz;
-        drawShape(ctx, sh.type, 0, 0, ssz, sr, sg, sb, sop, glowR, cfg.glowStr, gr, gg, gb2, gblend);
+        if(sh.type==='same'){
+          // Draw using the same image currently loaded as the main custom particle
+          if(customImages.length>0){
+            var _fIdx=0,_mode=cfg.pngSeqMode||'life';
+            if(_mode==='life') _fIdx=Math.min(Math.floor(lifeT*customImages.length),customImages.length-1);
+            else if(_mode==='fps') _fIdx=Math.floor(p.age*(cfg.pngSeqFPS||24))%customImages.length;
+            var _ci=customImages[_fIdx];
+            if(_ci&&_ci.complete&&_ci.naturalWidth>0) drawImageTinted(ctx,_ci,0,0,ssz,sop,sr,sg,sb,cfg.pngTint);
+            else drawShape(ctx,'glow',0,0,ssz,sr,sg,sb,sop,glowR,cfg.glowStr,gr,gg,gb2,gblend);
+          } else {
+            drawShape(ctx,'glow',0,0,ssz,sr,sg,sb,sop,glowR,cfg.glowStr,gr,gg,gb2,gblend);
+          }
+        } else if(sh.type==='custompng'){
+          var _ti=sh.texIdx||0;
+          var _gimg=_texGallery[_ti]?_texGallery[_ti].img:null;
+          if(_gimg&&_gimg.complete&&_gimg.naturalWidth>0) drawImageTinted(ctx,_gimg,0,0,ssz,sop,sr,sg,sb,cfg.pngTint);
+          else drawShape(ctx,'glow',0,0,ssz,sr,sg,sb,sop,glowR,cfg.glowStr,gr,gg,gb2,gblend);
+        } else {
+          drawShape(ctx, sh.type, 0, 0, ssz, sr, sg, sb, sop, glowR, cfg.glowStr, gr, gg, gb2, gblend);
+        }
         ctx.restore();
       }
       ctx.restore();
@@ -3414,7 +3460,7 @@ function exportConfig(){
   out.pngTint=document.getElementById('pngTint').checked;
   // sub-shapes
   out.subShapes=shapeRows.map(function(r){
-    return {en:r.en.checked,type:r.type.value,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
+    return {en:r.en.checked,type:r.type.value,texIdx:r.texPicker?parseInt(r.texPicker.value)||0:0,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
   });
   var fname=(document.getElementById('exportName').value||'particles')+'_cfg';
   downloadJSON(JSON.stringify(out, null, 2), fname+'.json');
@@ -3453,6 +3499,7 @@ function loadConfig(input){
           if(shapeRows[i]){
             shapeRows[i].en.checked=s.en;
             shapeRows[i].type.value=s.type;
+            if(shapeRows[i].texPicker){shapeRows[i].texPicker.value=s.texIdx||0;shapeRows[i].texPicker.style.display=(s.type==='custompng')?'block':'none';}
             shapeRows[i].sz.value=s.sz; shapeRows[i].szV.textContent=parseFloat(s.sz).toFixed(2);
             shapeRows[i].ox.value=s.ox; shapeRows[i].oy.value=s.oy;
             shapeRows[i].col.value=s.col;
