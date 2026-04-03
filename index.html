@@ -63,6 +63,8 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
 .tex-thumb .tex-del{position:absolute;top:0;right:0;width:15px;height:15px;background:rgba(0,0,0,.75);color:#f88;font-size:10px;text-align:center;line-height:15px;cursor:pointer;display:none;border-radius:0 0 0 3px}
 .tex-thumb:hover .tex-del{display:block}
 .tex-thumb .tex-name{position:absolute;bottom:0;left:0;right:0;font-size:8px;color:#aaa;background:rgba(0,0,0,.6);text-align:center;padding:1px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+/* Sub-shapes */
+.shape-row{background:#252525;border-radius:3px;padding:4px 6px;margin-bottom:4px}
 .shape-row .shape-header{display:flex;align-items:center;gap:5px;margin-bottom:3px}
 .shape-row .shape-header label{flex:1;font-size:11px;color:#aaa}
 /* Emitter tabs */
@@ -1261,6 +1263,10 @@ function removeTextureTile(idx){
   if(_texSelIdx>=0) selectTextureTile(_texSelIdx);
   else renderTextureGallery();
 }
+
+var customImages=[];
+var customImageNames=[];
+function loadCustomImages(input){
   if(!input.files||!input.files.length) return;
   var files=Array.prototype.slice.call(input.files).sort(function(a,b){return a.name.localeCompare(b.name);});
   customImages=[];
