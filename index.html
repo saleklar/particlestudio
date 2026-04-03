@@ -65,8 +65,23 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
 .etab:hover{color:#ddd}
 #etab-add{padding:2px 7px;font-size:13px;cursor:pointer;background:#1a1a2a;color:#66f;border:1px solid #334;border-radius:3px;margin-left:2px;line-height:1}
 #etab-add:hover{background:#2a2a3a;color:#99f}
-/* Global section indicator */
-.sec-head.global-sec{border-left:2px solid #66f;padding-left:6px}
+/* Section header color coding */
+.sh-camera{border-left:3px solid #3cf;color:#7de !important}
+.sh-camera:hover{background:#0d1e2a !important}
+.sh-particle{border-left:3px solid #fa0;color:#fcc !important}
+.sh-particle:hover{background:#1e1600 !important}
+.sh-color{border-left:3px solid #f5a;color:#fac !important}
+.sh-color:hover{background:#1e0d1a !important}
+.sh-physics{border-left:3px solid #7e0;color:#bfa !important}
+.sh-physics:hover{background:#0f1a09 !important}
+.sh-shapes{border-left:3px solid #c6f;color:#dcb !important}
+.sh-shapes:hover{background:#150d22 !important}
+.sh-bg{border-left:3px solid #09c;color:#9cc !important}
+.sh-bg:hover{background:#091820 !important}
+.sh-fx{border-left:3px solid #ff6;color:#ffe !important}
+.sh-fx:hover{background:#1a1a00 !important}
+.sh-export{border-left:3px solid #f88;color:#fcc !important}
+.sh-export:hover{background:#1e0d0d !important}
 /* Canvas area */
 #canvas-wrap{flex:1;position:relative;overflow:hidden;background:#0a0a0f}
 #canvas-wrap canvas{position:absolute;top:0;left:0;cursor:crosshair}
@@ -106,7 +121,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- GLOBAL: CAMERA / 3D -->
-    <div class="sec-head global-sec" onclick="toggleSec(this)"><span>Camera / 3D</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-camera" onclick="toggleSec(this)"><span>📷 Camera / 3D</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row"><label>Type</label>
         <select id="emitType" onchange="onEmitTypeChange()">
@@ -174,7 +189,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- PARTICLE -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Particle</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-particle" onclick="toggleSec(this)"><span>✦ Particle</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row"><label>Shape</label>
         <select id="particleShape" onchange="onParticleShapeChange()">
@@ -340,7 +355,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- COLOR -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Color &amp; Gradient</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-color" onclick="toggleSec(this)"><span>🎨 Color &amp; Gradient</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="sub-label">4 gradient stops (drag position, toggle to enable)</div>
       <div id="grad-editor">
@@ -381,7 +396,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- PHYSICS -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Physics</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-physics" onclick="toggleSec(this)"><span>⚙ Physics</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <input type="hidden" id="gravX" value="0">
       <div class="row"><label>Gravity ↓</label>
@@ -467,7 +482,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- CAMERA / 3D -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Camera / 3D</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-camera" onclick="toggleSec(this)"><span>📷 Camera / 3D</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row" style="align-items:center;gap:6px">
         <label style="width:88px;flex-shrink:0;color:#999;font-size:11px">Enable 3D</label>
@@ -499,13 +514,13 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- SUB-SHAPES -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Sub-Shapes</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-shapes" onclick="toggleSec(this)"><span>◈ Sub-Shapes</span><span class="arrow">▼</span></div>
     <div class="sec-body" id="shapesBody">
       <!-- built by JS -->
     </div>
 
     <!-- BACKGROUND -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Background</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-bg" onclick="toggleSec(this)"><span>🖼 Background</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row"><label>BG Color</label>
         <input type="color" id="bgColor" value="#0a0a0f" onchange="drawBackground()" style="width:38px;height:22px;padding:1px;cursor:pointer">
@@ -532,7 +547,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- FX -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>FX</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-fx" onclick="toggleSec(this)"><span>✨ FX</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row"><label>Glow Radius</label>
         <input type="range" id="glowRadius" min="0" max="60" value="18" oninput="syncVal(this,'glowRadius_v');onCfgChange()">
@@ -565,7 +580,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
     </div>
 
     <!-- EXPORT / BUDGET -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Export &amp; Budget</span><span class="arrow">▼</span></div>
+    <div class="sec-head sh-export" onclick="toggleSec(this)"><span>⬇ Export &amp; Budget</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row"><label>Budget (max)</label>
         <input type="range" id="budget" min="10" max="5000" step="10" value="500" oninput="document.getElementById('budget_v').value=this.value;applyAutoBudget();onCfgChange()">
