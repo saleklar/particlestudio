@@ -2871,11 +2871,20 @@ function exportSpineJSON(){
   var dt=1/fps;
   var exportFname=document.getElementById('exportName').value||'particles';
 
-  // Collect per-emitter full configs (temporarily restore each emitter to DOM)
+  // Collect per-emitter full configs
+  // For each emitter: if it has a saved cfg, read blendMode (and other per-emitter keys)
+  // directly from that snapshot rather than going through the DOM, to avoid null-cfg issues.
   var emCfgs=[];
   for(var _ei=0;_ei<emitters.length;_ei++){
     restoreCfgFromEmitter(_ei);
     var _ec2=getConfig();
+    // If this emitter has a saved cfg, override specific per-emitter visual keys
+    // directly from the snapshot so they're never lost to DOM state from another emitter.
+    var _eSnap=emitters[_ei].cfg;
+    if(_eSnap){
+      if(_eSnap.blendMode!==undefined) _ec2.blendMode=_eSnap.blendMode;
+      if(_eSnap.particleShape!==undefined) _ec2.particleShape=_eSnap.particleShape;
+    }
     // Global keys override so all emitters share the same timing/scale
     _ec2.exportFPS=fps; _ec2.exportDur=dur; _ec2.spineScale=scale; _ec2.boneCount=bCount;
     emCfgs.push(_ec2);
@@ -2930,11 +2939,10 @@ function exportSpineJSON(){
       bones.push({name:bname,parent:singleEmitter?'root':emPrefix});
     }
 
-    // Slots with blend mode
-    var spineBlend=_blendMap[cfg.blendMode||'lighter']||'additive';
+    // Slots with blend mode — always write blend explicitly so it's visible in the JSON
+    var spineBlend=_blendMap[cfg.blendMode]||'additive';
     emBoneNames.forEach(function(bn){
-      var sl={name:bn,bone:bn,attachment:attNames[0]};
-      if(spineBlend!=='normal') sl.blend=spineBlend;
+      var sl={name:bn,bone:bn,attachment:attNames[0],blend:spineBlend};
       slots.push(sl);
     });
 
@@ -3102,12 +3110,13 @@ function previewSpineJSON(){
       if(_uc&&customImages[0]){_rw=customImages[0].naturalWidth||128;_rh=customImages[0].naturalHeight||128;}
       var _ep=singleEm?'':('e'+_pei);
       if(!singleEm) pvBones.push({name:_ep,parent:'root'});
-      var _spBlend=_blendMap[_pc.blendMode||'lighter']||'additive';
+      var _eSnap2=emitters[_pei].cfg;
+      var _blendVal=(_eSnap2&&_eSnap2.blendMode!==undefined)?_eSnap2.blendMode:_pc.blendMode;
+      var _spBlend=_blendMap[_blendVal]||'additive';
       for(var _pb=0;_pb<bCount;_pb++){
         var _bn=singleEm?('p'+_pb):(_ep+'_p'+_pb);
         pvBones.push({name:_bn,parent:singleEm?'root':_ep});
-        var _sl={name:_bn,bone:_bn,attachment:_pa[0]};
-        if(_spBlend!=='normal') _sl.blend=_spBlend;
+        var _sl={name:_bn,bone:_bn,attachment:_pa[0],blend:_spBlend};
         pvSlots.push(_sl);
         pvSkin[_bn]={};
         _pa.forEach(function(an,ai){
