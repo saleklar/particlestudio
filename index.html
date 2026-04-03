@@ -2858,172 +2858,190 @@ function _genDefaultParticlePNG(shape){
 }
 
 function exportSpineJSON(){
-  var cfg=getConfig();
-  var fps=cfg.exportFPS;
-  var dur=cfg.exportDur;
-  var scale=cfg.spineScale;
-  var bCount=cfg.boneCount;
+  // Ensure current UI is saved
+  saveCfgToEmitter(activeEmitterIdx);
+
+  // Global settings from current UI
+  var globalCfg=getConfig();
+  var fps=globalCfg.exportFPS;
+  var dur=globalCfg.exportDur;
+  var scale=globalCfg.spineScale;
+  var bCount=globalCfg.boneCount;
   var totalFrames=Math.round(dur*fps);
   var dt=1/fps;
-
   var exportFname=document.getElementById('exportName').value||'particles';
 
-  // Determine image set: custompng with loaded files, or generate a default texture
-  var usingCustom = cfg.particleShape==='custompng' && customImages.length>0;
-  var imgCount, attNames, refW, refH, exportImages;
-  // exportImages: array of {name, dataUrl or img element}
-  if(usingCustom){
-    imgCount=customImages.length;
-    attNames=[];
-    for(var ai=0;ai<imgCount;ai++) attNames.push(customImageNames[ai]||('frame_'+ai));
-    refW=(customImages[0]&&customImages[0].naturalWidth>0)?customImages[0].naturalWidth:128;
-    refH=(customImages[0]&&customImages[0].naturalHeight>0)?customImages[0].naturalHeight:128;
-    exportImages=customImages.map(function(img,i){ return {name:attNames[i],src:img}; });
-  } else {
-    // Generate one default particle texture matching current shape
-    imgCount=1;
-    attNames=[exportFname+'_particle'];
-    refW=128; refH=128;
-    var defaultDataUrl=_genDefaultParticlePNG(cfg.particleShape||'glow');
-    exportImages=[{name:attNames[0],dataUrl:defaultDataUrl}];
+  // Collect per-emitter full configs (temporarily restore each emitter to DOM)
+  var emCfgs=[];
+  for(var _ei=0;_ei<emitters.length;_ei++){
+    restoreCfgFromEmitter(_ei);
+    var _ec2=getConfig();
+    // Global keys override so all emitters share the same timing/scale
+    _ec2.exportFPS=fps; _ec2.exportDur=dur; _ec2.spineScale=scale; _ec2.boneCount=bCount;
+    emCfgs.push(_ec2);
   }
+  // Restore active emitter UI
+  restoreCfgFromEmitter(activeEmitterIdx);
 
-  var simExport={particles:[],time:0,emitAccum:0};
-  // warm up
-  var warmSteps=Math.round((cfg.preRun||0)*fps);
-  for(var w=0;w<warmSteps;w++) tickSim(simExport, dt, cfg);
-
-  // record frames: allFrames[frame] = array of {x,y,sz,op,rot,r,g,b,fi}
-  var allFrames=[];
-  for(var f=0;f<totalFrames;f++){
-    tickSim(simExport, dt, cfg);
-    var snapshot=simExport.particles.map(function(p){
-      var lt=p.age/p.life;
-      var sz=lerp(p.sz0,p.sz1,lt)*scale;
-      var op=lerp(p.opStart,p.opEnd,lt);
-      var col=gradientColor(lt, cfg.gradientStops);
-      if(p.hueJitter!==0){ var hsl=rgb2hsl(col[0],col[1],col[2]); col=hsl2rgb(hsl[0]+p.hueJitter,hsl[1],hsl[2]); }
-      // compute image frame index (only matters for sequences)
-      var fi=0;
-      if(usingCustom && imgCount>1){
-        var mode=cfg.pngSeqMode||'life';
-        if(mode==='life') fi=Math.min(Math.floor(lt*imgCount),imgCount-1);
-        else if(mode==='fps') fi=Math.floor(p.age*(cfg.pngSeqFPS||24))%imgCount;
-        else fi=Math.min(Math.floor(lt*imgCount),imgCount-1);
-      }
-      return {x:(p.x-cfg.emitX)*scale, y:-(p.y-cfg.emitY)*scale, sz:sz, op:op, rot:-p.rot,
-              r:col[0], g:col[1], b:col[2], fi:fi};
-    });
-    allFrames.push(snapshot);
-  }
-
-  // Greedy bone pool assignment
-  var bAssign=[];
-  for(var f2=0;f2<totalFrames;f2++){
-    var arr=[]; for(var k=0;k<bCount;k++) arr.push(null);
-    bAssign.push(arr);
-  }
-  for(var f3=0;f3<totalFrames;f3++){
-    var snaps=allFrames[f3];
-    for(var pi=0;pi<snaps.length&&pi<bCount;pi++) bAssign[f3][pi]=snaps[pi];
-  }
-
-  // Build Spine JSON
+  // Combined Spine data structures
   var spineW=W/scale, spineH=H/scale;
   var bones=[{name:'root'}];
-  var boneNames=[];
-  for(var bi=0;bi<bCount;bi++){
-    var bname='p'+bi;
-    boneNames.push(bname);
-    bones.push({name:bname,parent:'root'});
-  }
-
-  // All slots default to the first attachment image (always a region)
-  // Map canvas blend modes to Spine 4.x blend modes
-  var _blendMap={'lighter':'additive','source-over':'normal','screen':'screen','overlay':'multiply'};
-  var spineBlend=_blendMap[cfg.blendMode||'lighter']||'additive';
-  var slots=boneNames.map(function(bn){
-    var sl={name:bn, bone:bn, attachment:attNames[0]};
-    if(spineBlend!=='normal') sl.blend=spineBlend;
-    return sl;
-  });
-
-  // Skins — Spine 4.x: skins is an ARRAY of skin objects,
-  // but attachments within each skin is a NESTED OBJECT {slotName:{attName:{...}}}
+  var slots=[];
   var skinAttsObj={};
-  boneNames.forEach(function(bn){
-    skinAttsObj[bn]={};
-    for(var ai=0;ai<imgCount;ai++){
-      var aname=attNames[ai];
-      var imgW, imgH;
-      if(usingCustom){
-        imgW=(customImages[ai]&&customImages[ai].naturalWidth>0)?customImages[ai].naturalWidth:refW;
-        imgH=(customImages[ai]&&customImages[ai].naturalHeight>0)?customImages[ai].naturalHeight:refH;
-      } else { imgW=refW; imgH=refH; }
-      skinAttsObj[bn][aname]={width:imgW,height:imgH};
-    }
-  });
-  var skins=[{name:'default',attachments:skinAttsObj}];
-
-  // Bone animation timelines: translate + rotate + scale
   var bones_anim={};
-  boneNames.forEach(function(bn, bi){
-    var translateKF=[], rotateKF=[], scaleKF=[];
-    for(var f4=0;f4<totalFrames;f4++){
-      var t4=f4/fps;
-      var snap=bAssign[f4][bi];
-      var x=snap?snap.x:0, y=snap?snap.y:-9999;
-      var rot=snap?snap.rot:0;
-      translateKF.push({time:t4,x:x,y:y,curve:'stepped'});
-      rotateKF.push({time:t4,angle:rot,curve:'stepped'});
-      // scale so region renders at the particle's diameter
-      var sx=snap?(snap.sz*2)/refW:0;
-      var sy=snap?(snap.sz*2)/refH:0;
-      scaleKF.push({time:t4,x:sx,y:sy,curve:'stepped'});
-    }
-    bones_anim[bn]={translate:translateKF,rotate:rotateKF,scale:scaleKF};
-  });
-
-  // Slot timelines — color + attachment swap for PNG sequences
   var slots_anim={};
-  boneNames.forEach(function(bn, bi){
-    var colorKF=[], attKF=[];
-    var needAttTimeline=usingCustom && imgCount>1;
-    var lastFi=-999;
-    for(var f5=0;f5<totalFrames;f5++){
-      var t5=f5/fps;
-      var snap=bAssign[f5][bi];
-      var r8=snap?Math.round(snap.r*255):0;
-      var g8=snap?Math.round(snap.g*255):0;
-      var b8=snap?Math.round(snap.b*255):0;
-      var a8=snap?Math.round(snap.op*255):0;
-      var rgba=('0'+r8.toString(16)).slice(-2)+('0'+g8.toString(16)).slice(-2)+('0'+b8.toString(16)).slice(-2)+('0'+a8.toString(16)).slice(-2);
-      colorKF.push({time:t5,color:rgba,curve:'stepped'});
-      if(needAttTimeline){
-        var curFi=snap?snap.fi:0;
-        if(curFi!==lastFi){
-          if(snap) attKF.push({time:t5,name:attNames[curFi]});
-          lastFi=curFi;
+  var allExportImages=[];
+  var imageNamesUsed={};
+  var _blendMap={'lighter':'additive','source-over':'normal','screen':'screen','overlay':'multiply'};
+  var singleEmitter=(emitters.length===1);
+
+  for(var ei=0;ei<emitters.length;ei++){
+    var cfg=emCfgs[ei];
+    // Sub-root bone for this emitter (skip for single emitter for cleaner output)
+    var emPrefix=singleEmitter?'':(('e'+ei));
+    if(!singleEmitter) bones.push({name:emPrefix,parent:'root'});
+
+    // Image set for this emitter
+    var usingCustom=cfg.particleShape==='custompng'&&customImages.length>0;
+    var imgCount,attNames,refW,refH,emExportImages;
+    if(usingCustom){
+      imgCount=customImages.length;
+      attNames=customImages.map(function(_,i){return customImageNames[i]||('frame_'+i);});
+      refW=(customImages[0]&&customImages[0].naturalWidth>0)?customImages[0].naturalWidth:128;
+      refH=(customImages[0]&&customImages[0].naturalHeight>0)?customImages[0].naturalHeight:128;
+      emExportImages=customImages.map(function(img,i){return{name:attNames[i],src:img};});
+    } else {
+      imgCount=1;
+      var pname=singleEmitter?(exportFname+'_particle'):(exportFname+'_e'+ei+'_particle');
+      attNames=[pname];
+      refW=128; refH=128;
+      var defaultDataUrl=_genDefaultParticlePNG(cfg.particleShape||'glow');
+      emExportImages=[{name:pname,dataUrl:defaultDataUrl}];
+    }
+    emExportImages.forEach(function(img){
+      if(!imageNamesUsed[img.name]){imageNamesUsed[img.name]=true;allExportImages.push(img);}
+    });
+
+    // Bone names for this emitter's particles
+    var emBoneNames=[];
+    for(var bi=0;bi<bCount;bi++){
+      var bname=singleEmitter?('p'+bi):(emPrefix+'_p'+bi);
+      emBoneNames.push(bname);
+      bones.push({name:bname,parent:singleEmitter?'root':emPrefix});
+    }
+
+    // Slots with blend mode
+    var spineBlend=_blendMap[cfg.blendMode||'lighter']||'additive';
+    emBoneNames.forEach(function(bn){
+      var sl={name:bn,bone:bn,attachment:attNames[0]};
+      if(spineBlend!=='normal') sl.blend=spineBlend;
+      slots.push(sl);
+    });
+
+    // Skin attachments
+    emBoneNames.forEach(function(bn){
+      skinAttsObj[bn]={};
+      for(var ai=0;ai<imgCount;ai++){
+        var aname=attNames[ai];
+        var imgW=refW,imgH=refH;
+        if(usingCustom){
+          imgW=(customImages[ai]&&customImages[ai].naturalWidth>0)?customImages[ai].naturalWidth:refW;
+          imgH=(customImages[ai]&&customImages[ai].naturalHeight>0)?customImages[ai].naturalHeight:refH;
+        }
+        skinAttsObj[bn][aname]={width:imgW,height:imgH};
+      }
+    });
+
+    // Simulate this emitter
+    var simEx={particles:[],time:0,emitAccum:0};
+    var warmSteps=Math.round((cfg.preRun||0)*fps);
+    for(var w=0;w<warmSteps;w++) tickSim(simEx,dt,cfg);
+
+    var allFrames=[];
+    for(var f=0;f<totalFrames;f++){
+      tickSim(simEx,dt,cfg);
+      var snapshot=simEx.particles.map(function(p){
+        var lt=p.age/p.life;
+        var sz=lerp(p.sz0,p.sz1,lt)*scale;
+        var op=lerp(p.opStart,p.opEnd,lt);
+        var col=gradientColor(lt,cfg.gradientStops);
+        if(p.hueJitter!==0){var hsl=rgb2hsl(col[0],col[1],col[2]);col=hsl2rgb(hsl[0]+p.hueJitter,hsl[1],hsl[2]);}
+        var fi=0;
+        if(usingCustom&&imgCount>1){
+          var mode=cfg.pngSeqMode||'life';
+          if(mode==='life') fi=Math.min(Math.floor(lt*imgCount),imgCount-1);
+          else if(mode==='fps') fi=Math.floor(p.age*(cfg.pngSeqFPS||24))%imgCount;
+          else fi=Math.min(Math.floor(lt*imgCount),imgCount-1);
+        }
+        return{x:(p.x-cfg.emitX)*scale,y:-(p.y-cfg.emitY)*scale,sz:sz,op:op,rot:-p.rot,
+               r:col[0],g:col[1],b:col[2],fi:fi};
+      });
+      allFrames.push(snapshot);
+    }
+
+    // Greedy bone pool assignment
+    var bAssign=[];
+    for(var f2=0;f2<totalFrames;f2++){
+      var arr2=[]; for(var k=0;k<bCount;k++) arr2.push(null);
+      bAssign.push(arr2);
+    }
+    for(var f3=0;f3<totalFrames;f3++){
+      var snaps=allFrames[f3];
+      for(var pi=0;pi<snaps.length&&pi<bCount;pi++) bAssign[f3][pi]=snaps[pi];
+    }
+
+    // Bone animation timelines
+    emBoneNames.forEach(function(bn,bi){
+      var translateKF=[],rotateKF=[],scaleKF=[];
+      for(var f4=0;f4<totalFrames;f4++){
+        var t4=f4/fps;
+        var snap=bAssign[f4][bi];
+        translateKF.push({time:t4,x:snap?snap.x:0,y:snap?snap.y:-9999,curve:'stepped'});
+        rotateKF.push({time:t4,angle:snap?snap.rot:0,curve:'stepped'});
+        var sx=snap?(snap.sz*2)/refW:0;
+        var sy=snap?(snap.sz*2)/refH:0;
+        scaleKF.push({time:t4,x:sx,y:sy,curve:'stepped'});
+      }
+      bones_anim[bn]={translate:translateKF,rotate:rotateKF,scale:scaleKF};
+    });
+
+    // Slot timelines (color + optional attachment swap)
+    emBoneNames.forEach(function(bn,bi){
+      var colorKF=[],attKF=[],lastFi=-999;
+      var needAtt=usingCustom&&imgCount>1;
+      for(var f5=0;f5<totalFrames;f5++){
+        var t5=f5/fps;
+        var snap=bAssign[f5][bi];
+        var r8=snap?Math.round(snap.r*255):0;
+        var g8=snap?Math.round(snap.g*255):0;
+        var b8=snap?Math.round(snap.b*255):0;
+        var a8=snap?Math.round(snap.op*255):0;
+        var rgba=('0'+r8.toString(16)).slice(-2)+('0'+g8.toString(16)).slice(-2)+('0'+b8.toString(16)).slice(-2)+('0'+a8.toString(16)).slice(-2);
+        colorKF.push({time:t5,color:rgba,curve:'stepped'});
+        if(needAtt){
+          var curFi=snap?snap.fi:0;
+          if(curFi!==lastFi){if(snap)attKF.push({time:t5,name:attNames[curFi]});lastFi=curFi;}
         }
       }
-    }
-    var st={rgba:colorKF};
-    if(needAttTimeline && attKF.length>0) st.attachment=attKF;
-    slots_anim[bn]=st;
-  });
+      var st={rgba:colorKF};
+      if(needAtt&&attKF.length>0) st.attachment=attKF;
+      slots_anim[bn]=st;
+    });
+  }
 
+  var skins=[{name:'default',attachments:skinAttsObj}];
   var spineObj={
     skeleton:{spine:'4.2',x:0,y:0,width:Math.round(spineW),height:Math.round(spineH),fps:fps,images:'./images/'},
     bones:bones,slots:slots,skins:skins,
     animations:{particles:{bones:bones_anim,slots:slots_anim}}
   };
-  var jsonStr=JSON.stringify(spineObj, null, 2);
+  var jsonStr=JSON.stringify(spineObj,null,2);
   window._lastSpineJSON=jsonStr;
-  downloadJSON(jsonStr, exportFname+'.json');
+  downloadJSON(jsonStr,exportFname+'.json');
 
-  // Download all image files (custom or generated default)
-  var _ec=document.createElement('canvas'); var _ecx=_ec.getContext('2d');
-  exportImages.forEach(function(img, xi){
+  // Download all image files
+  var _ecCvs=document.createElement('canvas'); var _ecCtx=_ecCvs.getContext('2d');
+  allExportImages.forEach(function(img,xi){
     setTimeout(function(){
       var a=document.createElement('a');
       if(img.dataUrl){
@@ -3031,21 +3049,22 @@ function exportSpineJSON(){
       } else {
         var src=img.src;
         if(!src||!src.complete||!src.naturalWidth) return;
-        _ec.width=src.naturalWidth; _ec.height=src.naturalHeight;
-        _ecx.clearRect(0,0,_ec.width,_ec.height);
-        _ecx.drawImage(src,0,0);
-        a.href=_ec.toDataURL('image/png');
+        _ecCvs.width=src.naturalWidth; _ecCvs.height=src.naturalHeight;
+        _ecCtx.clearRect(0,0,_ecCvs.width,_ecCvs.height);
+        _ecCtx.drawImage(src,0,0);
+        a.href=_ecCvs.toDataURL('image/png');
       }
       a.download=img.name+'.png'; a.click();
-    }, xi*80);
+    },xi*80);
   });
 
   setTimeout(function(){
-    var msg='Exported Spine JSON: '+exportFname+'.json\n'+bCount+' bones · '+totalFrames+' frames · '+fps+' fps'
-      +'\n\n'+exportImages.length+' image file(s) downloaded.\nPlace them in the ./images/ folder of your Spine project.'
+    var msg='Exported Spine JSON: '+exportFname+'.json\n'
+      +emitters.length+' emitter(s) · '+bCount+' bones each · '+totalFrames+' frames · '+fps+' fps'
+      +'\n\n'+allExportImages.length+' image file(s) downloaded.\nPlace them in the ./images/ folder of your Spine project.'
       +'\n\nTip: click "Preview JSON" button to inspect the skeleton structure.';
     alert(msg);
-  }, exportImages.length*80+200);
+  },allExportImages.length*80+200);
 }
 
 function previewSpineJSON(){
@@ -3064,41 +3083,47 @@ function previewSpineJSON(){
         +'\n\n=== RAW FIRST 4000 CHARS ===\n'+window._lastSpineJSON.slice(0,4000);
     }catch(e){ txt=window._lastSpineJSON.slice(0,6000); }
   } else {
-    // No export yet \u2014 build structure preview
+    // No export yet — build structure preview (multi-emitter aware)
+    saveCfgToEmitter(activeEmitterIdx);
     var cfg=getConfig();
     var bCount=cfg.boneCount;
     var exportFname=document.getElementById('exportName').value||'particles';
-    var usingCustom=cfg.particleShape==='custompng'&&customImages.length>0;
-    var attNames=usingCustom
-      ? customImages.map(function(_,i){return customImageNames[i]||('frame_'+i);})
-      : [exportFname+'_particle'];
-    var imgCount=attNames.length;
-    var refW=128,refH=128;
-    if(usingCustom&&customImages[0]){refW=customImages[0].naturalWidth||128;refH=customImages[0].naturalHeight||128;}
-    var boneNames=[]; var bones=[{name:'root'}];
-    for(var bi=0;bi<bCount;bi++){boneNames.push('p'+bi);bones.push({name:'p'+bi,parent:'root'});}
+    var singleEm=(emitters.length===1);
     var _blendMap={'lighter':'additive','source-over':'normal','screen':'screen','overlay':'multiply'};
-    var spineBlend=_blendMap[cfg.blendMode||'lighter']||'additive';
-    var slots=boneNames.map(function(bn){
-      var sl={name:bn,bone:bn,attachment:attNames[0]};
-      if(spineBlend!=='normal') sl.blend=spineBlend;
-      return sl;
-    });
-    var skinAttsObj={};
-    boneNames.forEach(function(bn){
-      skinAttsObj[bn]={};
-      for(var ai=0;ai<imgCount;ai++){
-        var iw=usingCustom&&customImages[ai]?customImages[ai].naturalWidth||refW:refW;
-        var ih=usingCustom&&customImages[ai]?customImages[ai].naturalHeight||refH:refH;
-        skinAttsObj[bn][attNames[ai]]={width:iw,height:ih};
+    var pvBones=[{name:'root'}]; var pvSlots=[]; var pvSkin={};
+    for(var _pei=0;_pei<emitters.length;_pei++){
+      restoreCfgFromEmitter(_pei);
+      var _pc=getConfig();
+      var _uc=_pc.particleShape==='custompng'&&customImages.length>0;
+      var _pa=_uc?customImages.map(function(_,i){return customImageNames[i]||('frame_'+i);})
+                 :[exportFname+(_uc?'':singleEm?'_particle':('_e'+_pei+'_particle'))];
+      if(!_uc) _pa=[exportFname+(singleEm?'_particle':('_e'+_pei+'_particle'))];
+      var _rw=128,_rh=128;
+      if(_uc&&customImages[0]){_rw=customImages[0].naturalWidth||128;_rh=customImages[0].naturalHeight||128;}
+      var _ep=singleEm?'':('e'+_pei);
+      if(!singleEm) pvBones.push({name:_ep,parent:'root'});
+      var _spBlend=_blendMap[_pc.blendMode||'lighter']||'additive';
+      for(var _pb=0;_pb<bCount;_pb++){
+        var _bn=singleEm?('p'+_pb):(_ep+'_p'+_pb);
+        pvBones.push({name:_bn,parent:singleEm?'root':_ep});
+        var _sl={name:_bn,bone:_bn,attachment:_pa[0]};
+        if(_spBlend!=='normal') _sl.blend=_spBlend;
+        pvSlots.push(_sl);
+        pvSkin[_bn]={};
+        _pa.forEach(function(an,ai){
+          var iw=_uc&&customImages[ai]?customImages[ai].naturalWidth||_rw:_rw;
+          var ih=_uc&&customImages[ai]?customImages[ai].naturalHeight||_rh:_rh;
+          pvSkin[_bn][an]={width:iw,height:ih};
+        });
       }
-    });
+    }
+    restoreCfgFromEmitter(activeEmitterIdx);
     var preview={
       skeleton:{spine:'4.2',x:0,y:0,width:Math.round(W),height:Math.round(H),fps:cfg.exportFPS,images:'./images/'},
-      bones:bones, slots:slots, skins:[{name:'default',attachments:skinAttsObj}],
+      bones:pvBones, slots:pvSlots, skins:[{name:'default',attachments:pvSkin}],
       animations:'(export first to see keyframes)'
     };
-    txt='=== STRUCTURE PREVIEW (no export done yet) ===\n'+JSON.stringify(preview,null,2);
+    txt='=== STRUCTURE PREVIEW (no export done yet, '+emitters.length+' emitter(s)) ===\n'+JSON.stringify(preview,null,2);
   }
   // Show in overlay
   var ov=document.createElement('div');
