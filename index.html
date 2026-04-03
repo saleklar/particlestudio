@@ -141,6 +141,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <option value="line">Line</option>
           <option value="sphere">Sphere</option>
           <option value="path">Path (draw on canvas)</option>
+          <option value="bezier">Bézier Spline</option>
         </select>
       </div>
       <div class="two-col">
@@ -176,24 +177,35 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
         <input type="range" id="preRun" min="0" max="10" step="0.1" value="0" oninput="syncVal(this,'preRun_v');onCfgChange()">
         <span class="val" id="preRun_v">0</span>
       </div>
-      <!-- PATH PANEL -->
+      <!-- PATH / BEZIER PANEL -->
       <div id="pathPanel" style="display:none;margin-top:6px;padding:6px;background:#161626;border-radius:3px;border:1px solid #334">
-        <div class="sub-label" style="color:#0cf;margin-bottom:5px">Path Emitter</div>
-        <div style="display:flex;gap:5px;margin-bottom:5px">
-          <button id="pathEditBtn" onclick="togglePathEdit()" style="flex:1;font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✏️ Draw Path</button>
-          <button onclick="clearPath();onCfgChange()" style="font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✕ Clear</button>
-        </div>
-        <div style="font-size:10px;color:#556;margin-bottom:3px">Click canvas = add point &nbsp;|&nbsp; Right-click = done</div>
-        <div class="row"><label>Spread px</label>
-          <!-- emitRadius used as spread width in path mode too -->
-        </div>
-        <div style="margin-top:7px">
-          <div class="sub-label" style="margin-bottom:3px;color:#0cf">Opacity Along Path
-            <input type="checkbox" id="opPathCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#0cf;margin-left:6px;vertical-align:middle">
-            <span style="font-size:10px;color:#556"> enable</span>
+        <!-- Path emitter controls -->
+        <div id="pathControls">
+          <div class="sub-label" style="color:#0cf;margin-bottom:5px">Path Emitter</div>
+          <div style="display:flex;gap:5px;margin-bottom:5px">
+            <button id="pathEditBtn" onclick="togglePathEdit()" style="flex:1;font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✏️ Draw Path</button>
+            <button onclick="clearPath();onCfgChange()" style="font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✕ Clear</button>
           </div>
-          <div id="opc-editor"></div>
-          <canvas id="opc-preview" width="268" height="30" style="display:block;border:1px solid #1a3040;border-radius:2px;margin-top:2px"></canvas>
+          <div style="font-size:10px;color:#556;margin-bottom:3px">Click canvas = add point &nbsp;|&nbsp; Right-click = done</div>
+          <div class="row"><label>Spread px</label></div>
+          <div style="margin-top:7px">
+            <div class="sub-label" style="margin-bottom:3px;color:#0cf">Opacity Along Path
+              <input type="checkbox" id="opPathCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#0cf;margin-left:6px;vertical-align:middle">
+              <span style="font-size:10px;color:#556"> enable</span>
+            </div>
+            <div id="opc-editor"></div>
+            <canvas id="opc-preview" width="268" height="30" style="display:block;border:1px solid #1a3040;border-radius:2px;margin-top:2px"></canvas>
+          </div>
+        </div>
+        <!-- Bezier spline emitter controls -->
+        <div id="bezierControls" style="display:none">
+          <div class="sub-label" style="color:#c080ff;margin-bottom:5px">Bézier Spline Emitter</div>
+          <div style="display:flex;gap:5px;margin-bottom:5px">
+            <button id="bezierEditBtn" onclick="toggleBezierEdit()" style="flex:1;font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✏️ Draw Spline</button>
+            <button onclick="clearBezier();onCfgChange()" style="font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✕ Clear</button>
+          </div>
+          <div style="font-size:10px;color:#556;margin-bottom:3px">Click = add point &nbsp;·&nbsp; Drag = move &nbsp;·&nbsp; Right-click point = delete</div>
+          <div class="row"><label>Spread px</label></div>
         </div>
       </div>
     </div>
@@ -1193,6 +1205,7 @@ function getConfig(){
     spineScale:V('spineScale'),
     gradientStops:getGradientStops(),
     subShapes:getSubShapes(),
+    bezPts:(typeof emitters!=='undefined'&&emitters[activeEmitterIdx])?emitters[activeEmitterIdx].bezPts||[]:[],
     enable3D:document.getElementById('enable3D').checked,
     camYaw:V('camYaw'), camPitch:V('camPitch'),
     camDist:V('camDist'), camFOV:V('camFOV'),
@@ -1421,7 +1434,7 @@ function buildEmitterTabs(){
 function addEmitter(){
   // snapshot current UI into active emitter
   saveCfgToEmitter(activeEmitterIdx);
-  var newEm={name:'Emitter '+(emitters.length+1),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:[],pathMode:'once',muted:false};
+  var newEm={name:'Emitter '+(emitters.length+1),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:[],pathMode:'once',muted:false,bezPts:[]};
   emitters.push(newEm);
   switchEmitter(emitters.length-1);
 }
@@ -1481,6 +1494,7 @@ function saveCfgToEmitter(idx){
   // path
   data._path=em.path.slice();
   data._pathMode=em.pathMode||'once';
+  data._bezPts=(emitters[idx].bezPts||[]).map(function(p){return{x:p.x,y:p.y};});
   em.cfg=data;
 }
 
@@ -1540,6 +1554,7 @@ function restoreCfgFromEmitter(idx){
   }
   em.path=data._path||[];
   em.pathMode=data._pathMode||'once';
+  emitters[idx].bezPts=(data._bezPts||[]).map(function(p){return{x:p.x,y:p.y};});
   onParticleShapeChange();
   onPngModeChange();
   updateGradPreview();
@@ -1555,11 +1570,18 @@ function restoreCfgFromEmitter(idx){
 // ============================================================
 var pathEditMode=false;
 var pathCanvas=null; // created by updatePathPanel
+var bezierEditMode=false;
+var bezierDragIdx=-1;
 
 function updatePathPanel(){
-  var isPath=document.getElementById('emitType').value==='path';
+  var type=document.getElementById('emitType').value;
   var panel=document.getElementById('pathPanel');
-  if(panel) panel.style.display=isPath?'block':'none';
+  var isPath=(type==='path'), isBez=(type==='bezier');
+  if(panel) panel.style.display=(isPath||isBez)?'block':'none';
+  var pc=document.getElementById('pathControls');
+  var bc=document.getElementById('bezierControls');
+  if(pc) pc.style.display=isPath?'block':'none';
+  if(bc) bc.style.display=isBez?'block':'none';
 }
 
 function togglePathEdit(){
@@ -1573,6 +1595,33 @@ function togglePathEdit(){
 
 function clearPath(){
   emitters[activeEmitterIdx].path=[];
+}
+
+function toggleBezierEdit(){
+  bezierEditMode=!bezierEditMode;
+  var btn=document.getElementById('bezierEditBtn');
+  if(btn){btn.style.background=bezierEditMode?'#300050':'#1e2030';btn.style.color=bezierEditMode?'#c080ff':'#aaa';btn.style.borderColor=bezierEditMode?'#a040ff':'#444';}
+  var hint=document.getElementById('canvas-hint');
+  if(hint) hint.textContent=bezierEditMode?'Click=add point · Drag=move · Right-click point=delete':'Click canvas to place emitter · Drag to move';
+  cvsMain.style.cursor=bezierEditMode?'crosshair':'default';
+}
+
+function clearBezier(){
+  if(emitters[activeEmitterIdx]) emitters[activeEmitterIdx].bezPts=[];
+}
+
+function evalCatmullRomPt(pts, u){
+  var n=pts.length;
+  if(n===1) return{x:pts[0].x,y:pts[0].y};
+  var maxSeg=n-1;
+  var si=Math.min(Math.floor(u*maxSeg),maxSeg-1);
+  var lt=u*maxSeg-si;
+  var p0=pts[Math.max(0,si-1)], p1=pts[si], p2=pts[Math.min(n-1,si+1)], p3=pts[Math.min(n-1,si+2)];
+  var lt2=lt*lt, lt3=lt2*lt;
+  return{
+    x:0.5*((2*p1.x)+(-p0.x+p2.x)*lt+(2*p0.x-5*p1.x+4*p2.x-p3.x)*lt2+(-p0.x+3*p1.x-3*p2.x+p3.x)*lt3),
+    y:0.5*((2*p1.y)+(-p0.y+p2.y)*lt+(2*p0.y-5*p1.y+4*p2.y-p3.y)*lt2+(-p0.y+3*p1.y-3*p2.y+p3.y)*lt3)
+  };
 }
 
 function samplePath(path, t){
@@ -1622,6 +1671,24 @@ function makeParticle(cfg, t, emitterPath){
     ey+=cth*cfg.emitRadius;
   } else if(type==='line'){
     ex+=rnd(-cfg.emitRadius,cfg.emitRadius);
+  } else if(type==='bezier' && cfg.bezPts && cfg.bezPts.length>1){
+    var bpts=cfg.bezPts;
+    var N=Math.min(300,bpts.length*40);
+    var bcache=[];
+    for(var bi2=0;bi2<=N;bi2++){var bpt=evalCatmullRomPt(bpts,bi2/N);bcache.push({x:bpt.x,y:bpt.y});}
+    // add tangents for samplePath
+    for(var bi3=0;bi3<bcache.length;bi3++){
+      var _nxt=bcache[Math.min(bcache.length-1,bi3+1)];
+      var _prv=bcache[Math.max(0,bi3-1)];
+      bcache[bi3].dx=_nxt.x-_prv.x; bcache[bi3].dy=_nxt.y-_prv.y;
+    }
+    var pathT=Math.random(); spawnPathT=pathT;
+    var sp=samplePath(bcache,pathT);
+    if(sp){
+      ex=sp.x+rnd(-cfg.emitRadius*0.15,cfg.emitRadius*0.15);
+      ey=sp.y+rnd(-cfg.emitRadius*0.15,cfg.emitRadius*0.15);
+      dir=Math.atan2(sp.dy,sp.dx)+rnd(-1,1)*deg2rad(cfg.emitSpread/2);
+    }
   } else if(type==='path' && emitterPath && emitterPath.length>1){
     var pathT=Math.random(); spawnPathT=pathT;
     var sp=samplePath(emitterPath, pathT);
@@ -2204,6 +2271,32 @@ function renderFrame(cfg){
       }
       ctxMain.restore();
     }
+    // Draw bezier spline if this emitter uses bezier type
+    var ebez=emitters[ei].bezPts;
+    if(ebez&&ebez.length>=2){
+      ctxMain.save();
+      ctxMain.strokeStyle=isActive?'rgba(200,80,255,0.85)':'rgba(160,60,200,0.3)';
+      ctxMain.lineWidth=isActive?2:1;
+      ctxMain.setLineDash([]);
+      ctxMain.beginPath();
+      ctxMain.moveTo(ebez[0].x,ebez[0].y);
+      for(var bpi=0;bpi<ebez.length-1;bpi++){
+        var bp0=ebez[Math.max(0,bpi-1)],bp1=ebez[bpi],bp2=ebez[bpi+1],bp3=ebez[Math.min(ebez.length-1,bpi+2)];
+        var cp1x=bp1.x+(bp2.x-bp0.x)/6,cp1y=bp1.y+(bp2.y-bp0.y)/6;
+        var cp2x=bp2.x-(bp3.x-bp1.x)/6,cp2y=bp2.y-(bp3.y-bp1.y)/6;
+        ctxMain.bezierCurveTo(cp1x,cp1y,cp2x,cp2y,bp2.x,bp2.y);
+      }
+      ctxMain.stroke();
+      for(var bpi2=0;bpi2<ebez.length;bpi2++){
+        var isDragPt=(bezierEditMode&&isActive&&bpi2===bezierDragIdx);
+        ctxMain.beginPath();
+        ctxMain.arc(ebez[bpi2].x,ebez[bpi2].y,isActive?(isDragPt?9:6):3,0,Math.PI*2);
+        ctxMain.fillStyle=bpi2===0?'rgba(0,255,120,0.9)':(bpi2===ebez.length-1?'rgba(255,80,80,0.9)':'rgba(200,80,255,0.85)');
+        ctxMain.fill();
+        if(isActive){ctxMain.strokeStyle='rgba(255,255,255,0.4)';ctxMain.lineWidth=1;ctxMain.stroke();}
+      }
+      ctxMain.restore();
+    }
     // ghost crosshair for non-active emitters
     if(ei!==activeEmitterIdx){
       var ecfg2=emCfgs[ei];
@@ -2389,6 +2482,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
   c.enable3D=globalCfg.enable3D; c.camYaw=globalCfg.camYaw; c.camPitch=globalCfg.camPitch;
   c.camDist=globalCfg.camDist; c.camFOV=globalCfg.camFOV; c.emitPitch=globalCfg.emitPitch||0;
   c.motionBlur=globalCfg.motionBlur; c.budget=globalCfg.budget;
+  c.bezPts=snap._bezPts||[];
   return c;
 }
 
@@ -2487,6 +2581,19 @@ function stylePickBtn(id,on){
 
 cvsMain.addEventListener('contextmenu',function(e){
   e.preventDefault();
+  var rect2=cvsMain.getBoundingClientRect();
+  var cx=Math.round(e.clientX-rect2.left), cy=Math.round(e.clientY-rect2.top);
+  // Bezier: right-click near anchor = delete it, else exit
+  if(bezierEditMode){
+    var bpts=emitters[activeEmitterIdx].bezPts||[];
+    var nxi=-1, nxd=14;
+    for(var bi=0;bi<bpts.length;bi++){
+      var dd=Math.sqrt((bpts[bi].x-cx)*(bpts[bi].x-cx)+(bpts[bi].y-cy)*(bpts[bi].y-cy));
+      if(dd<nxd){nxi=bi;nxd=dd;}
+    }
+    if(nxi>=0){bpts.splice(nxi,1);return;}
+    toggleBezierEdit();return;
+  }
   // Right-click in path edit mode = finish path
   if(pathEditMode){ togglePathEdit(); }
 });
@@ -2496,6 +2603,18 @@ cvsMain.addEventListener('mousedown',function(e){
   var y=Math.round(e.clientY-rect.top);
   if(vortexPickMode){ document.getElementById('vortexX').value=x; document.getElementById('vortexY').value=y; onCfgChange(); toggleVortexPick(); return; }
   if(attractorPickMode){ document.getElementById('attractorX').value=x; document.getElementById('attractorY').value=y; onCfgChange(); toggleAttractorPick(); return; }
+  // Bezier editing: left-click near anchor = start drag, else add anchor
+  if(bezierEditMode && e.button===0){
+    var bpts=emitters[activeEmitterIdx].bezPts||(emitters[activeEmitterIdx].bezPts=[]);
+    var nearest=-1, nearDist=14;
+    for(var bi=0;bi<bpts.length;bi++){
+      var bdd=Math.sqrt((bpts[bi].x-x)*(bpts[bi].x-x)+(bpts[bi].y-y)*(bpts[bi].y-y));
+      if(bdd<nearDist){nearest=bi;nearDist=bdd;}
+    }
+    if(nearest>=0){bezierDragIdx=nearest;}
+    else{bpts.push({x:x,y:y});}
+    return;
+  }
   // Path editing: left-click adds point
   if(pathEditMode && e.button===0){
     emitters[activeEmitterIdx].path.push({x:x,y:y});
@@ -2518,6 +2637,14 @@ cvsMain.addEventListener('mousedown',function(e){
   setEmitterPos(e);
 });
 cvsMain.addEventListener('mousemove',function(e){
+  // Bezier anchor drag
+  if(bezierDragIdx>=0&&bezierEditMode){
+    var rect3=cvsMain.getBoundingClientRect();
+    var bx=Math.round(e.clientX-rect3.left), by=Math.round(e.clientY-rect3.top);
+    var bpts=emitters[activeEmitterIdx].bezPts;
+    if(bpts&&bpts[bezierDragIdx]){bpts[bezierDragIdx].x=bx;bpts[bezierDragIdx].y=by;}
+    return;
+  }
   if(isDragOrbit){
     var dxO=e.clientX-orbitLastX, dyO=e.clientY-orbitLastY;
     orbitLastX=e.clientX; orbitLastY=e.clientY;
@@ -2536,7 +2663,7 @@ cvsMain.addEventListener('mousemove',function(e){
   }
   if(isDragging) setEmitterPos(e);
 });
-cvsMain.addEventListener('mouseup',function(e){ isDragging=false; isDragOrbit=false; isDragPan=false; cvsMain.style.cursor=vortexPickMode||attractorPickMode?'crosshair':'default'; });
+cvsMain.addEventListener('mouseup',function(e){ isDragging=false; isDragOrbit=false; isDragPan=false; bezierDragIdx=-1; cvsMain.style.cursor=vortexPickMode||attractorPickMode?'crosshair':(bezierEditMode?'crosshair':'default'); });
 cvsMain.addEventListener('mouseleave',function(){ isDragging=false; isDragOrbit=false; isDragPan=false; });
 cvsMain.addEventListener('wheel',function(e){
   if(!document.getElementById('enable3D').checked) return;
@@ -2876,7 +3003,7 @@ function applyPreset(){
     // Rebuild emitters array
     emitters=[];
     pd.emitters.forEach(function(ep,i){
-      emitters.push({name:ep.name||('Emitter '+(i+1)),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:ep.path||[],pathMode:'once',muted:false});
+      emitters.push({name:ep.name||('Emitter '+(i+1)),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:ep.path||[],pathMode:'once',muted:false,bezPts:[]});
     });
     activeEmitterIdx=0;
     simState=emitters[0].sim;
