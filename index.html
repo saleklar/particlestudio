@@ -333,6 +333,25 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <input type="range" id="turbScale" min="0.001" max="0.05" step="0.001" value="0.008" oninput="syncVal(this,'turbScale_v');onCfgChange()">
         <span class="val" id="turbScale_v">0.008</span>
       </div>
+      <div class="sub-label" style="margin-top:4px">Attractor</div>
+      <div class="row"><label>Strength</label>
+        <input type="range" id="attractorStr" min="-2000" max="2000" value="0" oninput="syncVal(this,'attractorStr_v');onCfgChange()">
+        <span class="val" id="attractorStr_v">0</span>
+      </div>
+      <div class="row" style="font-size:10px;color:#555;padding-left:2px;margin-top:-4px">+ attract &nbsp;|&nbsp; − repel</div>
+      <div class="row"><label>Radius</label>
+        <input type="range" id="attractorRadius" min="0" max="600" value="0" oninput="syncVal(this,'attractorRadius_v');onCfgChange()">
+        <span class="val" id="attractorRadius_v">0</span>
+      </div>
+      <div class="row" style="font-size:10px;color:#555;padding-left:2px;margin-top:-4px">0 = unlimited</div>
+      <div class="two-col">
+        <div class="row"><label>A X</label><input type="number" id="attractorX" value="" placeholder="auto" onchange="onCfgChange()"></div>
+        <div class="row"><label>A Y</label><input type="number" id="attractorY" value="" placeholder="auto" onchange="onCfgChange()"></div>
+      </div>
+      <div class="row" style="justify-content:flex-start;gap:6px">
+        <button id="attractorPickBtn" onclick="toggleAttractorPick()" title="Click canvas to set attractor position" style="font-size:11px;padding:2px 9px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">&#9935; Pick Center</button>
+        <button onclick="document.getElementById('attractorX').value='';document.getElementById('attractorY').value='';onCfgChange()" title="Reset to emitter center" style="font-size:11px;padding:2px 7px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">&#x2715; Clear</button>
+      </div>
     </div>
 
     <!-- SUB-SHAPES -->
@@ -619,6 +638,10 @@ function getConfig(){
     vortexX:document.getElementById('vortexX').value!==''?V('vortexX'):null,
     vortexY:document.getElementById('vortexY').value!==''?V('vortexY'):null,
     turbStr:V('turbStr'), turbScale:V('turbScale'),
+    attractorStr:V('attractorStr'),
+    attractorRadius:V('attractorRadius'),
+    attractorX:document.getElementById('attractorX').value!==''?V('attractorX'):null,
+    attractorY:document.getElementById('attractorY').value!==''?V('attractorY'):null,
     glowRadius:V('glowRadius'), glowStr:V('glowStr'),
     glowColor:document.getElementById('glowColor').value,
     glowAutoColor:document.getElementById('glowAutoColor').checked,
@@ -754,6 +777,18 @@ function stepParticle(p, dt, cfg){
     var nx=smoothNoise(p.x*ns+p.noiseOffset, p.age*0.8)*cfg.turbStr;
     var ny=smoothNoise(p.x*ns+p.noiseOffset+31.7, p.age*0.8+17.3)*cfg.turbStr;
     vx+=nx*dt; vy+=ny*dt;
+  }
+  // attractor / repeller
+  if(cfg.attractorStr!==0){
+    var acx=cfg.attractorX!==null?cfg.attractorX:cfg.emitX;
+    var acy=cfg.attractorY!==null?cfg.attractorY:cfg.emitY;
+    var adx=acx-p.x, ady=acy-p.y;
+    var adist=Math.sqrt(adx*adx+ady*ady)+0.01;
+    if(cfg.attractorRadius===0 || adist<cfg.attractorRadius){
+      var af=cfg.attractorStr*dt/(adist*adist+1);
+      vx+=(adx/adist)*af;
+      vy+=(ady/adist)*af;
+    }
   }
   // speed cap
   spd=Math.sqrt(vx*vx+vy*vy);
@@ -1102,6 +1137,44 @@ function renderFrame(cfg){
   ctxMain.beginPath(); ctxMain.moveTo(ex-12,ey); ctxMain.lineTo(ex+12,ey); ctxMain.stroke();
   ctxMain.beginPath(); ctxMain.moveTo(ex,ey-12); ctxMain.lineTo(ex,ey+12); ctxMain.stroke();
   ctxMain.setLineDash([]);
+  // attractor crosshair
+  if(cfg.attractorStr!==0){
+    var ax=cfg.attractorX!==null?cfg.attractorX:cfg.emitX;
+    var ay=cfg.attractorY!==null?cfg.attractorY:cfg.emitY;
+    var isRepel=cfg.attractorStr<0;
+    ctxMain.strokeStyle=isRepel?'rgba(255,80,200,0.8)':'rgba(200,80,255,0.8)';
+    ctxMain.lineWidth=1;
+    ctxMain.setLineDash([3,3]);
+    var ar=14;
+    ctxMain.beginPath(); ctxMain.moveTo(ax-ar,ay); ctxMain.lineTo(ax+ar,ay); ctxMain.stroke();
+    ctxMain.beginPath(); ctxMain.moveTo(ax,ay-ar); ctxMain.lineTo(ax,ay+ar); ctxMain.stroke();
+    ctxMain.setLineDash([]);
+    ctxMain.beginPath(); ctxMain.arc(ax,ay,ar*0.5,0,Math.PI*2); ctxMain.stroke();
+    // draw arrows pointing in/out
+    ctxMain.strokeStyle=isRepel?'rgba(255,80,200,0.5)':'rgba(200,80,255,0.5)';
+    var arrowLen=isRepel?-22:22, dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(var di=0;di<dirs.length;di++){
+      var ddx=dirs[di][0],ddy=dirs[di][1];
+      var sx=ax+ddx*(ar+2), sy=ay+ddy*(ar+2);
+      var ex2=ax+ddx*(ar+2+Math.abs(arrowLen)), ey2=ay+ddy*(ar+2+Math.abs(arrowLen));
+      if(isRepel){var tmp=sx;sx=ex2;ex2=tmp;tmp=sy;sy=ey2;ey2=tmp;}
+      ctxMain.setLineDash([]);
+      ctxMain.beginPath(); ctxMain.moveTo(sx,sy); ctxMain.lineTo(ex2,ey2); ctxMain.stroke();
+    }
+    // radius ring
+    if(cfg.attractorRadius>0){
+      ctxMain.strokeStyle=isRepel?'rgba(255,80,200,0.2)':'rgba(200,80,255,0.2)';
+      ctxMain.setLineDash([4,4]);
+      ctxMain.beginPath(); ctxMain.arc(ax,ay,cfg.attractorRadius,0,Math.PI*2); ctxMain.stroke();
+      ctxMain.setLineDash([]);
+    }
+  }
+  // attractor pick mode border
+  if(attractorPickMode){
+    ctxMain.strokeStyle='rgba(200,80,255,0.85)';
+    ctxMain.lineWidth=3;
+    ctxMain.strokeRect(2,2,W-4,H-4);
+  }
   // vortex center crosshair
   if(cfg.vortexStr!==0){
     var vx=cfg.vortexX!==null?cfg.vortexX:cfg.emitX;
@@ -1203,17 +1276,25 @@ function toggleRun(){
 // ============================================================
 var isDragging=false;
 var vortexPickMode=false;
+var attractorPickMode=false;
 
 function toggleVortexPick(){
   vortexPickMode=!vortexPickMode;
-  var btn=document.getElementById('vortexPickBtn');
-  if(vortexPickMode){
-    btn.style.background='#c07000'; btn.style.color='#fff'; btn.style.borderColor='#f90';
-    cvsMain.style.cursor='crosshair';
-  } else {
-    btn.style.background='#1e2030'; btn.style.color='#aaa'; btn.style.borderColor='#444';
-    cvsMain.style.cursor='default';
-  }
+  if(attractorPickMode){ attractorPickMode=false; stylePickBtn('attractorPickBtn',false); }
+  stylePickBtn('vortexPickBtn',vortexPickMode);
+  cvsMain.style.cursor=vortexPickMode?'crosshair':'default';
+}
+function toggleAttractorPick(){
+  attractorPickMode=!attractorPickMode;
+  if(vortexPickMode){ vortexPickMode=false; stylePickBtn('vortexPickBtn',false); }
+  stylePickBtn('attractorPickBtn',attractorPickMode);
+  cvsMain.style.cursor=attractorPickMode?'crosshair':'default';
+}
+function stylePickBtn(id,on){
+  var btn=document.getElementById(id); if(!btn)return;
+  btn.style.background=on?'#6a00c0':    '#1e2030';
+  btn.style.color=on?'#fff':'#aaa';
+  btn.style.borderColor=on?'#c060ff':'#444';
 }
 
 cvsMain.addEventListener('mousedown',function(e){
@@ -1223,9 +1304,12 @@ cvsMain.addEventListener('mousedown',function(e){
   if(vortexPickMode){
     document.getElementById('vortexX').value=x;
     document.getElementById('vortexY').value=y;
-    onCfgChange();
-    toggleVortexPick(); // exit pick mode after selecting
-    return;
+    onCfgChange(); toggleVortexPick(); return;
+  }
+  if(attractorPickMode){
+    document.getElementById('attractorX').value=x;
+    document.getElementById('attractorY').value=y;
+    onCfgChange(); toggleAttractorPick(); return;
   }
   isDragging=true;
   setEmitterPos(e);
@@ -1244,9 +1328,12 @@ cvsMain.addEventListener('touchstart',function(e){
   if(vortexPickMode){
     document.getElementById('vortexX').value=x;
     document.getElementById('vortexY').value=y;
-    onCfgChange();
-    toggleVortexPick();
-    return;
+    onCfgChange(); toggleVortexPick(); return;
+  }
+  if(attractorPickMode){
+    document.getElementById('attractorX').value=x;
+    document.getElementById('attractorY').value=y;
+    onCfgChange(); toggleAttractorPick(); return;
   }
   isDragging=true; setEmitterPos(t);
 },{passive:false});
