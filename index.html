@@ -206,6 +206,14 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <input type="range" id="sizeJitter" min="0" max="100" value="40" oninput="syncVal(this,'sizeJitter_v');onCfgChange()">
         <span class="val" id="sizeJitter_v">40</span>
       </div>
+      <div class="sub-label" style="margin-top:5px">Size Curve
+        <input type="checkbox" id="sizeCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#f90;margin-left:6px;vertical-align:middle">
+        <span style="font-size:10px;color:#555"> override Start/End</span>
+      </div>
+      <div id="szcPanel" style="margin-bottom:4px">
+        <div id="szc-editor"></div>
+        <canvas id="szc-preview" width="286" height="38" style="display:block;border:1px solid #333;border-radius:2px;margin-top:2px"></canvas>
+      </div>
       <div class="sub-label">Opacity</div>
       <div class="two-col">
         <div class="row"><label>Start</label>
@@ -368,6 +376,38 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <button id="attractorPickBtn" onclick="toggleAttractorPick()" title="Click canvas to set attractor position" style="font-size:11px;padding:2px 9px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">&#9935; Pick Center</button>
         <button onclick="document.getElementById('attractorX').value='';document.getElementById('attractorY').value='';onCfgChange()" title="Reset to emitter center" style="font-size:11px;padding:2px 7px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">&#x2715; Clear</button>
       </div>
+    </div>
+
+    <!-- CAMERA / 3D -->
+    <div class="sec-head" onclick="toggleSec(this)"><span>Camera / 3D</span><span class="arrow">▼</span></div>
+    <div class="sec-body">
+      <div class="row" style="align-items:center;gap:6px">
+        <label style="width:88px;flex-shrink:0;color:#999;font-size:11px">Enable 3D</label>
+        <input type="checkbox" id="enable3D" onchange="onCfgChange()" style="cursor:pointer;accent-color:#f90">
+        <span style="font-size:10px;color:#556">depth sort + perspective</span>
+      </div>
+      <div class="row"><label>Camera Yaw</label>
+        <input type="range" id="camYaw" min="-180" max="180" value="0" oninput="syncVal(this,'camYaw_v');onCfgChange()">
+        <span class="val" id="camYaw_v">0</span>
+      </div>
+      <div class="row"><label>Camera Pitch</label>
+        <input type="range" id="camPitch" min="-85" max="85" value="0" oninput="syncVal(this,'camPitch_v');onCfgChange()">
+        <span class="val" id="camPitch_v">0</span>
+      </div>
+      <div class="row"><label>Cam Distance</label>
+        <input type="range" id="camDist" min="100" max="3000" value="800" oninput="syncVal(this,'camDist_v');onCfgChange()">
+        <span class="val" id="camDist_v">800</span>
+      </div>
+      <div class="row"><label>FOV</label>
+        <input type="range" id="camFOV" min="100" max="2000" value="600" oninput="syncVal(this,'camFOV_v');onCfgChange()">
+        <span class="val" id="camFOV_v">600</span>
+      </div>
+      <div class="row"><label>Emit Pitch °</label>
+        <input type="range" id="emitPitch" min="-90" max="90" value="0" oninput="syncVal(this,'emitPitch_v');onCfgChange()">
+        <span class="val" id="emitPitch_v">0</span>
+      </div>
+      <div class="row" style="font-size:10px;color:#555;padding-left:2px;margin-top:-2px">Emit +pitch=away / −pitch=toward cam</div>
+      <div class="row" style="font-size:10px;color:#555;padding-left:2px">Shift+drag canvas to orbit camera</div>
     </div>
 
     <!-- SUB-SHAPES -->
@@ -615,6 +655,76 @@ var shapeRows=[];
   shapeRows[0].type.value='circle';
 })();
 
+// ============================================================
+//  SIZE CURVE
+// ============================================================
+var szcRows=[];
+(function buildSzcUI(){
+  var editor=document.getElementById('szc-editor');
+  var defPos=[0,0.15,0.6,1], defVal=[0,12,8,0];
+  for(var i=0;i<4;i++){
+    var div=document.createElement('div');
+    div.className='grad-stop';
+    div.innerHTML='<span style="font-size:10px;color:#777;width:12px">'+(i+1)+'</span>'+
+      '<input type="range" class="szcPos" min="0" max="1" step="0.01" value="'+defPos[i]+'">'+
+      '<span class="stop-pos">'+defPos[i].toFixed(2)+'</span>'+
+      '<input type="number" class="szcVal" min="0" max="300" value="'+defVal[i]+'" style="width:44px;background:#2a2a2a;border:1px solid #444;border-radius:2px;color:#f0c050;font-size:11px;padding:2px 4px;font-family:monospace">'+
+      '<span style="font-size:9px;color:#555">px</span>';
+    editor.appendChild(div);
+    var row={pos:div.querySelector('.szcPos'),posLbl:div.querySelector('.stop-pos'),val:div.querySelector('.szcVal')};
+    row.pos.oninput=(function(r){return function(){r.posLbl.textContent=parseFloat(r.pos.value).toFixed(2);updateSzcPreview();onCfgChange();};})(row);
+    row.val.onchange=function(){updateSzcPreview();onCfgChange();};
+    szcRows.push(row);
+  }
+  updateSzcPreview();
+})();
+
+function getSizeCurve(){
+  var stops=szcRows.map(function(r){
+    return {pos:parseFloat(r.pos.value),val:Math.max(0,parseFloat(r.val.value)||0)};
+  });
+  stops.sort(function(a,b){return a.pos-b.pos;});
+  return stops;
+}
+function sampleSzCurve(t,stops){
+  if(!stops||stops.length===0) return 0;
+  if(stops.length===1) return stops[0].val;
+  if(t<=stops[0].pos) return stops[0].val;
+  var last=stops[stops.length-1];
+  if(t>=last.pos) return last.val;
+  for(var i=1;i<stops.length;i++){
+    if(t<=stops[i].pos){
+      var a=stops[i-1],b=stops[i];
+      var f=(t-a.pos)/Math.max(0.0001,b.pos-a.pos);
+      return lerp(a.val,b.val,f);
+    }
+  }
+  return last.val;
+}
+function updateSzcPreview(){
+  var cv=document.getElementById('szc-preview');
+  if(!cv) return;
+  var ctx2=cv.getContext('2d'),w=cv.width,h=cv.height;
+  ctx2.fillStyle='#141414'; ctx2.fillRect(0,0,w,h);
+  var stops=getSizeCurve();
+  var maxV=Math.max(1,Math.max.apply(null,stops.map(function(s){return s.val;})));
+  ctx2.beginPath(); ctx2.strokeStyle='#f0c050'; ctx2.lineWidth=1.5;
+  for(var i=0;i<=w;i++){
+    var v=sampleSzCurve(i/w,stops);
+    var py=h-(v/maxV)*(h-4)-2;
+    if(i===0) ctx2.moveTo(i,py); else ctx2.lineTo(i,py);
+  }
+  ctx2.stroke();
+  ctx2.fillStyle='#f90';
+  stops.forEach(function(s){
+    var px=s.pos*w, py=h-(s.val/maxV)*(h-4)-2;
+    ctx2.beginPath(); ctx2.arc(px,py,3,0,Math.PI*2); ctx2.fill();
+  });
+  // label max val
+  ctx2.fillStyle='#555'; ctx2.font='9px monospace';
+  ctx2.fillText(Math.round(maxV)+'px',2,10);
+}
+
 function getSubShapes(){
   return shapeRows.map(function(r){
     return {en:r.en.checked,type:r.type.value,sz:parseFloat(r.sz.value),ox:parseFloat(r.ox.value)||0,oy:parseFloat(r.oy.value)||0,
@@ -640,6 +750,8 @@ function getConfig(){
     lifeMin:V('lifeMin'), lifeMax:V('lifeMax'),
     velMin:V('velMin'), velMax:V('velMax'),
     sizeStart:V('sizeStart'), sizeEnd:V('sizeEnd'), sizeJitter:V('sizeJitter')/100,
+    sizeCurveEn:document.getElementById('sizeCurveEn').checked,
+    sizeCurveStops:getSizeCurve(),
     opStart:V('opStart'), opEnd:V('opEnd'),
     spinRate:V('spinRate'), spinJitter:V('spinJitter'),
     spinDamping:V('spinDamping'),
@@ -671,8 +783,35 @@ function getConfig(){
     boneCount:Math.round(V('boneCount')),
     spineScale:V('spineScale'),
     gradientStops:getGradientStops(),
-    subShapes:getSubShapes()
+    subShapes:getSubShapes(),
+    enable3D:document.getElementById('enable3D').checked,
+    camYaw:V('camYaw'), camPitch:V('camPitch'),
+    camDist:V('camDist'), camFOV:V('camFOV'),
+    emitPitch:V('emitPitch')
   };
+}
+
+// ============================================================
+//  3D PERSPECTIVE PROJECTION
+// ============================================================
+function project3D(wx, wy, wz, cfg){
+  // Center world on emitter
+  var lx=wx-cfg.emitX, ly=wy-cfg.emitY, lz=wz||0;
+  // Yaw: rotate in XZ plane
+  var yaw=deg2rad(cfg.camYaw);
+  var rx= Math.cos(yaw)*lx - Math.sin(yaw)*lz;
+  var ry= ly;
+  var rz= Math.sin(yaw)*lx + Math.cos(yaw)*lz;
+  // Pitch: rotate in YZ plane
+  var pit=deg2rad(cfg.camPitch);
+  var rx2=rx;
+  var ry2= Math.cos(pit)*ry + Math.sin(pit)*rz;
+  var rz2=-Math.sin(pit)*ry + Math.cos(pit)*rz;
+  // Camera behind at -camDist, looking toward +Z
+  var cz=rz2+(cfg.camDist||800);
+  if(cz<1) return null;
+  var f=(cfg.camFOV||600)/cz;
+  return {sx:W/2+rx2*f, sy:H/2+ry2*f, scale:f, cz:cz};
 }
 
 // ============================================================
@@ -749,17 +888,30 @@ function makeParticle(cfg, t){
   }
   var dir=deg2rad(cfg.emitDir)+rnd(-1,1)*deg2rad(cfg.emitSpread/2);
   var vel=rnd(cfg.velMin,cfg.velMax);
+  var pvx,pvy,pvz=0;
+  if(cfg.enable3D){
+    var pitchRad=deg2rad(cfg.emitPitch||0);
+    var cosP=Math.cos(pitchRad),sinP=Math.sin(pitchRad);
+    pvx=Math.cos(dir)*vel*cosP;
+    pvy=Math.sin(dir)*vel*cosP;
+    pvz=sinP*vel; // positive = away from camera
+  } else {
+    pvx=Math.cos(dir)*vel;
+    pvy=Math.sin(dir)*vel;
+  }
   var mass=1+rnd(-cfg.massJitter,cfg.massJitter);
   var life=rnd(cfg.lifeMin,cfg.lifeMax);
-  var sz0=cfg.sizeStart*(1+rnd(-cfg.sizeJitter,cfg.sizeJitter));
+  var jit=1+rnd(-cfg.sizeJitter,cfg.sizeJitter);
+  var sz0=cfg.sizeStart*jit;
   var sz1=cfg.sizeEnd*(1+rnd(-cfg.sizeJitter,cfg.sizeJitter));
   var spin=cfg.spinRate+rnd(-cfg.spinJitter,cfg.spinJitter);
   var hj=rnd(-cfg.hueJitter,cfg.hueJitter);
   var noiseOffset=rnd(0,1000);
   return {
-    x:ex, y:ey, vx:Math.cos(dir)*vel, vy:Math.sin(dir)*vel,
+    x:ex, y:ey, z:0, vx:pvx, vy:pvy, vz:pvz,
     life:life, age:0, mass:mass,
-    sz0:sz0, sz1:sz1, opStart:cfg.opStart, opEnd:cfg.opEnd,
+    sz0:sz0, sz1:sz1, szJitMult:jit,
+    opStart:cfg.opStart, opEnd:cfg.opEnd,
     spin:spin, rot:cfg.rotStart + rnd(-cfg.rotJitter, cfg.rotJitter),
     hueJitter:hj,
     noiseOffset:noiseOffset,
@@ -769,17 +921,17 @@ function makeParticle(cfg, t){
 
 function stepParticle(p, dt, cfg){
   p.age+=dt;
-  var vx=p.vx, vy=p.vy;
-  // gravity + wind
+  var vx=p.vx, vy=p.vy, vz=p.vz||0;
+  // gravity + wind (Y axis)
   vx+=(cfg.gravX+cfg.windX)*dt/p.mass;
   vy+=(cfg.gravY+cfg.windY)*dt/p.mass;
-  // drag
-  var spd=Math.sqrt(vx*vx+vy*vy);
+  // drag (3D)
+  var spd=Math.sqrt(vx*vx+vy*vy+vz*vz);
   if(spd>0){
     var damp=Math.max(0,1-cfg.drag*dt);
-    vx*=damp; vy*=damp;
+    vx*=damp; vy*=damp; vz*=damp;
   }
-  // vortex
+  // vortex (XY plane)
   if(cfg.vortexStr!==0){
     var vcx=cfg.vortexX!==null?cfg.vortexX:cfg.emitX;
     var vcy=cfg.vortexY!==null?cfg.vortexY:cfg.emitY;
@@ -789,36 +941,38 @@ function stepParticle(p, dt, cfg){
     vx+=(-dy/dist)*vf;
     vy+=(dx/dist)*vf;
   }
-  // turbulence
+  // turbulence (3D)
   if(cfg.turbStr>0){
     var ns=cfg.turbScale;
     var nx=smoothNoise(p.x*ns+p.noiseOffset, p.age*0.8)*cfg.turbStr;
     var ny=smoothNoise(p.x*ns+p.noiseOffset+31.7, p.age*0.8+17.3)*cfg.turbStr;
-    vx+=nx*dt; vy+=ny*dt;
+    var nz=smoothNoise((p.z||0)*ns+p.noiseOffset+63.5, p.age*0.8+37.2)*cfg.turbStr;
+    vx+=nx*dt; vy+=ny*dt; vz+=nz*dt;
   }
-  // attractor / repeller
+  // attractor / repeller (3D)
   if(cfg.attractorStr!==0){
     var acx=cfg.attractorX!==null?cfg.attractorX:cfg.emitX;
     var acy=cfg.attractorY!==null?cfg.attractorY:cfg.emitY;
-    var adx=acx-p.x, ady=acy-p.y;
-    var adist=Math.sqrt(adx*adx+ady*ady)+0.01;
+    var adx=acx-p.x, ady=acy-p.y, adz=-(p.z||0);
+    var adist=Math.sqrt(adx*adx+ady*ady+adz*adz)+0.01;
     if(cfg.attractorRadius===0 || adist<cfg.attractorRadius){
       var af=cfg.attractorStr*dt/(adist*adist+1);
       vx+=(adx/adist)*af;
       vy+=(ady/adist)*af;
+      vz+=(adz/adist)*af;
     }
   }
   // speed cap
-  spd=Math.sqrt(vx*vx+vy*vy);
-  if(spd>cfg.maxVel){ var sc=cfg.maxVel/spd; vx*=sc; vy*=sc; }
-  p.vx=vx; p.vy=vy;
-  p.x+=vx*dt; p.y+=vy*dt;
+  spd=Math.sqrt(vx*vx+vy*vy+vz*vz);
+  if(spd>cfg.maxVel){ var sc=cfg.maxVel/spd; vx*=sc; vy*=sc; vz*=sc; }
+  p.vx=vx; p.vy=vy; p.vz=vz;
+  p.x+=vx*dt; p.y+=vy*dt; p.z=(p.z||0)+vz*dt;
   // floor bounce
   if(cfg.floorY>0 && p.y>cfg.floorY){
     p.y=cfg.floorY;
     if(p.vy>0){ p.vy=-p.vy*cfg.bounce; p.vx*=(1-cfg.friction); }
   }
-  // spin with optional damping (slows spin toward end of life)
+  // spin with damping
   var lifeFrac=clamp(p.age/p.life,0,1);
   p.rot+=p.spin*(1-cfg.spinDamping*lifeFrac)*dt;
 }
@@ -951,15 +1105,28 @@ function resolveGlowRGB(cfg, r, g, b){
   return [Math.round(c[0]*255), Math.round(c[1]*255), Math.round(c[2]*255)];
 }
 
-function drawParticle(ctx, p, t, cfg){
+function drawParticle(ctx, p, t, cfg, proj){
   var lifeT=p.age/p.life;
-  var sz=lerp(p.sz0,p.sz1,lifeT);
+  // Size: size curve override or linear lerp
+  var sz;
+  if(cfg.sizeCurveEn && cfg.sizeCurveStops && cfg.sizeCurveStops.length){
+    sz=sampleSzCurve(lifeT, cfg.sizeCurveStops)*(p.szJitMult||1);
+  } else {
+    sz=lerp(p.sz0, p.sz1, lifeT);
+  }
+  // Apply perspective scale in 3D
+  var perspScale=proj?proj.scale:1;
+  sz*=perspScale;
   if(sz<=0) return;
   var op=lerp(p.opStart,p.opEnd,lifeT);
   if(op<=0) return;
+  // Screen position
+  var dx=proj?proj.sx:p.x;
+  var dy=proj?proj.sy:p.y;
+  // Perspective-scaled glow radius
+  var glowR=cfg.glowRadius*Math.min(perspScale, 3);
   var stops=cfg.gradientStops;
   var col=gradientColor(lifeT,stops);
-  // apply hue jitter
   if(p.hueJitter!==0){
     var hsl=rgb2hsl(col[0],col[1],col[2]);
     col=hsl2rgb(hsl[0]+p.hueJitter,hsl[1],hsl[2]);
@@ -969,31 +1136,26 @@ function drawParticle(ctx, p, t, cfg){
   var gr=gc[0],gg=gc[1],gb2=gc[2];
   var gblend=cfg.glowBlend||'lighter';
   var pshape=cfg.particleShape||'glow';
-  // effective rotation: align to velocity or use stored rot
+  // effective rotation: align to velocity or stored rot
   var effectiveRot = cfg.rotAlignVel
-    ? (Math.atan2(p.vy, p.vx) * 180/Math.PI + p.rot)
+    ? (Math.atan2(p.vy, p.vx)*180/Math.PI + p.rot)
     : p.rot;
   if(pshape==='custompng'){
     if(customImages.length>0){
       var mode=cfg.pngSeqMode||'life';
       var fIdx=0;
-      if(mode==='life'){
-        fIdx=Math.min(Math.floor(lifeT*customImages.length), customImages.length-1);
-      } else if(mode==='fps'){
-        var seqFPS=cfg.pngSeqFPS||24;
-        fIdx=Math.floor(p.age*seqFPS)%customImages.length;
-      } else { // once, hold last
-        fIdx=Math.min(Math.floor(lifeT*customImages.length), customImages.length-1);
-      }
+      if(mode==='life'){ fIdx=Math.min(Math.floor(lifeT*customImages.length), customImages.length-1); }
+      else if(mode==='fps'){ fIdx=Math.floor(p.age*(cfg.pngSeqFPS||24))%customImages.length; }
+      else { fIdx=Math.min(Math.floor(lifeT*customImages.length), customImages.length-1); }
       var cimg=customImages[fIdx];
       if(cimg&&cimg.complete&&cimg.naturalWidth>0){
         ctx.save();
-        if(cfg.glowStr>0&&cfg.glowRadius>0){
+        if(cfg.glowStr>0&&glowR>0){
           ctx.shadowColor='rgba('+gr+','+gg+','+gb2+','+Math.min(1,cfg.glowStr)+')';
-          ctx.shadowBlur=cfg.glowRadius*cfg.glowStr;
+          ctx.shadowBlur=glowR*cfg.glowStr;
           ctx.globalCompositeOperation=gblend;
         }
-        ctx.translate(p.x,p.y);
+        ctx.translate(dx,dy);
         ctx.rotate(deg2rad(effectiveRot));
         drawImageTinted(ctx,cimg,0,0,sz,op,r,g,b,cfg.pngTint);
         ctx.shadowBlur=0; ctx.shadowColor='transparent'; ctx.globalCompositeOperation=cfg.blendMode||'lighter';
@@ -1002,13 +1164,12 @@ function drawParticle(ctx, p, t, cfg){
     }
     return;
   } else if(pshape==='custom'){
-    // sub-shapes
     var subShapes=cfg.subShapes;
     if(!subShapes||subShapes.length===0){
-      drawCircleGlow(ctx, p.x, p.y, sz, r, g, b, op, cfg.glowRadius, cfg.glowStr, gr, gg, gb2, gblend);
+      drawCircleGlow(ctx, dx, dy, sz, r, g, b, op, glowR, cfg.glowStr, gr, gg, gb2, gblend);
     } else {
       ctx.save();
-      ctx.translate(p.x, p.y);
+      ctx.translate(dx, dy);
       ctx.rotate(deg2rad(effectiveRot));
       for(var si=0;si<subShapes.length;si++){
         var sh=subShapes[si];
@@ -1018,19 +1179,18 @@ function drawParticle(ctx, p, t, cfg){
         var sb=Math.round((col[2]*0.5+sc[2]*0.5)*255);
         var sop=op*sh.op;
         ctx.save();
-        ctx.translate(sh.ox, sh.oy);
+        ctx.translate(sh.ox*perspScale, sh.oy*perspScale);
         var ssz=sz*sh.sz;
-        drawShape(ctx, sh.type, 0, 0, ssz, sr, sg, sb, sop, cfg.glowRadius, cfg.glowStr, gr, gg, gb2, gblend);
+        drawShape(ctx, sh.type, 0, 0, ssz, sr, sg, sb, sop, glowR, cfg.glowStr, gr, gg, gb2, gblend);
         ctx.restore();
       }
       ctx.restore();
     }
   } else {
-    // named main shape with rotation
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(dx, dy);
     ctx.rotate(deg2rad(effectiveRot));
-    drawShape(ctx, pshape, 0, 0, sz, r, g, b, op, cfg.glowRadius, cfg.glowStr, gr, gg, gb2, gblend);
+    drawShape(ctx, pshape, 0, 0, sz, r, g, b, op, glowR, cfg.glowStr, gr, gg, gb2, gblend);
     ctx.restore();
   }
 }
@@ -1160,8 +1320,17 @@ function renderFrame(cfg){
   }
   ctxMain.globalCompositeOperation=cfg.blendMode||'lighter';
   var ps=simState.particles;
-  for(var i=0;i<ps.length;i++){
-    drawParticle(ctxMain, ps[i], simState.time, cfg);
+  if(cfg.enable3D){
+    // project all, depth-sort: farther drawn first (behind), nearer drawn last (in front)
+    var projected=[];
+    for(var i=0;i<ps.length;i++){
+      var proj=project3D(ps[i].x,ps[i].y,ps[i].z||0,cfg);
+      if(proj) projected.push({p:ps[i],proj:proj});
+    }
+    projected.sort(function(a,b){return b.proj.cz-a.proj.cz;});
+    for(var i=0;i<projected.length;i++){ drawParticle(ctxMain,projected[i].p,simState.time,cfg,projected[i].proj); }
+  } else {
+    for(var i=0;i<ps.length;i++){ drawParticle(ctxMain,ps[i],simState.time,cfg,null); }
   }
   ctxMain.globalCompositeOperation='source-over';
   // emitter crosshair
@@ -1272,6 +1441,7 @@ function syncVal(el, targetId){
 }
 function onCfgChange(){
   updateGradPreview();
+  updateSzcPreview();
 }
 function onParticleShapeChange(){
   var v=document.getElementById('particleShape').value;
@@ -1310,6 +1480,7 @@ function toggleRun(){
 //  CANVAS MOUSE: MOVE EMITTER
 // ============================================================
 var isDragging=false;
+var isDragOrbit=false, orbitLastX=0, orbitLastY=0;
 var vortexPickMode=false;
 var attractorPickMode=false;
 
@@ -1336,24 +1507,30 @@ cvsMain.addEventListener('mousedown',function(e){
   var rect=cvsMain.getBoundingClientRect();
   var x=Math.round(e.clientX-rect.left);
   var y=Math.round(e.clientY-rect.top);
-  if(vortexPickMode){
-    document.getElementById('vortexX').value=x;
-    document.getElementById('vortexY').value=y;
-    onCfgChange(); toggleVortexPick(); return;
-  }
-  if(attractorPickMode){
-    document.getElementById('attractorX').value=x;
-    document.getElementById('attractorY').value=y;
-    onCfgChange(); toggleAttractorPick(); return;
+  if(vortexPickMode){ document.getElementById('vortexX').value=x; document.getElementById('vortexY').value=y; onCfgChange(); toggleVortexPick(); return; }
+  if(attractorPickMode){ document.getElementById('attractorX').value=x; document.getElementById('attractorY').value=y; onCfgChange(); toggleAttractorPick(); return; }
+  if(e.shiftKey && document.getElementById('enable3D').checked){
+    isDragOrbit=true; orbitLastX=e.clientX; orbitLastY=e.clientY;
+    cvsMain.style.cursor='move'; return;
   }
   isDragging=true;
   setEmitterPos(e);
 });
 cvsMain.addEventListener('mousemove',function(e){
+  if(isDragOrbit){
+    var dxO=e.clientX-orbitLastX, dyO=e.clientY-orbitLastY;
+    orbitLastX=e.clientX; orbitLastY=e.clientY;
+    var yawEl=document.getElementById('camYaw'), pitEl=document.getElementById('camPitch');
+    var ny=clamp(parseFloat(yawEl.value)+dxO*0.5,-180,180);
+    var np=clamp(parseFloat(pitEl.value)+dyO*0.5,-85,85);
+    yawEl.value=ny; document.getElementById('camYaw_v').textContent=Math.round(ny);
+    pitEl.value=np; document.getElementById('camPitch_v').textContent=Math.round(np);
+    return;
+  }
   if(isDragging) setEmitterPos(e);
 });
-cvsMain.addEventListener('mouseup',function(){ isDragging=false; });
-cvsMain.addEventListener('mouseleave',function(){ isDragging=false; });
+cvsMain.addEventListener('mouseup',function(){ isDragging=false; isDragOrbit=false; cvsMain.style.cursor=vortexPickMode||attractorPickMode?'crosshair':'default'; });
+cvsMain.addEventListener('mouseleave',function(){ isDragging=false; isDragOrbit=false; });
 cvsMain.addEventListener('touchstart',function(e){
   e.preventDefault();
   var rect=cvsMain.getBoundingClientRect();
