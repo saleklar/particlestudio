@@ -2823,12 +2823,12 @@ function exportSpineJSON(){
       if(needAttTimeline){
         var curFi=snap?snap.fi:0;
         if(curFi!==lastFi){
-          attKF.push({time:t5,name:snap?attNames[curFi]:null});
+          if(snap) attKF.push({time:t5,name:attNames[curFi]});
           lastFi=curFi;
         }
       }
     }
-    var st={rgba:colorKF};
+    var st={color:colorKF};
     if(needAttTimeline && attKF.length>0) st.attachment=attKF;
     slots_anim[bn]=st;
   });
