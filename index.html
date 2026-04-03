@@ -226,6 +226,23 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <input type="range" id="spinJitter" min="0" max="720" value="120" oninput="syncVal(this,'spinJitter_v');onCfgChange()">
         <span class="val" id="spinJitter_v">120</span>
       </div>
+      <div class="row"><label>Spin Damping</label>
+        <input type="range" id="spinDamping" min="0" max="1" step="0.01" value="0" oninput="syncVal(this,'spinDamping_v');onCfgChange()">
+        <span class="val" id="spinDamping_v">0</span>
+      </div>
+      <div class="row"><label>Init Angle °</label>
+        <input type="range" id="rotStart" min="-360" max="360" value="0" oninput="syncVal(this,'rotStart_v');onCfgChange()">
+        <span class="val" id="rotStart_v">0</span>
+      </div>
+      <div class="row"><label>Angle Jitter</label>
+        <input type="range" id="rotJitter" min="0" max="360" value="360" oninput="syncVal(this,'rotJitter_v');onCfgChange()">
+        <span class="val" id="rotJitter_v">360</span>
+      </div>
+      <div class="row" style="align-items:center;gap:6px">
+        <label style="width:88px;flex-shrink:0;color:#999;font-size:11px">Align Velocity</label>
+        <input type="checkbox" id="rotAlignVel" onchange="onCfgChange()" style="cursor:pointer;accent-color:#f90">
+        <span style="font-size:10px;color:#666">face direction of travel</span>
+      </div>
       <div class="row"><label>Mass Jitter</label>
         <input type="range" id="massJitter" min="0" max="2" step="0.01" value="0.5" oninput="syncVal(this,'massJitter_v');onCfgChange()">
         <span class="val" id="massJitter_v">0.5</span>
@@ -627,6 +644,9 @@ function getConfig(){
     sizeStart:V('sizeStart'), sizeEnd:V('sizeEnd'), sizeJitter:V('sizeJitter')/100,
     opStart:V('opStart'), opEnd:V('opEnd'),
     spinRate:V('spinRate'), spinJitter:V('spinJitter'),
+    spinDamping:V('spinDamping'),
+    rotStart:V('rotStart'), rotJitter:V('rotJitter'),
+    rotAlignVel:document.getElementById('rotAlignVel').checked,
     massJitter:V('massJitter'),
     hueJitter:V('hueJitter'),
     blendMode:document.getElementById('blendMode').value,
@@ -742,7 +762,7 @@ function makeParticle(cfg, t){
     x:ex, y:ey, vx:Math.cos(dir)*vel, vy:Math.sin(dir)*vel,
     life:life, age:0, mass:mass,
     sz0:sz0, sz1:sz1, opStart:cfg.opStart, opEnd:cfg.opEnd,
-    spin:spin, rot:rnd(0,360),
+    spin:spin, rot:cfg.rotStart + rnd(-cfg.rotJitter, cfg.rotJitter),
     hueJitter:hj,
     noiseOffset:noiseOffset,
     bounces:0
@@ -800,7 +820,9 @@ function stepParticle(p, dt, cfg){
     p.y=cfg.floorY;
     if(p.vy>0){ p.vy=-p.vy*cfg.bounce; p.vx*=(1-cfg.friction); }
   }
-  p.rot+=p.spin*dt;
+  // spin with optional damping (slows spin toward end of life)
+  var lifeFrac=clamp(p.age/p.life,0,1);
+  p.rot+=p.spin*(1-cfg.spinDamping*lifeFrac)*dt;
 }
 
 function tickSim(state, dt, cfg){
@@ -938,6 +960,10 @@ function drawParticle(ctx, p, t, cfg){
   var gr=gc[0],gg=gc[1],gb2=gc[2];
   var gblend=cfg.glowBlend||'lighter';
   var pshape=cfg.particleShape||'glow';
+  // effective rotation: align to velocity or use stored rot
+  var effectiveRot = cfg.rotAlignVel
+    ? (Math.atan2(p.vy, p.vx) * 180/Math.PI + p.rot)
+    : p.rot;
   if(pshape==='custompng'){
     if(customImages.length>0){
       var mode=cfg.pngSeqMode||'life';
@@ -959,7 +985,7 @@ function drawParticle(ctx, p, t, cfg){
           ctx.globalCompositeOperation=gblend;
         }
         ctx.translate(p.x,p.y);
-        ctx.rotate(deg2rad(p.rot));
+        ctx.rotate(deg2rad(effectiveRot));
         drawImageTinted(ctx,cimg,0,0,sz,op,r,g,b,cfg.pngTint);
         ctx.shadowBlur=0; ctx.shadowColor='transparent'; ctx.globalCompositeOperation=cfg.blendMode||'lighter';
         ctx.restore();
@@ -974,7 +1000,7 @@ function drawParticle(ctx, p, t, cfg){
     } else {
       ctx.save();
       ctx.translate(p.x, p.y);
-      ctx.rotate(deg2rad(p.rot));
+      ctx.rotate(deg2rad(effectiveRot));
       for(var si=0;si<subShapes.length;si++){
         var sh=subShapes[si];
         var sc=sh.col;
@@ -994,7 +1020,7 @@ function drawParticle(ctx, p, t, cfg){
     // named main shape with rotation
     ctx.save();
     ctx.translate(p.x, p.y);
-    ctx.rotate(deg2rad(p.rot));
+    ctx.rotate(deg2rad(effectiveRot));
     drawShape(ctx, pshape, 0, 0, sz, r, g, b, op, cfg.glowRadius, cfg.glowStr, gr, gg, gb2, gblend);
     ctx.restore();
   }
