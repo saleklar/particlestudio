@@ -407,7 +407,7 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <span class="val" id="emitPitch_v">0</span>
       </div>
       <div class="row" style="font-size:10px;color:#555;padding-left:2px;margin-top:-2px">Emit +pitch=away / −pitch=toward cam</div>
-      <div class="row" style="font-size:10px;color:#555;padding-left:2px">Shift+drag canvas to orbit camera</div>
+      <div class="row" style="font-size:10px;color:#555;padding-left:2px">RMB/Shift+drag: orbit &nbsp; MMB drag: pan &nbsp; Wheel: zoom</div>
     </div>
 
     <!-- SUB-SHAPES -->
@@ -811,7 +811,7 @@ function project3D(wx, wy, wz, cfg){
   var cz=rz2+(cfg.camDist||800);
   if(cz<1) return null;
   var f=(cfg.camFOV||600)/cz;
-  return {sx:W/2+rx2*f, sy:H/2+ry2*f, scale:f, cz:cz};
+  return {sx:W/2+rx2*f+camPanX, sy:H/2+ry2*f+camPanY, scale:f, cz:cz};
 }
 
 // ============================================================
@@ -1481,6 +1481,8 @@ function toggleRun(){
 // ============================================================
 var isDragging=false;
 var isDragOrbit=false, orbitLastX=0, orbitLastY=0;
+var isDragPan=false, panLastX=0, panLastY=0;
+var camPanX=0, camPanY=0;
 var vortexPickMode=false;
 var attractorPickMode=false;
 
@@ -1503,13 +1505,26 @@ function stylePickBtn(id,on){
   btn.style.borderColor=on?'#c060ff':'#444';
 }
 
+cvsMain.addEventListener('contextmenu',function(e){ e.preventDefault(); });
 cvsMain.addEventListener('mousedown',function(e){
   var rect=cvsMain.getBoundingClientRect();
   var x=Math.round(e.clientX-rect.left);
   var y=Math.round(e.clientY-rect.top);
   if(vortexPickMode){ document.getElementById('vortexX').value=x; document.getElementById('vortexY').value=y; onCfgChange(); toggleVortexPick(); return; }
   if(attractorPickMode){ document.getElementById('attractorX').value=x; document.getElementById('attractorY').value=y; onCfgChange(); toggleAttractorPick(); return; }
-  if(e.shiftKey && document.getElementById('enable3D').checked){
+  var is3D=document.getElementById('enable3D').checked;
+  // Right-click drag = orbit (when 3D on)
+  if(e.button===2 && is3D){
+    isDragOrbit=true; orbitLastX=e.clientX; orbitLastY=e.clientY;
+    cvsMain.style.cursor='move'; e.preventDefault(); return;
+  }
+  // Middle-click drag = pan (when 3D on)
+  if(e.button===1 && is3D){
+    isDragPan=true; panLastX=e.clientX; panLastY=e.clientY;
+    cvsMain.style.cursor='grabbing'; e.preventDefault(); return;
+  }
+  // Shift+left drag = orbit (legacy)
+  if(e.shiftKey && is3D){
     isDragOrbit=true; orbitLastX=e.clientX; orbitLastY=e.clientY;
     cvsMain.style.cursor='move'; return;
   }
@@ -1525,12 +1540,30 @@ cvsMain.addEventListener('mousemove',function(e){
     var np=clamp(parseFloat(pitEl.value)+dyO*0.5,-85,85);
     yawEl.value=ny; document.getElementById('camYaw_v').textContent=Math.round(ny);
     pitEl.value=np; document.getElementById('camPitch_v').textContent=Math.round(np);
+    onCfgChange(); return;
+  }
+  if(isDragPan){
+    camPanX+=e.clientX-panLastX;
+    camPanY+=e.clientY-panLastY;
+    panLastX=e.clientX; panLastY=e.clientY;
     return;
   }
   if(isDragging) setEmitterPos(e);
 });
-cvsMain.addEventListener('mouseup',function(){ isDragging=false; isDragOrbit=false; cvsMain.style.cursor=vortexPickMode||attractorPickMode?'crosshair':'default'; });
-cvsMain.addEventListener('mouseleave',function(){ isDragging=false; isDragOrbit=false; });
+cvsMain.addEventListener('mouseup',function(e){ isDragging=false; isDragOrbit=false; isDragPan=false; cvsMain.style.cursor=vortexPickMode||attractorPickMode?'crosshair':'default'; });
+cvsMain.addEventListener('mouseleave',function(){ isDragging=false; isDragOrbit=false; isDragPan=false; });
+cvsMain.addEventListener('wheel',function(e){
+  if(!document.getElementById('enable3D').checked) return;
+  e.preventDefault();
+  var el=document.getElementById('camDist');
+  var cur=parseFloat(el.value);
+  // zoom: wheel up = closer (smaller dist), wheel down = farther
+  var delta=e.deltaY>0?1:-1;
+  var step=Math.max(10, cur*0.05); // 5% per notch, min 10
+  var nv=clamp(cur+delta*step, parseFloat(el.min), parseFloat(el.max));
+  el.value=nv; document.getElementById('camDist_v').textContent=Math.round(nv);
+  onCfgChange();
+},{passive:false});
 cvsMain.addEventListener('touchstart',function(e){
   e.preventDefault();
   var rect=cvsMain.getBoundingClientRect();
