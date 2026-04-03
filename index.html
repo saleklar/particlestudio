@@ -987,13 +987,16 @@ function project3D(wx, wy, wz, cfg){
 //  CUSTOM PNG IMAGE STORE
 // ============================================================
 var customImages = [];
+var customImageNames = [];
 function loadCustomImages(input){
   if(!input.files||!input.files.length) return;
   var files=Array.prototype.slice.call(input.files).sort(function(a,b){return a.name.localeCompare(b.name);});
   customImages=[];
+  customImageNames=[];
   var total=files.length;
   var loaded=0;
   files.forEach(function(file,idx){
+    customImageNames.push(file.name.replace(/\.[^.]+$/,''));
     var img=new Image();
     img.onload=function(){
       loaded++;
@@ -2619,12 +2622,25 @@ function exportSpineJSON(){
   var bCount=cfg.boneCount;
   var totalFrames=Math.round(dur*fps);
   var dt=1/fps;
+
+  // Are we using custom PNG images?
+  var hasImgs = cfg.particleShape==='custompng' && customImages.length>0;
+  var imgCount = hasImgs ? customImages.length : 0;
+  // Reference size for scale keyframes (first image dims or 64)
+  var refW = (hasImgs && customImages[0].naturalWidth>0) ? customImages[0].naturalWidth : 64;
+  var refH = (hasImgs && customImages[0].naturalHeight>0) ? customImages[0].naturalHeight : 64;
+  // Attachment names: one per unique image file, shared across all slots
+  var attNames = [];
+  if(hasImgs){
+    for(var ai=0;ai<imgCount;ai++) attNames.push(customImageNames[ai]||('frame_'+ai));
+  }
+
   var simExport={particles:[],time:0,emitAccum:0};
   // warm up
   var warmSteps=Math.round((cfg.preRun||0)*fps);
   for(var w=0;w<warmSteps;w++) tickSim(simExport, dt, cfg);
 
-  // record frames: allFrames[frame] = array of {x,y,sz,op,rot,r,g,b}
+  // record frames: allFrames[frame] = array of {x,y,sz,op,rot,r,g,b,fi}
   var allFrames=[];
   for(var f=0;f<totalFrames;f++){
     tickSim(simExport, dt, cfg);
@@ -2634,25 +2650,29 @@ function exportSpineJSON(){
       var op=lerp(p.opStart,p.opEnd,lt);
       var col=gradientColor(lt, cfg.gradientStops);
       if(p.hueJitter!==0){ var hsl=rgb2hsl(col[0],col[1],col[2]); col=hsl2rgb(hsl[0]+p.hueJitter,hsl[1],hsl[2]); }
+      // compute image frame index for this particle
+      var fi=0;
+      if(hasImgs){
+        var mode=cfg.pngSeqMode||'life';
+        if(mode==='life') fi=Math.min(Math.floor(lt*imgCount),imgCount-1);
+        else if(mode==='fps') fi=Math.floor(p.age*(cfg.pngSeqFPS||24))%imgCount;
+        else fi=Math.min(Math.floor(lt*imgCount),imgCount-1);
+      }
       return {x:(p.x-cfg.emitX)*scale, y:-(p.y-cfg.emitY)*scale, sz:sz, op:op, rot:-p.rot,
-              r:col[0], g:col[1], b:col[2]};
+              r:col[0], g:col[1], b:col[2], fi:fi};
     });
     allFrames.push(snapshot);
   }
 
   // Greedy bone pool assignment
-  // bones[b] = { lastFrame, lastPId } - we just need per-frame assignment
-  var bAssign=[]; // bAssign[frame][bone] = snapshot entry or null
+  var bAssign=[];
   for(var f2=0;f2<totalFrames;f2++){
     var arr=[]; for(var k=0;k<bCount;k++) arr.push(null);
     bAssign.push(arr);
   }
-  // For each frame, greedily fill bones
   for(var f3=0;f3<totalFrames;f3++){
     var snaps=allFrames[f3];
-    for(var pi=0;pi<snaps.length&&pi<bCount;pi++){
-      bAssign[f3][pi]=snaps[pi];
-    }
+    for(var pi=0;pi<snaps.length&&pi<bCount;pi++) bAssign[f3][pi]=snaps[pi];
   }
 
   // Build Spine JSON
@@ -2664,13 +2684,31 @@ function exportSpineJSON(){
     boneNames.push(bname);
     bones.push({name:bname,parent:'root',length:0,x:0,y:0});
   }
-  var slots=boneNames.map(function(bn){return {name:bn,bone:bn,attachment:bn};});
+
+  // Slots — default attachment is first image name (or point for no-image mode)
+  var defaultAtt = hasImgs ? attNames[0] : null;
+  var slots=boneNames.map(function(bn){
+    return hasImgs ? {name:bn,bone:bn,attachment:defaultAtt} : {name:bn,bone:bn,attachment:bn};
+  });
+
+  // Skins — region attachments per image (all slots share the same attachment defs)
   var skins=[{name:'default',attachments:{}}];
   boneNames.forEach(function(bn){
     skins[0].attachments[bn]={};
-    skins[0].attachments[bn][bn]={type:'point',rotation:0,x:0,y:0};
+    if(hasImgs){
+      // Each unique image becomes one named region attachment shared across all slots
+      for(var ai=0;ai<imgCount;ai++){
+        var aname=attNames[ai];
+        var imgW=(customImages[ai]&&customImages[ai].naturalWidth>0)?customImages[ai].naturalWidth:refW;
+        var imgH=(customImages[ai]&&customImages[ai].naturalHeight>0)?customImages[ai].naturalHeight:refH;
+        skins[0].attachments[bn][aname]={type:'region',path:aname,width:imgW,height:imgH,x:0,y:0,rotation:0,scaleX:1,scaleY:1};
+      }
+    } else {
+      skins[0].attachments[bn][bn]={type:'point',rotation:0,x:0,y:0};
+    }
   });
-  // animations
+
+  // Bone animation timelines (translate + rotate + scale when images present)
   var bones_anim={};
   boneNames.forEach(function(bn, bi){
     var translateKF=[], rotateKF=[], scaleKF=[];
@@ -2681,13 +2719,24 @@ function exportSpineJSON(){
       var rot=snap?snap.rot:0;
       translateKF.push({time:t4,x:x,y:y,curve:'stepped'});
       rotateKF.push({time:t4,value:rot,curve:'stepped'});
+      if(hasImgs){
+        // scale so that the region attachment renders at particle diameter
+        var sx=snap?(snap.sz*2)/refW:0;
+        var sy=snap?(snap.sz*2)/refH:0;
+        scaleKF.push({time:t4,x:sx,y:sy,curve:'stepped'});
+      }
     }
-    bones_anim[bn]={translate:translateKF,rotate:rotateKF};
+    var bt={translate:translateKF,rotate:rotateKF};
+    if(hasImgs) bt.scale=scaleKF;
+    bones_anim[bn]=bt;
   });
-  // Slot color timelines
+
+  // Slot timelines — color + attachment swap for PNG sequences
   var slots_anim={};
   boneNames.forEach(function(bn, bi){
-    var colorKF=[];
+    var colorKF=[], attKF=[];
+    var needAttTimeline=hasImgs && imgCount>1;
+    var lastFi=-999;
     for(var f5=0;f5<totalFrames;f5++){
       var t5=f5/fps;
       var snap=bAssign[f5][bi];
@@ -2697,18 +2746,50 @@ function exportSpineJSON(){
       var a8=snap?Math.round(snap.op*255):0;
       var rgba=('0'+r8.toString(16)).slice(-2)+('0'+g8.toString(16)).slice(-2)+('0'+b8.toString(16)).slice(-2)+('0'+a8.toString(16)).slice(-2);
       colorKF.push({time:t5,color:rgba,curve:'stepped'});
+      if(needAttTimeline){
+        var curFi=snap?snap.fi:0;
+        if(curFi!==lastFi){
+          attKF.push({time:t5,name:snap?attNames[curFi]:null});
+          lastFi=curFi;
+        }
+      }
     }
-    slots_anim[bn]={rgba:colorKF};
+    var st={rgba:colorKF};
+    if(needAttTimeline && attKF.length>0) st.attachment=attKF;
+    slots_anim[bn]=st;
   });
-  // draworder (optional - empty)
+
   var exportFname=document.getElementById('exportName').value||'particles';
   var spineObj={
-    skeleton:{spine:'4.2',width:Math.round(spineW),height:Math.round(spineH),fps:fps,images:''},
+    skeleton:{spine:'4.2',width:Math.round(spineW),height:Math.round(spineH),fps:fps,images:'./images/'},
     bones:bones,slots:slots,skins:skins,
     animations:{particles:{bones:bones_anim,slots:slots_anim}}
   };
   downloadJSON(JSON.stringify(spineObj, null, 2), exportFname+'.json');
-  alert('Exported Spine JSON: '+exportFname+'.json\n'+bCount+' bones · '+totalFrames+' frames · '+fps+' fps');
+
+  // Export each unique image as a separate PNG file (place them in ./images/ in your Spine project)
+  if(hasImgs){
+    var _ec=document.createElement('canvas');
+    var _ecx=_ec.getContext('2d');
+    // Small delay between downloads to avoid browser blocking
+    attNames.forEach(function(aname, xi){
+      setTimeout(function(){
+        var cimg=customImages[xi];
+        if(!cimg||!cimg.complete||!cimg.naturalWidth) return;
+        _ec.width=cimg.naturalWidth; _ec.height=cimg.naturalHeight;
+        _ecx.clearRect(0,0,_ec.width,_ec.height);
+        _ecx.drawImage(cimg,0,0);
+        var dataUrl=_ec.toDataURL('image/png');
+        var a=document.createElement('a');
+        a.href=dataUrl; a.download=aname+'.png'; a.click();
+      }, xi*80);
+    });
+  }
+
+  setTimeout(function(){
+    alert('Exported Spine JSON: '+exportFname+'.json\n'+bCount+' bones · '+totalFrames+' frames · '+fps+' fps'
+      +(hasImgs?'\n\n'+imgCount+' image file(s) also downloaded.\nPlace them in the ./images/ folder of your Spine project.':''));
+  }, hasImgs ? imgCount*80+200 : 0);
 }
 
 // ============================================================
