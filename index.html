@@ -308,6 +308,11 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <span class="val" id="elongate_v">0</span>
       </div>
       <div style="font-size:10px;color:#555;padding-left:2px;margin-top:-4px">stretch along velocity direction</div>
+      <div class="row"><label>Elong. Life</label>
+        <input type="range" id="elongateLife" min="0" max="8" step="0.05" value="0" oninput="syncVal(this,'elongateLife_v');onCfgChange()">
+        <span class="val" id="elongateLife_v">0</span>
+      </div>
+      <div style="font-size:10px;color:#555;padding-left:2px;margin-top:-4px">extra stretch toward end of life</div>
     </div>
 
     <!-- COLOR -->
@@ -921,6 +926,7 @@ function getConfig(){
     rotAlignVel:document.getElementById('rotAlignVel').checked,
     massJitter:V('massJitter'),
     elongate:V('elongate'),
+    elongateLife:V('elongateLife'),
     hueJitter:V('hueJitter'),
     blendMode:document.getElementById('blendMode').value,
     gravX:V('gravX'), gravY:V('gravY'),
@@ -1560,10 +1566,11 @@ function drawParticle(ctx, p, t, cfg, proj){
     : p.rot;
   // Velocity elongation: stretch particle along its direction of travel
   var _pspd=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
-  var doElongate=(cfg.elongate||0)>0 && _pspd>2;
+  var doElongate=((cfg.elongate||0)>0 && _pspd>2) || (cfg.elongateLife||0)>0;
   if(doElongate){
     var _vang=Math.atan2(p.vy,p.vx);
-    var _stretch=1+(cfg.elongate)*Math.min(_pspd/150,4);
+    var _lifeStretch=1+(cfg.elongateLife||0)*lifeT*lifeT;
+    var _stretch=(1+(cfg.elongate||0)*Math.min(_pspd/150,4))*_lifeStretch;
     ctx.save();
     ctx.translate(dx,dy); ctx.rotate(_vang); ctx.scale(_stretch,1); ctx.rotate(-_vang); ctx.translate(-dx,-dy);
   }
@@ -1943,7 +1950,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
   // Copy primitives from snapshot
   var numFields=['emitX','emitY','emitRadius','boxW','boxH','emitDir','emitSpread','emitRate','preRun',
     'lifeMin','lifeMax','velMin','velMax','sizeStart','sizeEnd','sizeJitter','opStart','opEnd',
-    'spinRate','spinJitter','spinDamping','rotStart','rotJitter','massJitter','elongate','hueJitter',
+    'spinRate','spinJitter','spinDamping','rotStart','rotJitter','massJitter','elongate','elongateLife','hueJitter',
     'gravX','gravY','windX','windY','drag','maxVel','bounce','floorY','friction',
     'vortexStr','vortexX','vortexY','turbStr','turbScale',
     'attractorStr','attractorRadius','attractorX','attractorY',
@@ -2188,118 +2195,262 @@ setTimeout(function(){
 //  PRESETS
 // ============================================================
 var PRESETS=[
-  {name:'🔥 Fire',emitType:'box',emitDir:-90,emitSpread:40,emitRate:60,lifeMin:0.8,lifeMax:2.5,
-   velMin:80,velMax:220,sizeStart:18,sizeEnd:2,opStart:0.9,opEnd:0,gravX:0,gravY:-60,windX:10,windY:0,
-   drag:1.5,turbStr:200,turbScale:0.012,hueJitter:20,blendMode:'lighter',
-   grad:['#fff7a0','#ff9900','#ff3300','#220000'],motionBlur:0.25,glowRadius:20,glowStr:1.0,
-   sizeJitter:50,spinJitter:60},
-  {name:'💨 Smoke',emitType:'box',emitDir:-90,emitSpread:30,emitRate:15,lifeMin:3,lifeMax:8,
-   velMin:20,velMax:80,sizeStart:20,sizeEnd:60,opStart:0.5,opEnd:0,gravX:0,gravY:-20,windX:20,windY:0,
-   drag:0.8,turbStr:150,turbScale:0.006,hueJitter:0,blendMode:'source-over',
-   grad:['#888888','#555555','#222222','#000000'],motionBlur:0.3,glowRadius:0,glowStr:0,
-   sizeJitter:40,spinJitter:30},
-  {name:'✨ Sparkle',emitType:'point',emitDir:-90,emitSpread:360,emitRate:40,lifeMin:0.5,lifeMax:1.5,
-   velMin:50,velMax:200,sizeStart:4,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:150,windX:0,windY:0,
-   drag:0.5,turbStr:0,hueJitter:60,blendMode:'lighter',
-   grad:['#ffffff','#ffff00','#ff8800','#ff0000'],motionBlur:0.1,glowRadius:15,glowStr:1.5,
-   sizeJitter:60,spinJitter:360},
-  {name:'💦 Water Splash',emitType:'ring',emitDir:-90,emitSpread:360,emitRate:80,lifeMin:0.5,lifeMax:1.5,
-   velMin:100,velMax:400,sizeStart:6,sizeEnd:2,opStart:0.9,opEnd:0,gravX:0,gravY:400,windX:0,windY:0,
-   drag:0.3,bounce:0.6,floorY:null,turbStr:0,hueJitter:5,blendMode:'lighter',
-   grad:['#ffffff','#aaddff','#2266ff','#001133'],motionBlur:0.05,glowRadius:8,glowStr:0.5,
-   sizeJitter:50,spinJitter:90},
-  {name:'⭐ Stars',emitType:'box',emitDir:-90,emitSpread:360,emitRate:10,lifeMin:4,lifeMax:10,
-   velMin:5,velMax:30,sizeStart:3,sizeEnd:3,opStart:0.8,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
-   drag:0,turbStr:20,turbScale:0.003,hueJitter:30,blendMode:'lighter',
-   grad:['#ffffff','#aaaaff','#6666ff','#222266'],motionBlur:0.05,glowRadius:12,glowStr:2.0,
-   sizeJitter:80,spinJitter:0},
-  {name:'🌊 Ocean Mist',emitType:'line',emitDir:-60,emitSpread:60,emitRate:25,lifeMin:3,lifeMax:7,
-   velMin:20,velMax:80,sizeStart:15,sizeEnd:40,opStart:0.4,opEnd:0,gravX:0,gravY:-10,windX:30,windY:0,
-   drag:0.6,turbStr:100,turbScale:0.005,hueJitter:0,blendMode:'source-over',
-   grad:['#ffffff','#aaccff','#5588cc','#224488'],motionBlur:0.35,glowRadius:0,glowStr:0,
-   sizeJitter:30,spinJitter:20},
-  {name:'🎇 Fireworks',emitType:'point',emitDir:-90,emitSpread:360,emitRate:100,lifeMin:0.5,lifeMax:2,
-   velMin:100,velMax:350,sizeStart:5,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:200,windX:0,windY:0,
-   drag:1.0,turbStr:0,hueJitter:90,blendMode:'lighter',
-   grad:['#ffffff','#ffff00','#ff6600','#ff0066'],motionBlur:0.4,glowRadius:15,glowStr:1.2,
-   sizeJitter:40,spinJitter:0,preRun:0},
-  {name:'🍂 Falling Leaves',emitType:'line',emitDir:90,emitSpread:20,emitRate:8,lifeMin:4,lifeMax:9,
-   velMin:30,velMax:80,sizeStart:8,sizeEnd:8,opStart:1,opEnd:0.2,gravX:0,gravY:60,windX:20,windY:0,
-   drag:2.0,turbStr:80,turbScale:0.01,hueJitter:25,blendMode:'source-over',
-   grad:['#ffcc33','#ff8800','#cc4400','#882200'],motionBlur:0.0,glowRadius:0,glowStr:0,
-   sizeJitter:60,spinJitter:180},
-  {name:'💫 Vortex',emitType:'ring',emitDir:0,emitSpread:360,emitRate:50,lifeMin:2,lifeMax:5,
-   velMin:20,velMax:80,sizeStart:6,sizeEnd:2,opStart:0.8,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
-   drag:0.2,vortexStr:300,turbStr:30,hueJitter:40,blendMode:'lighter',
-   grad:['#ffffff','#cc88ff','#8833ff','#220055'],motionBlur:0.3,glowRadius:12,glowStr:1.2,
-   sizeJitter:40,spinJitter:120},
-  {name:'🔵 Bubbles',emitType:'box',emitDir:-90,emitSpread:30,emitRate:12,lifeMin:3,lifeMax:8,
-   velMin:20,velMax:70,sizeStart:10,sizeEnd:14,opStart:0.6,opEnd:0,gravX:0,gravY:-40,windX:5,windY:0,
-   drag:0.4,turbStr:30,turbScale:0.008,hueJitter:15,blendMode:'screen',
-   grad:['#ffffff','#88ccff','#0088ff','#003399'],motionBlur:0.0,glowRadius:10,glowStr:0.4,
-   sizeJitter:60,spinJitter:0},
-  {name:'⚡ Lightning Arc',emitType:'line',emitDir:0,emitSpread:30,emitRate:200,lifeMin:0.1,lifeMax:0.4,
-   velMin:200,velMax:600,sizeStart:4,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
-   drag:3.0,turbStr:500,turbScale:0.04,hueJitter:30,blendMode:'lighter',
-   grad:['#ffffff','#ccccff','#8888ff','#0000ff'],motionBlur:0.5,glowRadius:20,glowStr:2.5,
-   sizeJitter:30,spinJitter:0},
-  {name:'🌟 Galaxy',emitType:'ring',emitDir:0,emitSpread:360,emitRate:20,lifeMin:5,lifeMax:15,
-   velMin:10,velMax:50,sizeStart:2,sizeEnd:2,opStart:0.9,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
-   drag:0.1,vortexStr:150,turbStr:10,hueJitter:50,blendMode:'lighter',
-   grad:['#ffffff','#ffddaa','#ff8844','#441122'],motionBlur:0.1,glowRadius:8,glowStr:1.5,
-   sizeJitter:70,spinJitter:30},
-  // --- MULTI-EMITTER PRESETS ---
-  {name:'🎆 Rocket Exhaust',
+  // ── BONFIRE ─────────────────────────────────────────────
+  {name:'🔥 Bonfire',
    emitters:[
-    {name:'Flame',emitType:'point',emitDir:90,emitSpread:25,emitRate:80,lifeMin:0.3,lifeMax:0.9,
-     velMin:80,velMax:200,sizeStart:16,sizeEnd:2,opStart:1,opEnd:0,gravX:0,gravY:-20,windX:0,windY:0,
-     drag:2.0,turbStr:120,turbScale:0.015,hueJitter:15,blendMode:'lighter',motionBlur:0.25,
-     glowRadius:18,glowStr:1.2,sizeJitter:40,spinJitter:60,emitX:400,emitY:300,
-     grad:['#ffffff','#ffee44','#ff7700','#330000']},
-    {name:'Smoke',emitType:'point',emitDir:90,emitSpread:20,emitRate:20,lifeMin:1.5,lifeMax:4,
-     velMin:30,velMax:90,sizeStart:12,sizeEnd:50,opStart:0.35,opEnd:0,gravX:0,gravY:10,windX:20,windY:0,
-     drag:0.7,turbStr:80,turbScale:0.006,hueJitter:0,blendMode:'source-over',motionBlur:0.35,
-     glowRadius:0,glowStr:0,sizeJitter:50,spinJitter:40,emitX:400,emitY:300,
-     grad:['#777777','#444444','#222222','#000000']}
+    {name:'Core Fire',emitType:'box',emitDir:-90,emitSpread:35,emitRate:70,lifeMin:0.6,lifeMax:1.8,
+     velMin:90,velMax:240,sizeStart:22,sizeEnd:3,opStart:1,opEnd:0,gravX:0,gravY:-80,windX:8,windY:0,
+     drag:1.8,turbStr:220,turbScale:0.013,hueJitter:18,blendMode:'lighter',motionBlur:0.28,
+     glowRadius:22,glowStr:1.2,sizeJitter:45,spinJitter:50,emitX:400,emitY:400,boxW:60,boxH:10,
+     grad:['#ffffff','#fff066','#ff8800','#cc2200']},
+    {name:'Embers',emitType:'box',emitDir:-90,emitSpread:50,emitRate:25,lifeMin:1.5,lifeMax:4,
+     velMin:60,velMax:180,sizeStart:4,sizeEnd:2,opStart:1,opEnd:0,gravX:0,gravY:-30,windX:25,windY:0,
+     drag:0.6,turbStr:300,turbScale:0.018,hueJitter:25,blendMode:'lighter',motionBlur:0.15,
+     glowRadius:10,glowStr:1.8,sizeJitter:60,spinJitter:360,emitX:400,emitY:395,boxW:50,boxH:8,
+     grad:['#ffffff','#ffdd00','#ff6600','#aa1100']},
+    {name:'Smoke',emitType:'box',emitDir:-90,emitSpread:25,emitRate:12,lifeMin:4,lifeMax:10,
+     velMin:15,velMax:50,sizeStart:18,sizeEnd:70,opStart:0.4,opEnd:0,gravX:0,gravY:-15,windX:20,windY:0,
+     drag:0.5,turbStr:120,turbScale:0.005,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     glowRadius:0,glowStr:0,sizeJitter:40,spinJitter:25,emitX:400,emitY:390,boxW:40,boxH:8,
+     grad:['#666666','#444444','#222222','#000000']}
    ]},
-  {name:'🌺 Floral Burst',
+  // ── ROCKET EXHAUST ───────────────────────────────────────
+  {name:'🚀 Rocket Exhaust',
    emitters:[
-    {name:'Petals',emitType:'ring',emitDir:0,emitSpread:360,emitRate:35,lifeMin:1.5,lifeMax:4,
-     velMin:60,velMax:180,sizeStart:10,sizeEnd:4,opStart:1,opEnd:0,gravX:0,gravY:80,windX:0,windY:0,
-     drag:1.2,turbStr:40,hueJitter:60,blendMode:'lighter',motionBlur:0.1,
-     glowRadius:10,glowStr:0.8,sizeJitter:50,spinJitter:180,rotAlignVel:true,emitX:400,emitY:300,
-     grad:['#ffffff','#ffaacc','#ff3388','#550022']},
-    {name:'Pollen',emitType:'ring',emitDir:0,emitSpread:360,emitRate:60,lifeMin:0.5,lifeMax:1.5,
-     velMin:20,velMax:120,sizeStart:3,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:60,windX:0,windY:0,
-     drag:0.8,turbStr:20,hueJitter:30,blendMode:'lighter',motionBlur:0.15,
-     glowRadius:8,glowStr:1.2,sizeJitter:60,spinJitter:0,emitX:400,emitY:300,
-     grad:['#ffffff','#ffff88','#ffcc00','#886600']}
+    {name:'Core Flame',emitType:'point',emitDir:90,emitSpread:15,emitRate:90,lifeMin:0.2,lifeMax:0.7,
+     velMin:120,velMax:280,sizeStart:20,sizeEnd:2,opStart:1,opEnd:0,gravX:0,gravY:-30,windX:0,windY:0,
+     drag:2.5,turbStr:80,turbScale:0.012,hueJitter:10,blendMode:'lighter',motionBlur:0.3,
+     glowRadius:20,glowStr:1.5,sizeJitter:30,spinJitter:0,emitX:400,emitY:300,elongate:2,
+     grad:['#ffffff','#ccffff','#44aaff','#0033aa']},
+    {name:'Outer Flame',emitType:'point',emitDir:90,emitSpread:30,emitRate:60,lifeMin:0.3,lifeMax:1.0,
+     velMin:70,velMax:180,sizeStart:14,sizeEnd:3,opStart:0.9,opEnd:0,gravX:0,gravY:-20,windX:0,windY:0,
+     drag:2.0,turbStr:140,turbScale:0.015,hueJitter:15,blendMode:'lighter',motionBlur:0.25,
+     glowRadius:16,glowStr:1.0,sizeJitter:40,spinJitter:30,emitX:400,emitY:300,
+     grad:['#ffffff','#ffee44','#ff7700','#441100']},
+    {name:'Smoke Trail',emitType:'point',emitDir:90,emitSpread:20,emitRate:18,lifeMin:2,lifeMax:5,
+     velMin:25,velMax:80,sizeStart:10,sizeEnd:55,opStart:0.3,opEnd:0,gravX:0,gravY:12,windX:15,windY:0,
+     drag:0.6,turbStr:70,turbScale:0.006,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     glowRadius:0,glowStr:0,sizeJitter:50,spinJitter:35,emitX:400,emitY:300,
+     grad:['#888888','#555555','#2a2a2a','#000000']}
    ]},
-  {name:'⚡ Thunder Storm',
+  // ── EXPLOSION ────────────────────────────────────────────
+  {name:'💥 Explosion',
    emitters:[
-    {name:'Lightning',emitType:'line',emitDir:0,emitSpread:30,emitRate:200,lifeMin:0.05,lifeMax:0.3,
-     velMin:300,velMax:800,sizeStart:5,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
-     drag:4.0,turbStr:600,turbScale:0.04,hueJitter:20,blendMode:'lighter',motionBlur:0.6,
-     glowRadius:25,glowStr:3.0,sizeJitter:40,spinJitter:0,emitX:400,emitY:200,emitRadius:300,
-     grad:['#ffffff','#ddddff','#8888ff','#2222aa']},
-    {name:'Rain',emitType:'box',emitDir:80,emitSpread:10,emitRate:60,lifeMin:0.8,lifeMax:2.0,
-     velMin:200,velMax:400,sizeStart:3,sizeEnd:2,opStart:0.6,opEnd:0,gravX:0,gravY:300,windX:30,windY:0,
-     drag:0.1,turbStr:0,hueJitter:5,blendMode:'screen',motionBlur:0.2,
-     glowRadius:0,glowStr:0,sizeJitter:20,spinJitter:0,rotAlignVel:true,emitX:400,emitY:0,boxW:800,boxH:10,
-     grad:['#aabbdd','#8899bb','#6677aa','#445588']}
+    {name:'Fireball',emitType:'ring',emitDir:0,emitSpread:360,emitRate:120,lifeMin:0.4,lifeMax:1.2,
+     velMin:80,velMax:350,sizeStart:18,sizeEnd:4,opStart:1,opEnd:0,gravX:0,gravY:20,windX:0,windY:0,
+     drag:2.5,turbStr:80,turbScale:0.01,hueJitter:20,blendMode:'lighter',motionBlur:0.35,
+     glowRadius:22,glowStr:1.4,sizeJitter:50,spinJitter:0,emitX:400,emitY:300,preRun:0,
+     grad:['#ffffff','#fff066','#ff8800','#cc1100']},
+    {name:'Sparks',emitType:'ring',emitDir:0,emitSpread:360,emitRate:200,lifeMin:0.5,lifeMax:2.0,
+     velMin:150,velMax:500,sizeStart:5,sizeEnd:1,opStart:1,opEnd:0,gravX:0,gravY:180,windX:0,windY:0,
+     drag:0.8,turbStr:0,hueJitter:30,blendMode:'lighter',motionBlur:0.45,
+     glowRadius:10,glowStr:2.0,sizeJitter:40,spinJitter:0,emitX:400,emitY:300,preRun:0,
+     elongate:2.5,rotAlignVel:true,
+     grad:['#ffffff','#ffee44','#ff6600','#880000']},
+    {name:'Debris',emitType:'ring',emitDir:0,emitSpread:360,emitRate:30,lifeMin:1.5,lifeMax:4,
+     velMin:60,velMax:200,sizeStart:6,sizeEnd:6,opStart:1,opEnd:0,gravX:0,gravY:300,windX:0,windY:0,
+     drag:0.4,turbStr:0,bounce:0.4,floorY:580,friction:0.5,hueJitter:10,blendMode:'source-over',motionBlur:0.1,
+     glowRadius:0,glowStr:0,sizeJitter:70,spinJitter:360,emitX:400,emitY:300,preRun:0,
+     grad:['#aaaaaa','#888866','#664422','#221100']},
+    {name:'Smoke Cloud',emitType:'ring',emitDir:0,emitSpread:360,emitRate:20,lifeMin:3,lifeMax:8,
+     velMin:20,velMax:80,sizeStart:20,sizeEnd:80,opStart:0.5,opEnd:0,gravX:0,gravY:-10,windX:10,windY:0,
+     drag:0.4,turbStr:60,turbScale:0.005,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     glowRadius:0,glowStr:0,sizeJitter:40,spinJitter:20,emitX:400,emitY:300,preRun:0,
+     grad:['#777777','#555544','#333322','#111100']}
    ]},
+  // ── FIREWORKS ────────────────────────────────────────────
+  {name:'🎆 Fireworks',
+   emitters:[
+    {name:'Burst',emitType:'ring',emitDir:0,emitSpread:360,emitRate:180,lifeMin:0.8,lifeMax:2.5,
+     velMin:120,velMax:380,sizeStart:6,sizeEnd:1,opStart:1,opEnd:0,gravX:0,gravY:140,windX:0,windY:0,
+     drag:1.2,turbStr:0,hueJitter:80,blendMode:'lighter',motionBlur:0.45,
+     glowRadius:14,glowStr:1.4,sizeJitter:30,spinJitter:0,emitX:400,emitY:200,preRun:0,
+     elongate:1.5,rotAlignVel:true,
+     grad:['#ffffff','#ffff66','#ff8800','#ff0066']},
+    {name:'Glitter',emitType:'ring',emitDir:0,emitSpread:360,emitRate:80,lifeMin:1.2,lifeMax:3.5,
+     velMin:60,velMax:220,sizeStart:4,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:180,windX:0,windY:0,
+     drag:0.9,turbStr:20,turbScale:0.008,hueJitter:90,blendMode:'lighter',motionBlur:0.3,
+     glowRadius:10,glowStr:2.0,sizeJitter:70,spinJitter:360,emitX:400,emitY:200,preRun:0,
+     grad:['#ffffff','#aaffff','#ff88ff','#ffaa00']},
+    {name:'Trail',emitType:'point',emitDir:-90,emitSpread:8,emitRate:40,lifeMin:0.2,lifeMax:0.8,
+     velMin:200,velMax:300,sizeStart:5,sizeEnd:2,opStart:0.8,opEnd:0,gravX:0,gravY:80,windX:0,windY:0,
+     drag:1.0,turbStr:0,hueJitter:10,blendMode:'lighter',motionBlur:0.5,
+     glowRadius:8,glowStr:1.0,sizeJitter:20,spinJitter:0,emitX:400,emitY:500,preRun:0,
+     elongate:2,rotAlignVel:true,
+     grad:['#ffffff','#ffee88','#ff8800','#440000']}
+   ]},
+  // ── MAGIC SPELL ──────────────────────────────────────────
+  {name:'✨ Magic Spell',
+   emitters:[
+    {name:'Core Glow',emitType:'ring',emitDir:0,emitSpread:360,emitRate:50,lifeMin:0.6,lifeMax:2.0,
+     velMin:20,velMax:100,sizeStart:10,sizeEnd:3,opStart:1,opEnd:0,gravX:0,gravY:-20,windX:0,windY:0,
+     drag:1.5,turbStr:60,turbScale:0.01,hueJitter:40,blendMode:'lighter',motionBlur:0.2,
+     glowRadius:18,glowStr:2.0,sizeJitter:40,spinJitter:180,emitX:400,emitY:300,emitRadius:30,
+     grad:['#ffffff','#eeccff','#aa44ff','#440088']},
+    {name:'Sparkles',emitType:'ring',emitDir:0,emitSpread:360,emitRate:80,lifeMin:0.3,lifeMax:1.2,
+     velMin:60,velMax:250,sizeStart:5,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.8,turbStr:30,turbScale:0.012,hueJitter:60,blendMode:'lighter',motionBlur:0.15,
+     glowRadius:12,glowStr:2.5,sizeJitter:60,spinJitter:360,emitX:400,emitY:300,emitRadius:40,
+     grad:['#ffffff','#ffffff','#cc88ff','#6600ff']},
+    {name:'Rune Dust',emitType:'ring',emitDir:0,emitSpread:360,emitRate:20,lifeMin:2,lifeMax:5,
+     velMin:10,velMax:40,sizeStart:3,sizeEnd:5,opStart:0.7,opEnd:0,gravX:0,gravY:-5,windX:0,windY:0,
+     drag:0.3,vortexStr:120,turbStr:15,turbScale:0.008,hueJitter:30,blendMode:'lighter',motionBlur:0.25,
+     glowRadius:6,glowStr:1.5,sizeJitter:80,spinJitter:90,emitX:400,emitY:300,emitRadius:80,
+     grad:['#aaaaff','#8866ff','#4400cc','#220055']}
+   ]},
+  // ── THUNDERSTORM ─────────────────────────────────────────
+  {name:'⛈️ Thunderstorm',
+   emitters:[
+    {name:'Lightning',emitType:'line',emitDir:0,emitSpread:20,emitRate:220,lifeMin:0.04,lifeMax:0.25,
+     velMin:300,velMax:900,sizeStart:6,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:4.5,turbStr:700,turbScale:0.045,hueJitter:15,blendMode:'lighter',motionBlur:0.65,
+     glowRadius:30,glowStr:3.5,sizeJitter:35,spinJitter:0,emitX:400,emitY:180,emitRadius:350,
+     grad:['#ffffff','#eeeeff','#9999ff','#2200aa']},
+    {name:'Rain',emitType:'box',emitDir:82,emitSpread:8,emitRate:80,lifeMin:0.6,lifeMax:1.8,
+     velMin:250,velMax:420,sizeStart:3,sizeEnd:2,opStart:0.55,opEnd:0,gravX:0,gravY:350,windX:35,windY:0,
+     drag:0.08,turbStr:0,hueJitter:5,blendMode:'screen',motionBlur:0.25,
+     glowRadius:0,glowStr:0,sizeJitter:20,spinJitter:0,rotAlignVel:true,
+     emitX:400,emitY:-10,boxW:900,boxH:10,elongate:3,
+     grad:['#aabbdd','#8899bb','#6677aa','#445588']},
+    {name:'Ground Mist',emitType:'box',emitDir:-90,emitSpread:40,emitRate:10,lifeMin:5,lifeMax:12,
+     velMin:10,velMax:40,sizeStart:30,sizeEnd:80,opStart:0.22,opEnd:0,gravX:0,gravY:-3,windX:30,windY:0,
+     drag:0.4,turbStr:50,turbScale:0.004,hueJitter:0,blendMode:'source-over',motionBlur:0.45,
+     glowRadius:0,glowStr:0,sizeJitter:30,spinJitter:15,emitX:400,emitY:560,boxW:850,boxH:20,
+     grad:['#aabbcc','#8899aa','#667788','#445566']}
+   ]},
+  // ── GALAXY ───────────────────────────────────────────────
+  {name:'🌌 Galaxy',
+   emitters:[
+    {name:'Stars',emitType:'ring',emitDir:0,emitSpread:360,emitRate:15,lifeMin:6,lifeMax:16,
+     velMin:8,velMax:40,sizeStart:2,sizeEnd:2,opStart:0.9,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.05,vortexStr:120,turbStr:5,hueJitter:40,blendMode:'lighter',motionBlur:0.08,
+     glowRadius:10,glowStr:1.8,sizeJitter:80,spinJitter:0,emitX:400,emitY:300,emitRadius:200,
+     grad:['#ffffff','#ffddaa','#ff8840','#441122']},
+    {name:'Nebula',emitType:'ring',emitDir:0,emitSpread:360,emitRate:6,lifeMin:8,lifeMax:20,
+     velMin:5,velMax:20,sizeStart:25,sizeEnd:60,opStart:0.18,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.05,vortexStr:80,turbStr:8,turbScale:0.003,hueJitter:60,blendMode:'screen',motionBlur:0.12,
+     glowRadius:0,glowStr:0,sizeJitter:60,spinJitter:10,emitX:400,emitY:300,emitRadius:180,
+     grad:['#8844ff','#4488ff','#22ccff','#004488']},
+    {name:'Core',emitType:'ring',emitDir:0,emitSpread:360,emitRate:30,lifeMin:3,lifeMax:8,
+     velMin:3,velMax:15,sizeStart:3,sizeEnd:1,opStart:0.8,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.1,vortexStr:200,turbStr:0,hueJitter:20,blendMode:'lighter',motionBlur:0.15,
+     glowRadius:8,glowStr:2.5,sizeJitter:60,spinJitter:0,emitX:400,emitY:300,emitRadius:60,
+     grad:['#ffffff','#ffffcc','#ffeeaa','#ffcc77']}
+   ]},
+  // ── OCEAN SHORE ──────────────────────────────────────────
   {name:'🌊 Ocean Shore',
    emitters:[
-    {name:'Foam',emitType:'line',emitDir:-90,emitSpread:40,emitRate:40,lifeMin:0.8,lifeMax:2.5,
-     velMin:20,velMax:100,sizeStart:8,sizeEnd:20,opStart:0.7,opEnd:0,gravX:0,gravY:-30,windX:25,windY:0,
-     drag:0.8,turbStr:80,turbScale:0.006,hueJitter:5,blendMode:'screen',motionBlur:0.25,
-     glowRadius:4,glowStr:0.3,sizeJitter:40,spinJitter:15,emitX:400,emitY:350,emitRadius:300,
+    {name:'Waves',emitType:'line',emitDir:-75,emitSpread:30,emitRate:50,lifeMin:0.6,lifeMax:2.0,
+     velMin:40,velMax:150,sizeStart:10,sizeEnd:25,opStart:0.8,opEnd:0,gravX:0,gravY:-20,windX:30,windY:0,
+     drag:1.2,turbStr:100,turbScale:0.007,hueJitter:8,blendMode:'screen',motionBlur:0.2,
+     glowRadius:5,glowStr:0.4,sizeJitter:40,spinJitter:15,emitX:400,emitY:360,emitRadius:320,
+     grad:['#ffffff','#eef8ff','#99ddff','#3399cc']},
+    {name:'Sea Foam',emitType:'line',emitDir:-90,emitSpread:50,emitRate:30,lifeMin:0.8,lifeMax:2.5,
+     velMin:15,velMax:70,sizeStart:8,sizeEnd:22,opStart:0.6,opEnd:0,gravX:0,gravY:-25,windX:25,windY:0,
+     drag:0.9,turbStr:80,turbScale:0.006,hueJitter:4,blendMode:'screen',motionBlur:0.3,
+     glowRadius:3,glowStr:0.2,sizeJitter:50,spinJitter:20,emitX:400,emitY:350,emitRadius:300,
      grad:['#ffffff','#ddeeff','#aaccee','#5599bb']},
-    {name:'Mist',emitType:'line',emitDir:-80,emitSpread:60,emitRate:15,lifeMin:3,lifeMax:7,
-     velMin:15,velMax:50,sizeStart:20,sizeEnd:60,opStart:0.25,opEnd:0,gravX:0,gravY:-5,windX:40,windY:0,
-     drag:0.5,turbStr:60,turbScale:0.004,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
-     glowRadius:0,glowStr:0,sizeJitter:30,spinJitter:20,emitX:400,emitY:350,emitRadius:300,
+    {name:'Sea Mist',emitType:'line',emitDir:-80,emitSpread:60,emitRate:12,lifeMin:4,lifeMax:9,
+     velMin:12,velMax:45,sizeStart:22,sizeEnd:65,opStart:0.2,opEnd:0,gravX:0,gravY:-4,windX:40,windY:0,
+     drag:0.4,turbStr:55,turbScale:0.004,hueJitter:0,blendMode:'source-over',motionBlur:0.45,
+     glowRadius:0,glowStr:0,sizeJitter:30,spinJitter:18,emitX:400,emitY:345,emitRadius:310,
      grad:['#ffffff','#ccddee','#aabbcc','#889aaa']}
+   ]},
+  // ── VOLCANO ──────────────────────────────────────────────
+  {name:'🌋 Volcano',
+   emitters:[
+    {name:'Lava Blobs',emitType:'point',emitDir:-90,emitSpread:60,emitRate:20,lifeMin:2,lifeMax:5,
+     velMin:100,velMax:300,sizeStart:14,sizeEnd:10,opStart:1,opEnd:0.8,gravX:0,gravY:250,windX:5,windY:0,
+     drag:0.3,turbStr:30,turbScale:0.01,hueJitter:15,blendMode:'lighter',motionBlur:0.1,
+     glowRadius:18,glowStr:1.2,sizeJitter:60,spinJitter:30,bounce:0.3,floorY:540,friction:0.7,
+     emitX:400,emitY:320,preRun:0,
+     grad:['#ffffff','#ffee00','#ff5500','#800000']},
+    {name:'Ash Cloud',emitType:'point',emitDir:-90,emitSpread:70,emitRate:35,lifeMin:3,lifeMax:9,
+     velMin:40,velMax:130,sizeStart:12,sizeEnd:55,opStart:0.55,opEnd:0,gravX:0,gravY:-8,windX:25,windY:0,
+     drag:0.55,turbStr:140,turbScale:0.007,hueJitter:5,blendMode:'source-over',motionBlur:0.4,
+     glowRadius:0,glowStr:0,sizeJitter:45,spinJitter:25,emitX:400,emitY:315,
+     grad:['#888877','#666655','#444433','#221100']},
+    {name:'Fire Jets',emitType:'point',emitDir:-90,emitSpread:30,emitRate:55,lifeMin:0.5,lifeMax:1.5,
+     velMin:80,velMax:220,sizeStart:16,sizeEnd:2,opStart:1,opEnd:0,gravX:0,gravY:-40,windX:8,windY:0,
+     drag:2.0,turbStr:180,turbScale:0.014,hueJitter:20,blendMode:'lighter',motionBlur:0.28,
+     glowRadius:20,glowStr:1.3,sizeJitter:45,spinJitter:50,emitX:400,emitY:325,
+     grad:['#ffffff','#ffee44','#ff7700','#cc1100']}
+   ]},
+  // ── UNDERWATER ───────────────────────────────────────────
+  {name:'🫧 Underwater',
+   emitters:[
+    {name:'Bubbles',emitType:'box',emitDir:-90,emitSpread:25,emitRate:18,lifeMin:3,lifeMax:9,
+     velMin:18,velMax:65,sizeStart:8,sizeEnd:12,opStart:0.55,opEnd:0,gravX:0,gravY:-50,windX:5,windY:0,
+     drag:0.35,turbStr:35,turbScale:0.007,hueJitter:15,blendMode:'screen',motionBlur:0.0,
+     glowRadius:10,glowStr:0.5,sizeJitter:65,spinJitter:0,emitX:400,emitY:550,boxW:700,boxH:20,
+     grad:['#ffffff','#aaddff','#55aaee','#1144aa']},
+    {name:'Particles',emitType:'box',emitDir:-90,emitSpread:60,emitRate:30,lifeMin:4,lifeMax:12,
+     velMin:5,velMax:25,sizeStart:2,sizeEnd:3,opStart:0.5,opEnd:0,gravX:0,gravY:-8,windX:12,windY:0,
+     drag:0.2,turbStr:60,turbScale:0.005,hueJitter:20,blendMode:'screen',motionBlur:0.05,
+     glowRadius:6,glowStr:1.0,sizeJitter:70,spinJitter:0,emitX:400,emitY:500,boxW:800,boxH:40,
+     grad:['#88ffcc','#44ddaa','#22aa88','#004455']},
+    {name:'Caustics',emitType:'box',emitDir:-90,emitSpread:180,emitRate:8,lifeMin:5,lifeMax:14,
+     velMin:3,velMax:15,sizeStart:30,sizeEnd:50,opStart:0.12,opEnd:0,gravX:0,gravY:-2,windX:8,windY:0,
+     drag:0.1,turbStr:40,turbScale:0.003,hueJitter:10,blendMode:'screen',motionBlur:0.12,
+     glowRadius:0,glowStr:0,sizeJitter:50,spinJitter:8,emitX:400,emitY:300,boxW:800,boxH:600,
+     grad:['#aaccff','#88bbee','#5599cc','#336699']}
+   ]},
+  // ── CHERRY BLOSSOMS ──────────────────────────────────────
+  {name:'🌸 Cherry Blossoms',
+   emitters:[
+    {name:'Petals',emitType:'box',emitDir:80,emitSpread:30,emitRate:14,lifeMin:5,lifeMax:12,
+     velMin:20,velMax:70,sizeStart:9,sizeEnd:9,opStart:1,opEnd:0,gravX:0,gravY:40,windX:30,windY:0,
+     drag:2.2,turbStr:100,turbScale:0.009,hueJitter:15,blendMode:'source-over',motionBlur:0.0,
+     glowRadius:0,glowStr:0,sizeJitter:50,spinJitter:200,emitX:400,emitY:-10,boxW:900,boxH:15,
+     grad:['#ffffff','#ffddee','#ffaabb','#cc5577']},
+    {name:'Petal Glow',emitType:'box',emitDir:80,emitSpread:30,emitRate:8,lifeMin:4,lifeMax:10,
+     velMin:15,velMax:60,sizeStart:6,sizeEnd:4,opStart:0.5,opEnd:0,gravX:0,gravY:40,windX:30,windY:0,
+     drag:2.0,turbStr:80,turbScale:0.009,hueJitter:20,blendMode:'lighter',motionBlur:0.1,
+     glowRadius:12,glowStr:0.8,sizeJitter:60,spinJitter:180,emitX:400,emitY:-10,boxW:900,boxH:15,
+     grad:['#ffffff','#ffbbcc','#ff7799','#aa2244']},
+    {name:'Pollen Dust',emitType:'box',emitDir:-90,emitSpread:80,emitRate:20,lifeMin:3,lifeMax:8,
+     velMin:5,velMax:30,sizeStart:2,sizeEnd:3,opStart:0.4,opEnd:0,gravX:0,gravY:-5,windX:25,windY:0,
+     drag:0.3,turbStr:80,turbScale:0.006,hueJitter:10,blendMode:'screen',motionBlur:0.08,
+     glowRadius:5,glowStr:0.6,sizeJitter:80,spinJitter:0,emitX:400,emitY:300,boxW:800,boxH:400,
+     grad:['#ffffcc','#ffeeaa','#ffdd88','#ccaa44']}
+   ]},
+  // ── VORTEX PORTAL ────────────────────────────────────────
+  {name:'💫 Vortex Portal',
+   emitters:[
+    {name:'Outer Ring',emitType:'ring',emitDir:0,emitSpread:360,emitRate:60,lifeMin:2,lifeMax:5,
+     velMin:15,velMax:60,sizeStart:7,sizeEnd:2,opStart:0.9,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.15,vortexStr:350,turbStr:25,hueJitter:50,blendMode:'lighter',motionBlur:0.35,
+     glowRadius:14,glowStr:1.3,sizeJitter:40,spinJitter:120,emitX:400,emitY:300,emitRadius:180,
+     grad:['#ffffff','#cc88ff','#8833ff','#220055']},
+    {name:'Inner Sparks',emitType:'ring',emitDir:0,emitSpread:360,emitRate:80,lifeMin:0.8,lifeMax:2.5,
+     velMin:30,velMax:120,sizeStart:4,sizeEnd:1,opStart:1,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.2,vortexStr:500,turbStr:15,hueJitter:30,blendMode:'lighter',motionBlur:0.25,
+     glowRadius:10,glowStr:2.0,sizeJitter:60,spinJitter:360,emitX:400,emitY:300,emitRadius:80,
+     grad:['#ffffff','#aaaaff','#5555ff','#0000cc']},
+    {name:'Core Pulse',emitType:'ring',emitDir:0,emitSpread:360,emitRate:25,lifeMin:0.4,lifeMax:1.2,
+     velMin:5,velMax:35,sizeStart:12,sizeEnd:3,opStart:0.8,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:0.5,vortexStr:200,turbStr:0,hueJitter:20,blendMode:'lighter',motionBlur:0.2,
+     glowRadius:20,glowStr:2.5,sizeJitter:40,spinJitter:0,emitX:400,emitY:300,emitRadius:20,
+     grad:['#ffffff','#ffffff','#ddccff','#8800ff']}
+   ]},
+  // ── SNOWSTORM ────────────────────────────────────────────
+  {name:'❄️ Snowstorm',
+   emitters:[
+    {name:'Snowflakes',emitType:'box',emitDir:85,emitSpread:20,emitRate:40,lifeMin:4,lifeMax:10,
+     velMin:30,velMax:90,sizeStart:5,sizeEnd:5,opStart:0.8,opEnd:0.1,gravX:0,gravY:50,windX:40,windY:0,
+     drag:1.5,turbStr:80,turbScale:0.008,hueJitter:0,blendMode:'screen',motionBlur:0.0,
+     glowRadius:8,glowStr:0.5,sizeJitter:70,spinJitter:60,emitX:400,emitY:-10,boxW:900,boxH:15,
+     grad:['#ffffff','#eeeeff','#ccddff','#aabbff']},
+    {name:'Snow Drift',emitType:'box',emitDir:88,emitSpread:10,emitRate:20,lifeMin:6,lifeMax:14,
+     velMin:15,velMax:50,sizeStart:8,sizeEnd:12,opStart:0.4,opEnd:0,gravX:0,gravY:30,windX:50,windY:0,
+     drag:1.0,turbStr:60,turbScale:0.005,hueJitter:0,blendMode:'screen',motionBlur:0.05,
+     glowRadius:5,glowStr:0.3,sizeJitter:60,spinJitter:20,emitX:400,emitY:-10,boxW:900,boxH:15,
+     grad:['#ffffff','#ddeeff','#bbccff','#9aabee']},
+    {name:'Ground Powder',emitType:'box',emitDir:-90,emitSpread:30,emitRate:15,lifeMin:3,lifeMax:7,
+     velMin:8,velMax:30,sizeStart:6,sizeEnd:18,opStart:0.3,opEnd:0,gravX:0,gravY:-5,windX:45,windY:0,
+     drag:0.5,turbStr:70,turbScale:0.006,hueJitter:0,blendMode:'screen',motionBlur:0.2,
+     glowRadius:0,glowStr:0,sizeJitter:40,spinJitter:10,emitX:400,emitY:560,boxW:900,boxH:20,
+     grad:['#ffffff','#eeeeff','#ddddff','#ccccff']}
    ]}
 ];
 
@@ -2416,6 +2567,7 @@ function applyPresetData(pd){
   setR('motionBlur',pd.motionBlur!=null?pd.motionBlur:0.15);
   setR('massJitter',pd.massJitter!=null?pd.massJitter:0.5);
   setR('elongate',pd.elongate!=null?pd.elongate:0);
+  setR('elongateLife',pd.elongateLife!=null?pd.elongateLife:0);
   setR('bounce',pd.bounce!=null?pd.bounce:0.4);
   setR('friction',pd.friction!=null?pd.friction:0.3);
   setR('maxVel',pd.maxVel!=null?pd.maxVel:800);
