@@ -394,6 +394,11 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <input type="range" id="friction" min="0" max="1" step="0.01" value="0.3" oninput="syncVal(this,'friction_v');onCfgChange()">
         <span class="val" id="friction_v">0.3</span>
       </div>
+      <div class="row"><label>Burst Count</label>
+        <input type="range" id="burstOnBounce" min="0" max="12" step="1" value="0" oninput="syncVal(this,'burstOnBounce_v');onCfgChange()">
+        <span class="val" id="burstOnBounce_v">0</span>
+      </div>
+      <div style="font-size:10px;color:#555;padding-left:2px;margin-top:-4px"># of mini-particles spawned per bounce</div>
       <div class="sub-label" style="margin-top:4px">Vortex</div>
       <div class="row"><label>Strength</label>
         <input type="range" id="vortexStr" min="-500" max="500" value="0" oninput="syncVal(this,'vortexStr_v');onCfgChange()">
@@ -933,6 +938,7 @@ function getConfig(){
     windX:V('windX'), windY:V('windY'),
     drag:V('drag'), maxVel:V('maxVel'),
     bounce:V('bounce'), floorY:V('floorY'), friction:V('friction'),
+    burstOnBounce:V('burstOnBounce'),
     vortexStr:V('vortexStr'),
     vortexX:document.getElementById('vortexX').value!==''?V('vortexX'):null,
     vortexY:document.getElementById('vortexY').value!==''?V('vortexY'):null,
@@ -1380,7 +1386,7 @@ function stepParticle(p, dt, cfg){
   p.x+=vx*dt; p.y+=vy*dt; p.z=(p.z||0)+vz*dt;
   if(cfg.floorY>0 && p.y>cfg.floorY){
     p.y=cfg.floorY;
-    if(p.vy>0){ p.vy=-p.vy*cfg.bounce; p.vx*=(1-cfg.friction); }
+    if(p.vy>0){ p.vy=-p.vy*cfg.bounce; p.vx*=(1-cfg.friction); if(!p.isBurst){ p._didBounce=true; p.bounces++; } }
   }
   var lifeFrac=clamp(p.age/p.life,0,1);
   p.rot+=p.spin*(1-cfg.spinDamping*lifeFrac)*dt;
@@ -1389,6 +1395,30 @@ function stepParticle(p, dt, cfg){
 // Total particle count across all emitters (for budget enforcement)
 function totalParticles(){
   var n=0; for(var i=0;i<emitters.length;i++) n+=emitters[i].sim.particles.length; return n;
+}
+
+function makeBurstParticle(parent, cfg){
+  var lt=clamp(parent.age/parent.life,0,1);
+  var curSz=lerp(parent.sz0,parent.sz1,lt);
+  var angle=rnd(0,Math.PI*2);
+  var spd=Math.abs(parent.vx)*rnd(0.4,1.2)+rnd(10,60);
+  var bvx=Math.cos(angle)*spd+parent.vx*0.3;
+  var bvy=-Math.abs(rnd(30,120));
+  var life=rnd(0.2, Math.max(0.25,(parent.life-parent.age)*0.6));
+  var scale=rnd(0.12,0.4);
+  return {
+    x:parent.x, y:parent.y, z:0,
+    vx:bvx, vy:bvy, vz:0,
+    life:life, age:0, mass:parent.mass,
+    sz0:curSz*scale, sz1:curSz*scale*0.1,
+    szJitMult:1,
+    opStart:parent.opStart*0.8, opEnd:0,
+    spin:rnd(-360,360), rot:rnd(0,360),
+    hueJitter:parent.hueJitter,
+    noiseOffset:rnd(0,1000),
+    bounces:1, isBurst:true,
+    spawnPathT:parent.spawnPathT
+  };
 }
 
 function tickSim(state, dt, cfg, emitterPath){
@@ -1400,11 +1430,19 @@ function tickSim(state, dt, cfg, emitterPath){
     state.emitAccum-=1;
   }
   var next=[];
+  var bursts=[];
   for(var i=0;i<state.particles.length;i++){
     var p=state.particles[i];
+    p._didBounce=false;
     stepParticle(p, dt, cfg);
     if(p.age<p.life) next.push(p);
+    if(p._didBounce && cfg.burstOnBounce>0){
+      var n=Math.round(cfg.burstOnBounce);
+      for(var b=0;b<n;b++) bursts.push(makeBurstParticle(p, cfg));
+    }
   }
+  // step burst particles once (so they don't appear at zero age visually)
+  for(var bi=0;bi<bursts.length;bi++) next.push(bursts[bi]);
   state.particles=next;
 }
 
@@ -1954,7 +1992,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
   var numFields=['emitX','emitY','emitRadius','boxW','boxH','emitDir','emitSpread','emitRate','preRun',
     'lifeMin','lifeMax','velMin','velMax','sizeStart','sizeEnd','sizeJitter','opStart','opEnd',
     'spinRate','spinJitter','spinDamping','rotStart','rotJitter','massJitter','elongate','elongateLife','hueJitter',
-    'gravX','gravY','windX','windY','drag','maxVel','bounce','floorY','friction',
+    'gravX','gravY','windX','windY','drag','maxVel','bounce','floorY','friction','burstOnBounce',
     'vortexStr','vortexX','vortexY','turbStr','turbScale',
     'attractorStr','attractorRadius','attractorX','attractorY',
     'glowRadius','glowStr','pngSeqFPS'];
@@ -2573,6 +2611,7 @@ function applyPresetData(pd){
   setR('elongateLife',pd.elongateLife!=null?pd.elongateLife:0);
   setR('bounce',pd.bounce!=null?pd.bounce:0.4);
   setR('friction',pd.friction!=null?pd.friction:0.3);
+  setR('burstOnBounce',pd.burstOnBounce!=null?pd.burstOnBounce:0);
   setR('maxVel',pd.maxVel!=null?pd.maxVel:800);
   setR('floorY',pd.floorY!=null?pd.floorY:-1);
   setR('rotStart',pd.rotStart!=null?pd.rotStart:0);
