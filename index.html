@@ -80,6 +80,7 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
   <select id="presetSel"></select>
   <button class="btn" onclick="applyPreset()">Apply Preset</button>
   <button class="btn accent" onclick="exportSpineJSON()">⬇ Export Spine JSON</button>
+  <button class="btn" onclick="previewSpineJSON()" title="Show the skeleton JSON structure in a popup for debugging">📋 Preview JSON</button>
   <button class="btn green" onclick="toggleRun()" id="btnRun">⏸ Pause</button>
   <button class="btn" onclick="resetSim()">↺ Reset</button>
   <span id="fps-display">0 fps · 0 particles</span>
@@ -2757,12 +2758,12 @@ function exportSpineJSON(){
 
   // Build Spine JSON
   var spineW=W/scale, spineH=H/scale;
-  var bones=[{name:'root',length:0}];
+  var bones=[{name:'root'}];
   var boneNames=[];
   for(var bi=0;bi<bCount;bi++){
     var bname='p'+bi;
     boneNames.push(bname);
-    bones.push({name:bname,parent:'root',length:0,x:0,y:0});
+    bones.push({name:bname,parent:'root'});
   }
 
   // All slots default to the first attachment image (always a region)
@@ -2770,10 +2771,9 @@ function exportSpineJSON(){
     return {name:bn, bone:bn, attachment:attNames[0]};
   });
 
-  // Skins — Spine 4.2 nested object format: { slotName: { attName: { type, path, ... } } }
-  var skinAttsObj={};
+  // Skins — Spine 4.1+ flat array format: [{slot, name, width, height}]
+  var skinAtts=[];
   boneNames.forEach(function(bn){
-    skinAttsObj[bn]={};
     for(var ai=0;ai<imgCount;ai++){
       var aname=attNames[ai];
       var imgW, imgH;
@@ -2781,10 +2781,10 @@ function exportSpineJSON(){
         imgW=(customImages[ai]&&customImages[ai].naturalWidth>0)?customImages[ai].naturalWidth:refW;
         imgH=(customImages[ai]&&customImages[ai].naturalHeight>0)?customImages[ai].naturalHeight:refH;
       } else { imgW=refW; imgH=refH; }
-      skinAttsObj[bn][aname]={type:'region',path:aname,width:imgW,height:imgH,x:0,y:0,rotation:0,scaleX:1,scaleY:1};
+      skinAtts.push({slot:bn, name:aname, width:imgW, height:imgH});
     }
   });
-  var skins=[{name:'default',attachments:skinAttsObj}];
+  var skins=[{name:'default',attachments:skinAtts}];
 
   // Bone animation timelines: translate + rotate + scale
   var bones_anim={};
@@ -2796,7 +2796,7 @@ function exportSpineJSON(){
       var x=snap?snap.x:0, y=snap?snap.y:-9999;
       var rot=snap?snap.rot:0;
       translateKF.push({time:t4,x:x,y:y,curve:'stepped'});
-      rotateKF.push({time:t4,value:rot,curve:'stepped'});
+      rotateKF.push({time:t4,angle:rot,curve:'stepped'});
       // scale so region renders at the particle's diameter
       var sx=snap?(snap.sz*2)/refW:0;
       var sy=snap?(snap.sz*2)/refH:0;
@@ -2834,11 +2834,13 @@ function exportSpineJSON(){
   });
 
   var spineObj={
-    skeleton:{spine:'4.2',width:Math.round(spineW),height:Math.round(spineH),fps:fps,images:'./images/'},
+    skeleton:{spine:'4.2',x:0,y:0,width:Math.round(spineW),height:Math.round(spineH),fps:fps,images:'./images/'},
     bones:bones,slots:slots,skins:skins,
     animations:{particles:{bones:bones_anim,slots:slots_anim}}
   };
-  downloadJSON(JSON.stringify(spineObj, null, 2), exportFname+'.json');
+  var jsonStr=JSON.stringify(spineObj, null, 2);
+  window._lastSpineJSON=jsonStr;
+  downloadJSON(jsonStr, exportFname+'.json');
 
   // Download all image files (custom or generated default)
   var _ec=document.createElement('canvas'); var _ecx=_ec.getContext('2d');
@@ -2860,9 +2862,84 @@ function exportSpineJSON(){
   });
 
   setTimeout(function(){
-    alert('Exported Spine JSON: '+exportFname+'.json\n'+bCount+' bones · '+totalFrames+' frames · '+fps+' fps'
-      +'\n\n'+exportImages.length+' image file(s) downloaded.\nPlace them in the ./images/ folder of your Spine project.');
+    var msg='Exported Spine JSON: '+exportFname+'.json\n'+bCount+' bones · '+totalFrames+' frames · '+fps+' fps'
+      +'\n\n'+exportImages.length+' image file(s) downloaded.\nPlace them in the ./images/ folder of your Spine project.'
+      +'\n\nTip: click "Preview JSON" button to inspect the skeleton structure.';
+    alert(msg);
   }, exportImages.length*80+200);
+}
+
+function previewSpineJSON(){
+  // Show last exported JSON if available; otherwise build a structure-only preview
+  var txt;
+  if(window._lastSpineJSON){
+    // Parse and re-stringify with animations truncated for readability
+    try{
+      var obj=JSON.parse(window._lastSpineJSON);
+      // Keep only first bone + first 2 slots in preview to keep it small
+      var previewObj={
+        skeleton:obj.skeleton, bones:obj.bones, slots:obj.slots, skins:obj.skins,
+        animations:'(keyframe data omitted \u2014 '+Object.keys(obj.animations||{}).join(', ')+')'
+      };
+      txt='=== LAST EXPORTED JSON (structure, keyframes omitted) ===\n'+JSON.stringify(previewObj,null,2)
+        +'\n\n=== RAW FIRST 4000 CHARS ===\n'+window._lastSpineJSON.slice(0,4000);
+    }catch(e){ txt=window._lastSpineJSON.slice(0,6000); }
+  } else {
+    // No export yet \u2014 build structure preview
+    var cfg=getConfig();
+    var bCount=cfg.boneCount;
+    var exportFname=document.getElementById('exportName').value||'particles';
+    var usingCustom=cfg.particleShape==='custompng'&&customImages.length>0;
+    var attNames=usingCustom
+      ? customImages.map(function(_,i){return customImageNames[i]||('frame_'+i);})
+      : [exportFname+'_particle'];
+    var imgCount=attNames.length;
+    var refW=128,refH=128;
+    if(usingCustom&&customImages[0]){refW=customImages[0].naturalWidth||128;refH=customImages[0].naturalHeight||128;}
+    var boneNames=[]; var bones=[{name:'root'}];
+    for(var bi=0;bi<bCount;bi++){boneNames.push('p'+bi);bones.push({name:'p'+bi,parent:'root'});}
+    var slots=boneNames.map(function(bn){return {name:bn,bone:bn,attachment:attNames[0]};});
+    var skinAtts=[];
+    boneNames.forEach(function(bn){
+      for(var ai=0;ai<imgCount;ai++){
+        var iw=usingCustom&&customImages[ai]?customImages[ai].naturalWidth||refW:refW;
+        var ih=usingCustom&&customImages[ai]?customImages[ai].naturalHeight||refH:refH;
+        skinAtts.push({slot:bn,name:attNames[ai],width:iw,height:ih});
+      }
+    });
+    var preview={
+      skeleton:{spine:'4.2',x:0,y:0,width:Math.round(W),height:Math.round(H),fps:cfg.exportFPS,images:'./images/'},
+      bones:bones, slots:slots, skins:[{name:'default',attachments:skinAtts}],
+      animations:'(export first to see keyframes)'
+    };
+    txt='=== STRUCTURE PREVIEW (no export done yet) ===\n'+JSON.stringify(preview,null,2);
+  }
+  // Show in overlay
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+  var box=document.createElement('textarea');
+  box.readOnly=true; box.value=txt;
+  box.style.cssText='flex:1;width:100%;font:10.5px/1.35 monospace;background:#0d1a0d;color:#8fe;border:1px solid #555;padding:10px;resize:none;white-space:pre;';
+  var bar=document.createElement('div');
+  bar.style.cssText='display:flex;gap:8px;margin-bottom:8px;width:100%;';
+  var title=document.createElement('span');
+  title.textContent='Spine JSON Preview'; title.style.cssText='color:#aaa;font-size:12px;flex:1;line-height:28px;';
+  var btnCopy=document.createElement('button');
+  btnCopy.textContent='\uD83D\uDCCB Copy full JSON';
+  btnCopy.className='btn';
+  btnCopy.onclick=function(){
+    var full=window._lastSpineJSON||txt;
+    if(navigator.clipboard){navigator.clipboard.writeText(full).then(function(){btnCopy.textContent='\u2714 Copied!';});}
+    else{box.select();document.execCommand('copy');btnCopy.textContent='\u2714 Copied!';}
+  };
+  var btnClose=document.createElement('button');
+  btnClose.textContent='\u2715 Close'; btnClose.className='btn red';
+  btnClose.onclick=function(){document.body.removeChild(ov);};
+  ov.addEventListener('keydown',function(e){if(e.key==='Escape')document.body.removeChild(ov);});
+  bar.appendChild(title); bar.appendChild(btnCopy); bar.appendChild(btnClose);
+  ov.appendChild(bar); ov.appendChild(box);
+  document.body.appendChild(ov);
+  setTimeout(function(){box.focus();},50);
 }
 
 // ============================================================
