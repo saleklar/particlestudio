@@ -205,6 +205,13 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
             <button onclick="clearBezier();onCfgChange()" style="font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✕ Clear</button>
           </div>
           <div style="font-size:10px;color:#556;margin-bottom:3px">Click = add point &nbsp;·&nbsp; Drag = move &nbsp;·&nbsp; Right-click point = delete</div>
+          <div id="bezierCopyRow" style="display:none;margin-top:5px">
+            <div style="font-size:10px;color:#776;margin-bottom:3px">Copy spline from:</div>
+            <div style="display:flex;gap:4px">
+              <select id="bezierCopySrc" style="flex:1;font-size:11px;background:#1a1a2a;color:#aaa;border:1px solid #444;border-radius:3px;padding:2px 4px"></select>
+              <button onclick="copyBezierFrom()" style="font-size:11px;padding:3px 8px;cursor:pointer;background:#28103a;color:#c080ff;border:1px solid #6030a0;border-radius:3px">⎘ Copy</button>
+            </div>
+          </div>
           <div class="row"><label>Spread px</label></div>
         </div>
       </div>
@@ -1582,6 +1589,37 @@ function updatePathPanel(){
   var bc=document.getElementById('bezierControls');
   if(pc) pc.style.display=isPath?'block':'none';
   if(bc) bc.style.display=isBez?'block':'none';
+  if(isBez) refreshBezierCopyFrom();
+}
+
+function refreshBezierCopyFrom(){
+  var sel=document.getElementById('bezierCopySrc');
+  var row=document.getElementById('bezierCopyRow');
+  if(!sel||!row) return;
+  sel.innerHTML='';
+  var found=[];
+  for(var i=0;i<emitters.length;i++){
+    if(i===activeEmitterIdx) continue;
+    var pts=emitters[i].bezPts;
+    if(pts&&pts.length>=2) found.push({idx:i,name:emitters[i].name,count:pts.length});
+  }
+  row.style.display=found.length?'block':'none';
+  found.forEach(function(f){
+    var opt=document.createElement('option');
+    opt.value=f.idx;
+    opt.textContent=f.name+' ('+f.count+' pts)';
+    sel.appendChild(opt);
+  });
+}
+
+function copyBezierFrom(){
+  var sel=document.getElementById('bezierCopySrc');
+  if(!sel) return;
+  var srcIdx=parseInt(sel.value);
+  if(isNaN(srcIdx)||!emitters[srcIdx]) return;
+  var src=emitters[srcIdx].bezPts||[];
+  emitters[activeEmitterIdx].bezPts=src.map(function(p){return{x:p.x,y:p.y};});
+  onCfgChange();
 }
 
 function togglePathEdit(){
