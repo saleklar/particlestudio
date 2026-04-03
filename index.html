@@ -218,7 +218,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <span style="font-size:10px;color:#666">multiplies image with particle color</span>
         </div>
       </div>
-      <div class="sub-label">Life (sec)</div>
+      <div class="sub-label" style="color:#3cf;border-left:2px solid #3cf;padding-left:4px;background:#0d1e2a">⏱ Life (sec)</div>
       <div class="two-col">
         <div class="row"><label>Min</label>
           <input type="range" id="lifeMin" min="0.1" max="20" step="0.1" value="1.5" oninput="syncVal(this,'lifeMin_v');applyAutoBudget();onCfgChange()">
@@ -229,7 +229,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <span class="val" id="lifeMax_v">3.5</span>
         </div>
       </div>
-      <div class="sub-label">Velocity (px/s)</div>
+      <div class="sub-label" style="color:#7e0;border-left:2px solid #7e0;padding-left:4px;background:#0f1a09">➤ Velocity (px/s)</div>
       <div class="two-col">
         <div class="row"><label>Min</label>
           <input type="range" id="velMin" min="0" max="1000" value="60" oninput="syncVal(this,'velMin_v');onCfgChange()">
@@ -240,7 +240,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <span class="val" id="velMax_v">180</span>
         </div>
       </div>
-      <div class="sub-label">Size (px)</div>
+      <div class="sub-label" style="color:#fa0;border-left:2px solid #fa0;padding-left:4px;background:#1e1600">⬡ Size (px)</div>
       <div class="two-col">
         <div class="row"><label>Start</label>
           <input type="range" id="sizeStart" min="1" max="200" value="12" oninput="syncVal(this,'sizeStart_v');onCfgChange()">
@@ -255,7 +255,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
         <input type="range" id="sizeJitter" min="0" max="100" value="40" oninput="syncVal(this,'sizeJitter_v');onCfgChange()">
         <span class="val" id="sizeJitter_v">40</span>
       </div>
-      <div class="sub-label" style="margin-top:5px">Size Curve
+      <div class="sub-label" style="margin-top:5px;color:#fa0;border-left:2px solid #fa0;padding-left:4px;background:#1e1600">📈 Size Curve
         <input type="checkbox" id="sizeCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#f90;margin-left:6px;vertical-align:middle">
         <span style="font-size:10px;color:#555"> override Start/End</span>
       </div>
@@ -263,7 +263,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
         <div id="szc-editor"></div>
         <canvas id="szc-preview" width="286" height="38" style="display:block;border:1px solid #333;border-radius:2px;margin-top:2px"></canvas>
       </div>
-      <div class="sub-label">Opacity</div>
+      <div class="sub-label" style="color:#6af;border-left:2px solid #6af;padding-left:4px;background:#0c1220">◑ Opacity</div>
       <div class="two-col">
         <div class="row"><label>Start</label>
           <input type="range" id="opStart" min="0" max="1" step="0.01" value="1" oninput="syncVal(this,'opStart_v');onCfgChange()">
@@ -274,7 +274,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <span class="val" id="opEnd_v">0</span>
         </div>
       </div>
-      <div class="sub-label" style="margin-top:5px;background:#1e1a10;padding:3px 4px;border-radius:3px;border-left:2px solid #f90">Opacity Curve
+      <div class="sub-label" style="margin-top:5px;color:#6af;border-left:2px solid #6af;padding-left:4px;background:#0c1220">📈 Opacity Curve
         <input type="checkbox" id="opLifeCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#f90;margin-left:6px;vertical-align:middle">
         <span style="font-size:10px;color:#777"> override Start/End</span>
       </div>
@@ -296,6 +296,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           title="Click: add point • Drag: move point • Right-click: delete point"></canvas>
         <div style="font-size:9px;color:#444;margin-top:2px;text-align:center">click→add • drag→move • right-click→delete</div>
       </div>
+      <div class="sub-label" style="color:#c6f;border-left:2px solid #c6f;padding-left:4px;background:#150d22">↻ Rotation</div>
       <div class="row"><label>Spin (°/s)</label>
         <input type="range" id="spinRate" min="-720" max="720" value="0" oninput="syncVal(this,'spinRate_v');onCfgChange()">
         <span class="val" id="spinRate_v">0</span>
@@ -325,6 +326,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
         <input type="range" id="massJitter" min="0" max="2" step="0.01" value="0.5" oninput="syncVal(this,'massJitter_v');onCfgChange()">
         <span class="val" id="massJitter_v">0.5</span>
       </div>
+      <div class="sub-label" style="color:#f88;border-left:2px solid #f88;padding-left:4px;background:#1e0d0d">↔ Elongation</div>
       <div class="row"><label>Elongate</label>
         <input type="range" id="elongate" min="0" max="5" step="0.05" value="0" oninput="syncVal(this,'elongate_v');onCfgChange()">
         <span class="val" id="elongate_v">0</span>
