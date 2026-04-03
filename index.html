@@ -2999,6 +2999,30 @@ function _genDefaultParticlePNG(shape){
   return c.toDataURL('image/png');
 }
 
+// ─── RDP keyframe-reduction helpers (Ramer-Douglas-Peucker) ────────────────
+function _rdp1D(pts,eps){
+  if(pts.length<=2)return pts;
+  var s=pts[0],e=pts[pts.length-1],mD=0,mI=0,dt=e.t-s.t;
+  for(var i=1;i<pts.length-1;i++){var f=dt>0?(pts[i].t-s.t)/dt:0;var d=Math.abs(pts[i].v-(s.v+(e.v-s.v)*f));if(d>mD){mD=d;mI=i;}}
+  if(mD>eps){var l=_rdp1D(pts.slice(0,mI+1),eps),r=_rdp1D(pts.slice(mI),eps);return l.slice(0,-1).concat(r);}
+  return[s,e];
+}
+function _rdpXY(pts,eps){
+  if(pts.length<=2)return pts;
+  var s=pts[0],e=pts[pts.length-1],mD=0,mI=0,dt=e.t-s.t;
+  for(var i=1;i<pts.length-1;i++){var f=dt>0?(pts[i].t-s.t)/dt:0;var dx=pts[i].x-(s.x+(e.x-s.x)*f),dy=pts[i].y-(s.y+(e.y-s.y)*f);var d=Math.sqrt(dx*dx+dy*dy);if(d>mD){mD=d;mI=i;}}
+  if(mD>eps){var l=_rdpXY(pts.slice(0,mI+1),eps),r=_rdpXY(pts.slice(mI),eps);return l.slice(0,-1).concat(r);}
+  return[s,e];
+}
+function _rdpSca(pts,eps){
+  if(pts.length<=2)return pts;
+  var s=pts[0],e=pts[pts.length-1],mD=0,mI=0,dt=e.t-s.t;
+  for(var i=1;i<pts.length-1;i++){var f=dt>0?(pts[i].t-s.t)/dt:0;
+    var d=Math.abs(pts[i].x-(s.x+(e.x-s.x)*f))+Math.abs(pts[i].y-(s.y+(e.y-s.y)*f));if(d>mD){mD=d;mI=i;}}
+  if(mD>eps){var l=_rdpSca(pts.slice(0,mI+1),eps),r=_rdpSca(pts.slice(mI),eps);return l.slice(0,-1).concat(r);}
+  return[s,e];
+}
+// ─────────────────────────────────────────────────────────────────────────────
 function exportSpineJSON(){
   // Ensure current UI is saved
   saveCfgToEmitter(activeEmitterIdx);
@@ -3140,38 +3164,104 @@ function exportSpineJSON(){
       for(var pi=0;pi<snaps.length&&pi<bCount;pi++) bAssign[f3][pi]=snaps[pi];
     }
 
-    // Bone animation timelines
+    // Bone animation timelines — sparse keyframes via RDP + stepped at transitions
+    var POS_TOL=1.2, ROT_TOL=0.5, SCA_TOL=0.004, TELEPORT=100;
     emBoneNames.forEach(function(bn,bi){
       var translateKF=[],rotateKF=[],scaleKF=[];
+      var seg=null; // current live segment: {pos,rot,sca}
+      // Mark last key of an array as stepped
+      function stepped(arr){if(arr.length>0)arr[arr.length-1].curve='stepped';}
+      function writeSeg(){
+        if(!seg||seg.pos.length===0){seg=null;return;}
+        var rPos=_rdpXY(seg.pos,POS_TOL);
+        var rRot=_rdp1D(seg.rot,ROT_TOL);
+        var rSca=_rdpSca(seg.sca,SCA_TOL);
+        rPos.forEach(function(k){translateKF.push({time:k.t,x:k.x,y:k.y});});
+        rRot.forEach(function(k){rotateKF.push({time:k.t,angle:k.v});});
+        rSca.forEach(function(k){scaleKF.push({time:k.t,x:k.x,y:k.y});});
+        seg=null;
+      }
+      // Initial hide key at t=0
+      translateKF.push({time:0,x:0,y:-9999,curve:'stepped'});
+      scaleKF.push({time:0,x:0,y:0,curve:'stepped'});
+      rotateKF.push({time:0,angle:0,curve:'stepped'});
+      var wasVisible=false;
       for(var f4=0;f4<totalFrames;f4++){
         var t4=f4/fps;
         var snap=bAssign[f4][bi];
-        translateKF.push({time:t4,x:snap?snap.x:0,y:snap?snap.y:-9999,curve:'stepped'});
-        rotateKF.push({time:t4,angle:snap?snap.rot:0,curve:'stepped'});
-        var sx=snap?(snap.sz*2)/refW:0;
-        var sy=snap?(snap.sz*2)/refH:0;
-        scaleKF.push({time:t4,x:sx,y:sy,curve:'stepped'});
+        if(!snap){
+          if(wasVisible){ writeSeg(); stepped(translateKF); stepped(scaleKF); stepped(rotateKF);
+            translateKF.push({time:t4,x:0,y:-9999,curve:'stepped'});
+            scaleKF.push({time:t4,x:0,y:0,curve:'stepped'});
+            wasVisible=false; }
+        } else {
+          var sx=snap.sz*2/refW, sy=snap.sz*2/refH;
+          if(!wasVisible){
+            // Instant appear: mark last hide key stepped, start segment
+            stepped(translateKF); stepped(scaleKF); stepped(rotateKF);
+            seg={pos:[],rot:[],sca:[]};
+            wasVisible=true;
+          } else {
+            // Detect teleport = new particle assigned to this bone
+            var lp=seg.pos[seg.pos.length-1];
+            if(lp){
+              var ddx=snap.x-lp.x,ddy=snap.y-lp.y;
+              if(Math.sqrt(ddx*ddx+ddy*ddy)>TELEPORT){
+                writeSeg(); stepped(translateKF); stepped(scaleKF); stepped(rotateKF);
+                seg={pos:[],rot:[],sca:[]};
+              }
+            }
+          }
+          seg.pos.push({t:t4,x:snap.x,y:snap.y});
+          seg.rot.push({t:t4,v:snap.rot});
+          seg.sca.push({t:t4,x:sx,y:sy});
+        }
       }
+      writeSeg();
       bones_anim[bn]={translate:translateKF,rotate:rotateKF,scale:scaleKF};
     });
 
-    // Slot timelines (color + optional attachment swap)
+    // Slot timelines — RDP-reduced color + stepped at alpha transitions
+    var COL_TOL=3, A_TOL=2;
     emBoneNames.forEach(function(bn,bi){
       var colorKF=[],attKF=[],lastFi=-999;
       var needAtt=usingCustom&&imgCount>1;
+      // Build raw per-channel sequences
+      var seqR=[],seqG=[],seqB=[],seqA=[];
       for(var f5=0;f5<totalFrames;f5++){
         var t5=f5/fps;
         var snap=bAssign[f5][bi];
-        var r8=snap?Math.round(snap.r*255):0;
-        var g8=snap?Math.round(snap.g*255):0;
-        var b8=snap?Math.round(snap.b*255):0;
-        var a8=snap?Math.round(snap.op*255):0;
-        var rgba=('0'+r8.toString(16)).slice(-2)+('0'+g8.toString(16)).slice(-2)+('0'+b8.toString(16)).slice(-2)+('0'+a8.toString(16)).slice(-2);
-        colorKF.push({time:t5,color:rgba,curve:'stepped'});
+        seqR.push({t:t5,v:snap?Math.round(snap.r*255):0});
+        seqG.push({t:t5,v:snap?Math.round(snap.g*255):0});
+        seqB.push({t:t5,v:snap?Math.round(snap.b*255):0});
+        seqA.push({t:t5,v:snap?Math.round(snap.op*255):0});
         if(needAtt){
           var curFi=snap?snap.fi:0;
           if(curFi!==lastFi){if(snap)attKF.push({time:t5,name:attNames[curFi]});lastFi=curFi;}
         }
+      }
+      // Reduce each channel
+      var rR=_rdp1D(seqR,COL_TOL),rG=_rdp1D(seqG,COL_TOL),rB=_rdp1D(seqB,COL_TOL),rA=_rdp1D(seqA,A_TOL);
+      // Merge unique times + always include alpha-zero-crossing times
+      var ctimes={};
+      rR.forEach(function(k){ctimes[k.t]=1;}); rG.forEach(function(k){ctimes[k.t]=1;});
+      rB.forEach(function(k){ctimes[k.t]=1;}); rA.forEach(function(k){ctimes[k.t]=1;});
+      // Also capture every alpha zero-crossing frame for clean appear/vanish
+      for(var z=1;z<seqA.length;z++){
+        if((seqA[z-1].v===0)!==(seqA[z].v===0)){ctimes[seqA[z-1].t]=1;ctimes[seqA[z].t]=1;}
+      }
+      var ctArr=Object.keys(ctimes).map(Number).sort(function(a,b){return a-b;});
+      ctArr.forEach(function(t){
+        var idx=Math.min(totalFrames-1,Math.max(0,Math.round(t*fps)));
+        var r8=seqR[idx].v,g8=seqG[idx].v,b8=seqB[idx].v,a8=seqA[idx].v;
+        var rgba=('0'+r8.toString(16)).slice(-2)+('0'+g8.toString(16)).slice(-2)+('0'+b8.toString(16)).slice(-2)+('0'+a8.toString(16)).slice(-2);
+        colorKF.push({time:t,color:rgba});
+      });
+      // Mark stepped at every alpha 0⟷non-0 boundary to prevent ghost lerps
+      for(var ci=0;ci<colorKF.length-1;ci++){
+        var ca=parseInt(colorKF[ci].color.slice(6),16);
+        var na=parseInt(colorKF[ci+1].color.slice(6),16);
+        if((ca<=4)!==(na<=4)) colorKF[ci].curve='stepped';
       }
       var st={rgba:colorKF};
       if(needAtt&&attKF.length>0) st.attachment=attKF;
