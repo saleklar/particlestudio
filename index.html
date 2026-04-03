@@ -272,8 +272,22 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <span style="font-size:10px;color:#777"> override Start/End</span>
       </div>
       <div id="oplcPanel" style="margin-bottom:4px;padding:4px 0 0 0">
-        <div id="oplc-editor"></div>
-        <canvas id="oplc-preview" width="286" height="38" style="display:block;border:1px solid #333;border-radius:2px;margin-top:2px"></canvas>
+        <!-- preset buttons -->
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-bottom:4px">
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('fadeInOut')">Fade In+Out</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('fadeIn')">Fade In</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('fadeOut')">Fade Out</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('const')">Constant</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('noise')">Noise</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('fadeNoise')">Fade+Noise</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('flash')">Flash Burst</button>
+          <button class="btn" style="font-size:10px;padding:2px 6px" onclick="oplcPreset('strobe')">Strobe</button>
+        </div>
+        <!-- interactive curve canvas -->
+        <canvas id="oplc-cv" width="286" height="72"
+          style="display:block;border:1px solid #444;border-radius:3px;cursor:crosshair;touch-action:none"
+          title="Click: add point • Drag: move point • Right-click: delete point"></canvas>
+        <div style="font-size:9px;color:#444;margin-top:2px;text-align:center">click→add • drag→move • right-click→delete</div>
       </div>
       <div class="row"><label>Spin (°/s)</label>
         <input type="range" id="spinRate" min="-720" max="720" value="0" oninput="syncVal(this,'spinRate_v');onCfgChange()">
@@ -843,55 +857,209 @@ function updateOpPathPreview(){
 }
 
 // ============================================================
-//  OPACITY-OVER-LIFETIME CURVE
+//  OPACITY-OVER-LIFETIME CURVE  (interactive canvas editor)
 // ============================================================
-var opLifeRows=[];
-(function buildOpLifeUI(){
-  var editor=document.getElementById('oplc-editor');
-  var defPos=[0,0.25,0.75,1], defVal=[0,1,1,0];
-  for(var i=0;i<4;i++){
-    var div=document.createElement('div');
-    div.className='grad-stop';
-    div.innerHTML='<span style="font-size:10px;color:#777;width:12px">'+(i+1)+'</span>'+
-      '<input type="range" class="olcPos" min="0" max="1" step="0.01" value="'+defPos[i]+'">'+
-      '<span class="stop-pos">'+defPos[i].toFixed(2)+'</span>'+
-      '<input type="number" class="olcVal" min="0" max="1" step="0.01" value="'+defVal[i]+'" style="width:44px;background:#2a2a2a;border:1px solid #444;border-radius:2px;color:#f0c050;font-size:11px;padding:2px 4px;font-family:monospace">';
-    editor.appendChild(div);
-    var row={pos:div.querySelector('.olcPos'),posLbl:div.querySelector('.stop-pos'),val:div.querySelector('.olcVal')};
-    row.pos.oninput=(function(r){return function(){r.posLbl.textContent=parseFloat(r.pos.value).toFixed(2);updateOpLifePreview();onCfgChange();};})(row);
-    row.val.onchange=function(){updateOpLifePreview();onCfgChange();};
-    opLifeRows.push(row);
+var _oplcPts=[{t:0,v:0},{t:0.1,v:1},{t:0.85,v:1},{t:1,v:0}]; // default: fade in/out
+var _oplcDrag=-1; // index of point being dragged
+
+(function initOpLifeEditor(){
+  var cv=document.getElementById('oplc-cv');
+  if(!cv) return;
+  var PAD=6, R=5; // padding & hit-radius
+
+  function ptToCanvas(pt){
+    return {x:PAD+pt.t*(cv.width-PAD*2), y:PAD+(1-pt.v)*(cv.height-PAD*2)};
   }
-  updateOpLifePreview();
+  function canvasToPt(cx,cy){
+    return {
+      t:clamp((cx-PAD)/(cv.width-PAD*2),0,1),
+      v:clamp(1-(cy-PAD)/(cv.height-PAD*2),0,1)
+    };
+  }
+  function nearestIdx(cx,cy){
+    var best=-1, bestD=R*R*2;
+    _oplcPts.forEach(function(p,i){
+      var c=ptToCanvas(p);
+      var d=(cx-c.x)*(cx-c.x)+(cy-c.y)*(cy-c.y);
+      if(d<bestD){bestD=d;best=i;}
+    });
+    return best;
+  }
+  function draw(){
+    var ctx2=cv.getContext('2d'), w=cv.width, h=cv.height;
+    // background
+    ctx2.fillStyle='#141414'; ctx2.fillRect(0,0,w,h);
+    // grid lines
+    ctx2.strokeStyle='rgba(255,255,255,0.05)'; ctx2.lineWidth=1;
+    [0.25,0.5,0.75].forEach(function(g){
+      var gx=PAD+g*(w-PAD*2);
+      ctx2.beginPath();ctx2.moveTo(gx,0);ctx2.lineTo(gx,h);ctx2.stroke();
+      var gy=PAD+g*(h-PAD*2);
+      ctx2.beginPath();ctx2.moveTo(0,gy);ctx2.lineTo(w,gy);ctx2.stroke();
+    });
+    // filled area under curve
+    var sorted=_oplcPts.slice().sort(function(a,b){return a.t-b.t;});
+    var grad=ctx2.createLinearGradient(0,0,0,h);
+    grad.addColorStop(0,'rgba(240,180,0,0.35)');
+    grad.addColorStop(1,'rgba(240,180,0,0.04)');
+    ctx2.beginPath();
+    var c0=ptToCanvas(sorted[0]);
+    ctx2.moveTo(PAD,h-PAD);
+    ctx2.lineTo(c0.x,c0.y);
+    sorted.forEach(function(p){var c=ptToCanvas(p);ctx2.lineTo(c.x,c.y);});
+    var cLast=ptToCanvas(sorted[sorted.length-1]);
+    ctx2.lineTo(cLast.x,h-PAD);
+    ctx2.closePath();
+    ctx2.fillStyle=grad; ctx2.fill();
+    // curve line
+    ctx2.beginPath(); ctx2.strokeStyle='#f0c050'; ctx2.lineWidth=1.8;
+    for(var xi=0;xi<=w;xi++){
+      var tv=clamp((xi-PAD)/(w-PAD*2),0,1);
+      var vv=sampleSzCurve(tv,sorted.map(function(p){return{pos:p.t,val:p.v};}));
+      var py=PAD+(1-vv)*(h-PAD*2);
+      if(xi===0) ctx2.moveTo(xi,py); else ctx2.lineTo(xi,py);
+    }
+    ctx2.stroke();
+    // labels
+    ctx2.fillStyle='#444'; ctx2.font='9px monospace';
+    ctx2.fillText('birth',PAD,h-1); ctx2.fillText('death',w-30,h-1);
+    ctx2.fillText('1.0',2,PAD+8); ctx2.fillText('0.0',2,h-PAD);
+    // dots
+    _oplcPts.forEach(function(p,i){
+      var c=ptToCanvas(p);
+      ctx2.beginPath();
+      ctx2.arc(c.x,c.y,i===_oplcDrag?R+2:R,0,Math.PI*2);
+      ctx2.fillStyle=i===_oplcDrag?'#fff':'#f90';
+      ctx2.fill();
+      ctx2.strokeStyle='#111'; ctx2.lineWidth=1.5; ctx2.stroke();
+      // value label on hover
+      ctx2.fillStyle='#aaa'; ctx2.font='9px monospace';
+      ctx2.fillText(p.v.toFixed(2),c.x+6,c.y-3);
+    });
+  }
+
+  function evXY(e){
+    var r=cv.getBoundingClientRect();
+    var touch=e.touches?e.touches[0]:e;
+    return {x:touch.clientX-r.left, y:touch.clientY-r.top};
+  }
+
+  cv.addEventListener('mousedown',function(e){
+    e.preventDefault();
+    var pos=evXY(e);
+    if(e.button===2){ // right-click = delete
+      var idx=nearestIdx(pos.x,pos.y);
+      if(idx>=0&&_oplcPts.length>2){ _oplcPts.splice(idx,1); draw(); onCfgChange(); }
+      return;
+    }
+    var idx=nearestIdx(pos.x,pos.y);
+    if(idx>=0){
+      _oplcDrag=idx;
+    } else {
+      // add new point
+      var np=canvasToPt(pos.x,pos.y);
+      _oplcPts.push(np);
+      _oplcDrag=_oplcPts.length-1;
+    }
+    draw(); onCfgChange();
+  });
+  cv.addEventListener('mousemove',function(e){
+    if(_oplcDrag<0) return;
+    e.preventDefault();
+    var pos=evXY(e);
+    var np=canvasToPt(pos.x,pos.y);
+    _oplcPts[_oplcDrag].t=np.t;
+    _oplcPts[_oplcDrag].v=np.v;
+    draw(); onCfgChange();
+  });
+  window.addEventListener('mouseup',function(){
+    if(_oplcDrag>=0){_oplcDrag=-1; draw();}
+  });
+  cv.addEventListener('touchstart',function(e){
+    e.preventDefault();
+    var pos=evXY(e);
+    var idx=nearestIdx(pos.x,pos.y);
+    if(idx>=0){ _oplcDrag=idx; }
+    else { var np=canvasToPt(pos.x,pos.y); _oplcPts.push(np); _oplcDrag=_oplcPts.length-1; }
+    draw(); onCfgChange();
+  },{passive:false});
+  cv.addEventListener('touchmove',function(e){
+    if(_oplcDrag<0) return; e.preventDefault();
+    var pos=evXY(e);
+    var np=canvasToPt(pos.x,pos.y);
+    _oplcPts[_oplcDrag].t=np.t; _oplcPts[_oplcDrag].v=np.v;
+    draw(); onCfgChange();
+  },{passive:false});
+  cv.addEventListener('touchend',function(){_oplcDrag=-1;draw();});
+  cv.addEventListener('contextmenu',function(e){e.preventDefault();});
+
+  // expose draw for external calls
+  cv._oplcDraw=draw;
+  draw();
 })();
 
-function getOpLifeCurve(){
-  var stops=opLifeRows.map(function(r){
-    return {pos:parseFloat(r.pos.value),val:clamp(parseFloat(r.val.value)||0,0,1)};
-  });
-  stops.sort(function(a,b){return a.pos-b.pos;});
-  return stops;
+function _oplcRedraw(){
+  var cv=document.getElementById('oplc-cv');
+  if(cv&&cv._oplcDraw) cv._oplcDraw();
 }
-function updateOpLifePreview(){
-  var cv=document.getElementById('oplc-preview');
-  if(!cv) return;
-  var ctx2=cv.getContext('2d'),w=cv.width,h=cv.height;
-  ctx2.fillStyle='#141414'; ctx2.fillRect(0,0,w,h);
-  var stops=getOpLifeCurve();
-  ctx2.beginPath(); ctx2.strokeStyle='#f0c050'; ctx2.lineWidth=1.5;
-  for(var i=0;i<=w;i++){
-    var v=sampleSzCurve(i/w,stops);
-    var py=h-(v)*(h-4)-2;
-    if(i===0) ctx2.moveTo(i,py); else ctx2.lineTo(i,py);
+
+function getOpLifeCurve(){
+  return _oplcPts.slice().sort(function(a,b){return a.t-b.t;})
+    .map(function(p){return{pos:p.t,val:p.v};});
+}
+
+function setOpLifeCurve(pts){
+  _oplcPts=pts.map(function(p){return{t:p.pos!==undefined?p.pos:p.t, v:p.val!==undefined?p.val:p.v};});
+  _oplcRedraw();
+  onCfgChange();
+}
+
+// Preset factories
+var _OPLC_PRESETS={
+  fadeInOut: [{t:0,v:0},{t:0.1,v:1},{t:0.85,v:1},{t:1,v:0}],
+  fadeIn:    [{t:0,v:0},{t:0.4,v:1},{t:1,v:1}],
+  fadeOut:   [{t:0,v:1},{t:0.6,v:1},{t:1,v:0}],
+  const:     [{t:0,v:1},{t:1,v:1}],
+  noise: (function(){
+    var pts=[{t:0,v:0}];
+    for(var i=1;i<9;i++) pts.push({t:i/10,v:Math.random()*0.8+0.1});
+    pts.push({t:1,v:0}); return pts;
+  })(),
+  fadeNoise: (function(){
+    var pts=[{t:0,v:0}];
+    for(var i=1;i<9;i++){
+      var env=Math.sin(i/10*Math.PI); // fade in+out envelope
+      pts.push({t:i/10,v:env*(Math.random()*0.5+0.4)});
+    }
+    pts.push({t:1,v:0}); return pts;
+  })(),
+  flash:  [{t:0,v:1},{t:0.08,v:0.9},{t:0.15,v:0.6},{t:0.35,v:0.3},{t:1,v:0}],
+  strobe: [{t:0,v:0},{t:0.07,v:1},{t:0.14,v:0},{t:0.21,v:1},{t:0.28,v:0},
+           {t:0.35,v:1},{t:0.42,v:0},{t:0.5,v:1},{t:0.57,v:0},{t:0.65,v:0.7},{t:1,v:0}]
+};
+
+function oplcPreset(name){
+  var pts=_OPLC_PRESETS[name];
+  if(!pts) return;
+  // for noise/fadeNoise regenerate random each time
+  if(name==='noise'){
+    pts=[{t:0,v:0}];
+    for(var i=1;i<9;i++) pts.push({t:i/10,v:Math.random()*0.8+0.1});
+    pts.push({t:1,v:0});
+  } else if(name==='fadeNoise'){
+    pts=[{t:0,v:0}];
+    for(var i=1;i<9;i++){
+      var env=Math.sin(i/10*Math.PI);
+      pts.push({t:i/10,v:env*(Math.random()*0.5+0.4)});
+    }
+    pts.push({t:1,v:0});
   }
-  ctx2.stroke();
-  ctx2.fillStyle='#f90';
-  stops.forEach(function(s){
-    var px=s.pos*w, py=h-(s.val)*(h-4)-2;
-    ctx2.beginPath(); ctx2.arc(px,py,3,0,Math.PI*2); ctx2.fill();
-  });
-  ctx2.fillStyle='#666'; ctx2.font='9px monospace';
-  ctx2.fillText('birth',2,10); ctx2.fillText('death',w-26,10);
+  _oplcPts=pts.map(function(p){return{t:p.t,v:p.v};});
+  // auto-enable the curve when a preset is applied
+  var cb=document.getElementById('opLifeCurveEn');
+  if(cb&&!cb.checked){cb.checked=true;}
+  _oplcRedraw();
+  onCfgChange();
 }
 
 function getSubShapes(){
@@ -1154,7 +1322,7 @@ function saveCfgToEmitter(idx){
   // size curve
   data._szc=szcRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
   data._opc=opPathRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
-  data._oplc=opLifeRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
+  data._oplc=_oplcPts.slice();
   // sub shapes
   data._shapes=shapeRows.map(function(r){
     return{en:r.en.checked,type:r.type.value,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
@@ -1200,10 +1368,12 @@ function restoreCfgFromEmitter(idx){
     updateOpPathPreview();
   }
   if(data._oplc){
-    data._oplc.forEach(function(s,i){
-      if(opLifeRows[i]){opLifeRows[i].pos.value=s.pos;opLifeRows[i].posLbl.textContent=parseFloat(s.pos).toFixed(2);opLifeRows[i].val.value=s.val;}
-    });
-    updateOpLifePreview();
+    setOpLifeCurve(data._oplc.map(function(s){
+      // support both {t,v} (new) and {pos,val} (legacy)
+      var t=s.t!=null?s.t:parseFloat(s.pos)||0;
+      var v=s.v!=null?s.v:clamp(parseFloat(s.val)||0,0,1);
+      return{pos:t,val:v};
+    }));
   }
   if(data._shapes){
     data._shapes.forEach(function(s,i){
@@ -2028,7 +2198,9 @@ function buildCfgFromSnapshot(snap, globalCfg){
   }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.opPathCurveStops;
   // Opacity-over-lifetime curve
   c.opLifeCurveStops=snap._oplc?snap._oplc.map(function(r){
-    return{pos:parseFloat(r.pos),val:clamp(parseFloat(r.val)||0,0,1)};
+    var pos=r.pos!=null?parseFloat(r.pos):r.t||0;
+    var val=r.val!=null?clamp(parseFloat(r.val)||0,0,1):(r.v||0);
+    return{pos:pos,val:val};
   }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.opLifeCurveStops;
   // Sub-shapes
   c.subShapes=snap._shapes?snap._shapes.filter(function(s){return s.en;}).map(function(s){
