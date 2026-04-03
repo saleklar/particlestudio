@@ -1365,9 +1365,17 @@ function buildEmitterTabs(){
   var addBtn=document.getElementById('etab-add');
   emitters.forEach(function(em,i){
     var t=document.createElement('div');
-    t.className='etab'+(i===activeEmitterIdx?' active':'');
+    t.className='etab'+(i===activeEmitterIdx?' active':'')+(em.muted?' muted':'');
+    // Eye/mute toggle
+    var eye=document.createElement('span');
+    eye.textContent=em.muted?'🚫':'👁';
+    eye.title=em.muted?'Enable emitter':'Disable emitter';
+    eye.style.cssText='font-size:10px;margin-right:3px;cursor:pointer;opacity:'+(em.muted?'0.5':'0.85');
+    eye.onclick=(function(idx){return function(e){e.stopPropagation();toggleEmitterMute(idx);};})(i);
+    t.appendChild(eye);
     var nameSpan=document.createElement('span');
     nameSpan.textContent=em.name;
+    nameSpan.style.cssText=em.muted?'opacity:0.4;text-decoration:line-through':'';
     nameSpan.ondblclick=(function(idx){return function(e){e.stopPropagation();
       var v=prompt('Rename emitter:',emitters[idx].name);
       if(v){ emitters[idx].name=v; buildEmitterTabs(); }
@@ -1387,7 +1395,7 @@ function buildEmitterTabs(){
 function addEmitter(){
   // snapshot current UI into active emitter
   saveCfgToEmitter(activeEmitterIdx);
-  var newEm={name:'Emitter '+(emitters.length+1),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:[],pathMode:'once'};
+  var newEm={name:'Emitter '+(emitters.length+1),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:[],pathMode:'once',muted:false};
   emitters.push(newEm);
   switchEmitter(emitters.length-1);
 }
@@ -1398,6 +1406,12 @@ function removeEmitter(idx){
   emitters.splice(idx,1);
   activeEmitterIdx=Math.min(activeEmitterIdx,emitters.length-1);
   restoreCfgFromEmitter(activeEmitterIdx);
+  buildEmitterTabs();
+}
+
+function toggleEmitterMute(idx){
+  emitters[idx].muted=!emitters[idx].muted;
+  if(emitters[idx].muted) emitters[idx].sim.particles=[];
   buildEmitterTabs();
 }
 
@@ -2087,6 +2101,7 @@ function renderFrame(cfg){
     // Global depth sort across all emitters
     var projected=[];
     for(var ei=0;ei<emitters.length;ei++){
+      if(emitters[ei].muted) continue;
       var ecfg=emCfgs[ei]||cfg;
       var ps=emitters[ei].sim.particles;
       ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
@@ -2102,6 +2117,7 @@ function renderFrame(cfg){
     }
   } else {
     for(var ei=0;ei<emitters.length;ei++){
+      if(emitters[ei].muted) continue;
       var ecfg=emCfgs[ei]||cfg;
       var ps=emitters[ei].sim.particles;
       ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
@@ -2255,7 +2271,7 @@ function loop(ts){
 
   if(running){
     for(var ei=0;ei<emitters.length;ei++){
-      tickSim(emitters[ei].sim, dt, emCfgs[ei], emitters[ei].path);
+      if(!emitters[ei].muted) tickSim(emitters[ei].sim, dt, emCfgs[ei], emitters[ei].path);
     }
   }
   simState=emitters[activeEmitterIdx].sim;
@@ -2814,7 +2830,7 @@ function applyPreset(){
     // Rebuild emitters array
     emitters=[];
     pd.emitters.forEach(function(ep,i){
-      emitters.push({name:ep.name||('Emitter '+(i+1)),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:ep.path||[],pathMode:'once'});
+      emitters.push({name:ep.name||('Emitter '+(i+1)),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:ep.path||[],pathMode:'once',muted:false});
     });
     activeEmitterIdx=0;
     simState=emitters[0].sim;
