@@ -287,6 +287,11 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <input type="range" id="massJitter" min="0" max="2" step="0.01" value="0.5" oninput="syncVal(this,'massJitter_v');onCfgChange()">
         <span class="val" id="massJitter_v">0.5</span>
       </div>
+      <div class="row"><label>Elongate</label>
+        <input type="range" id="elongate" min="0" max="5" step="0.05" value="0" oninput="syncVal(this,'elongate_v');onCfgChange()">
+        <span class="val" id="elongate_v">0</span>
+      </div>
+      <div style="font-size:10px;color:#555;padding-left:2px;margin-top:-4px">stretch along velocity direction</div>
     </div>
 
     <!-- COLOR -->
@@ -791,6 +796,7 @@ function getConfig(){
     rotStart:V('rotStart'), rotJitter:V('rotJitter'),
     rotAlignVel:document.getElementById('rotAlignVel').checked,
     massJitter:V('massJitter'),
+    elongate:V('elongate'),
     hueJitter:V('hueJitter'),
     blendMode:document.getElementById('blendMode').value,
     gravX:V('gravX'), gravY:V('gravY'),
@@ -1403,6 +1409,15 @@ function drawParticle(ctx, p, t, cfg, proj){
   var effectiveRot = cfg.rotAlignVel
     ? (Math.atan2(p.vy, p.vx)*180/Math.PI + p.rot)
     : p.rot;
+  // Velocity elongation: stretch particle along its direction of travel
+  var _pspd=Math.sqrt(p.vx*p.vx+p.vy*p.vy);
+  var doElongate=(cfg.elongate||0)>0 && _pspd>2;
+  if(doElongate){
+    var _vang=Math.atan2(p.vy,p.vx);
+    var _stretch=1+(cfg.elongate)*Math.min(_pspd/150,4);
+    ctx.save();
+    ctx.translate(dx,dy); ctx.rotate(_vang); ctx.scale(_stretch,1); ctx.rotate(-_vang); ctx.translate(-dx,-dy);
+  }
   if(pshape==='custompng'){
     if(customImages.length>0){
       var mode=cfg.pngSeqMode||'life';
@@ -1425,6 +1440,7 @@ function drawParticle(ctx, p, t, cfg, proj){
         ctx.restore();
       }
     }
+    if(doElongate) ctx.restore();
     return;
   } else if(pshape==='custom'){
     var subShapes=cfg.subShapes;
@@ -1456,6 +1472,7 @@ function drawParticle(ctx, p, t, cfg, proj){
     drawShape(ctx, pshape, 0, 0, sz, r, g, b, op, glowR, cfg.glowStr, gr, gg, gb2, gblend);
     ctx.restore();
   }
+  if(doElongate) ctx.restore();
 }
 
 function drawCircleGlow(ctx, x, y, sz, r, g, b, op, glowR, glowStr){
@@ -1777,7 +1794,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
   // Copy primitives from snapshot
   var numFields=['emitX','emitY','emitRadius','boxW','boxH','emitDir','emitSpread','emitRate','preRun',
     'lifeMin','lifeMax','velMin','velMax','sizeStart','sizeEnd','sizeJitter','opStart','opEnd',
-    'spinRate','spinJitter','spinDamping','rotStart','rotJitter','massJitter','hueJitter',
+    'spinRate','spinJitter','spinDamping','rotStart','rotJitter','massJitter','elongate','hueJitter',
     'gravX','gravY','windX','windY','drag','maxVel','bounce','floorY','friction',
     'vortexStr','vortexX','vortexY','turbStr','turbScale',
     'attractorStr','attractorRadius','attractorX','attractorY',
@@ -2239,6 +2256,7 @@ function applyPresetData(pd){
   setR('glowStr',pd.glowStr!=null?pd.glowStr:0.8);
   setR('motionBlur',pd.motionBlur!=null?pd.motionBlur:0.15);
   setR('massJitter',pd.massJitter!=null?pd.massJitter:0.5);
+  setR('elongate',pd.elongate!=null?pd.elongate:0);
   setR('bounce',pd.bounce!=null?pd.bounce:0.4);
   setR('friction',pd.friction!=null?pd.friction:0.3);
   setR('maxVel',pd.maxVel!=null?pd.maxVel:800);
