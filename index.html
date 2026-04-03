@@ -150,8 +150,7 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
       <!-- PNG panel -->
       <div id="pngPanel" style="display:none;margin:4px 0 6px;padding:6px;background:#161616;border-radius:3px;border:1px solid #333">
         <div class="sub-label" style="margin-bottom:5px">PNG / PNG Sequence</div>
-        <button class="btn" style="width:100%;margin-bottom:4px" onclick="document.getElementById('pngFileInput').click()">📂 Load PNG(s)…</button>
-        <input type="file" id="pngFileInput" accept="image/png,image/gif,image/webp" multiple style="display:none" onchange="loadCustomImages(this)">
+        <label class="btn" style="display:block;width:100%;margin-bottom:4px;text-align:center;cursor:pointer;box-sizing:border-box">&#128193; Load PNG(s)&#8230;<input type="file" id="pngFileInput" accept="image/png,image/gif,image/webp" multiple style="display:none" onchange="loadCustomImages(this)"></label>
         <div id="pngInfo" style="font-size:10px;color:#666;text-align:center;margin-bottom:5px">No images loaded — files sorted A→Z = sequence order</div>
         <div class="row"><label>Playback</label>
           <select id="pngSeqMode" onchange="onPngModeChange()">
@@ -385,9 +384,8 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <span style="font-size:10px;color:#666;margin-left:6px">canvas fill color</span>
       </div>
       <div class="row" style="margin-top:2px">
-        <button class="btn" style="flex:1" onclick="document.getElementById('bgFileInput').click()">&#128247; Load Image…</button>
-        <input type="file" id="bgFileInput" accept="image/*" style="display:none" onchange="loadBgImage(this)">
-        <button class="btn btn.red" style="margin-left:4px;padding:4px 8px" onclick="clearBgImage()" title="Remove background image">&#10005;</button>
+        <label class="btn" style="flex:1;text-align:center;cursor:pointer">&#128247; Load Image&#8230;<input type="file" id="bgFileInput" accept="image/*" style="display:none" onchange="loadBgImage(this)"></label>
+        <button class="btn" style="margin-left:4px;padding:4px 8px" onclick="clearBgImage()" title="Remove background image">&#10005;</button>
       </div>
       <div id="bgInfo" style="font-size:10px;color:#666;text-align:center;margin:3px 0 5px">No image loaded</div>
       <div class="row"><label>Fit Mode</label>
@@ -885,9 +883,20 @@ var bgImage=null;
 function loadBgImage(input){
   if(!input.files||!input.files[0]) return;
   var f=input.files[0];
+  // reset value so the same file can be re-selected
+  input.value='';
   var img=new Image();
-  img.onload=function(){ bgImage=img; document.getElementById('bgInfo').textContent=f.name+' ('+img.naturalWidth+'×'+img.naturalHeight+')'; drawBackground(); };
-  img.src=URL.createObjectURL(f);
+  img.onload=function(){
+    bgImage=img;
+    document.getElementById('bgInfo').textContent=f.name+' ('+img.naturalWidth+'\u00d7'+img.naturalHeight+')';
+    drawBackground();
+  };
+  img.onerror=function(){
+    document.getElementById('bgInfo').textContent='\u26a0 Failed to load: '+f.name;
+  };
+  var reader=new FileReader();
+  reader.onload=function(e){ img.src=e.target.result; };
+  reader.readAsDataURL(f);
 }
 function clearBgImage(){
   bgImage=null;
