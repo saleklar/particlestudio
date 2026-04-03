@@ -2943,9 +2943,11 @@ function exportSpineJSON(){
     return {name:bn, bone:bn, attachment:attNames[0]};
   });
 
-  // Skins — Spine 4.1+ flat array format: [{slot, name, width, height}]
-  var skinAtts=[];
+  // Skins — Spine 4.x: skins is an ARRAY of skin objects,
+  // but attachments within each skin is a NESTED OBJECT {slotName:{attName:{...}}}
+  var skinAttsObj={};
   boneNames.forEach(function(bn){
+    skinAttsObj[bn]={};
     for(var ai=0;ai<imgCount;ai++){
       var aname=attNames[ai];
       var imgW, imgH;
@@ -2953,10 +2955,10 @@ function exportSpineJSON(){
         imgW=(customImages[ai]&&customImages[ai].naturalWidth>0)?customImages[ai].naturalWidth:refW;
         imgH=(customImages[ai]&&customImages[ai].naturalHeight>0)?customImages[ai].naturalHeight:refH;
       } else { imgW=refW; imgH=refH; }
-      skinAtts.push({slot:bn, name:aname, width:imgW, height:imgH});
+      skinAttsObj[bn][aname]={width:imgW,height:imgH};
     }
   });
-  var skins=[{name:'default',attachments:skinAtts}];
+  var skins=[{name:'default',attachments:skinAttsObj}];
 
   // Bone animation timelines: translate + rotate + scale
   var bones_anim={};
@@ -3071,17 +3073,18 @@ function previewSpineJSON(){
     var boneNames=[]; var bones=[{name:'root'}];
     for(var bi=0;bi<bCount;bi++){boneNames.push('p'+bi);bones.push({name:'p'+bi,parent:'root'});}
     var slots=boneNames.map(function(bn){return {name:bn,bone:bn,attachment:attNames[0]};});
-    var skinAtts=[];
+    var skinAttsObj={};
     boneNames.forEach(function(bn){
+      skinAttsObj[bn]={};
       for(var ai=0;ai<imgCount;ai++){
         var iw=usingCustom&&customImages[ai]?customImages[ai].naturalWidth||refW:refW;
         var ih=usingCustom&&customImages[ai]?customImages[ai].naturalHeight||refH:refH;
-        skinAtts.push({slot:bn,name:attNames[ai],width:iw,height:ih});
+        skinAttsObj[bn][attNames[ai]]={width:iw,height:ih};
       }
     });
     var preview={
       skeleton:{spine:'4.2',x:0,y:0,width:Math.round(W),height:Math.round(H),fps:cfg.exportFPS,images:'./images/'},
-      bones:bones, slots:slots, skins:[{name:'default',attachments:skinAtts}],
+      bones:bones, slots:slots, skins:[{name:'default',attachments:skinAttsObj}],
       animations:'(export first to see keyframes)'
     };
     txt='=== STRUCTURE PREVIEW (no export done yet) ===\n'+JSON.stringify(preview,null,2);
