@@ -885,9 +885,14 @@ function drawParticle(ctx, p, t, cfg){
       var cimg=customImages[fIdx];
       if(cimg&&cimg.complete&&cimg.naturalWidth>0){
         ctx.save();
+        if(cfg.glowStr>0&&cfg.glowRadius>0){
+          ctx.shadowColor='rgba('+r+','+g+','+b+','+Math.min(1,cfg.glowStr)+')';
+          ctx.shadowBlur=cfg.glowRadius*cfg.glowStr;
+        }
         ctx.translate(p.x,p.y);
         ctx.rotate(deg2rad(p.rot));
         drawImageTinted(ctx,cimg,0,0,sz,op,r,g,b,cfg.pngTint);
+        ctx.shadowBlur=0; ctx.shadowColor='transparent';
         ctx.restore();
       }
     }
@@ -982,7 +987,13 @@ function drawHeart(ctx, x, y, sz, r, g, b, op){
 function drawShape(ctx, type, x, y, sz, r, g, b, op, glowR, glowStr){
   ctx.fillStyle='rgba('+r+','+g+','+b+','+op+')';
   ctx.strokeStyle='rgba('+r+','+g+','+b+','+op+')';
+  // universal glow via canvas shadow (works on ALL shapes)
+  if(glowStr>0 && glowR>0 && type!=='glow'){
+    ctx.shadowColor='rgba('+r+','+g+','+b+','+Math.min(1,glowStr)+')';
+    ctx.shadowBlur=glowR*glowStr;
+  }
   if(type==='glow'||type==='circle'||type==='sphere'){
+    ctx.shadowBlur=0; ctx.shadowColor='transparent';
     drawCircleGlow(ctx, x, y, sz, r, g, b, op, glowR, glowStr);
   } else if(type==='ring'){
     ctx.lineWidth=Math.max(1,sz*0.22);
@@ -1010,6 +1021,8 @@ function drawShape(ctx, type, x, y, sz, r, g, b, op, glowR, glowStr){
   } else if(type==='heart'){
     drawHeart(ctx, x, y, sz, r, g, b, op);
   }
+  // always reset shadow so it doesn't bleed onto other draw calls
+  ctx.shadowBlur=0; ctx.shadowColor='transparent';
 }
 
 function drawStar(ctx, x, y, outerR, points, innerFactor, r, g, b, op){
