@@ -56,6 +56,15 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
 .shape-row{background:#252525;border-radius:3px;padding:4px 6px;margin-bottom:4px}
 .shape-row .shape-header{display:flex;align-items:center;gap:5px;margin-bottom:3px}
 .shape-row .shape-header label{flex:1;font-size:11px;color:#aaa}
+/* Emitter tabs */
+#emitter-tabs{display:flex;align-items:center;gap:2px;padding:4px 6px 0;background:#191919;border-bottom:1px solid #333;flex-shrink:0;flex-wrap:wrap}
+.etab{padding:3px 8px;font-size:11px;cursor:pointer;border-radius:3px 3px 0 0;border:1px solid #444;border-bottom:none;background:#252525;color:#888;white-space:nowrap}
+.etab.active{background:#2e2e2e;color:#f90;border-color:#555}
+.etab:hover{color:#ddd}
+#etab-add{padding:2px 7px;font-size:13px;cursor:pointer;background:#1a1a2a;color:#66f;border:1px solid #334;border-radius:3px;margin-left:2px;line-height:1}
+#etab-add:hover{background:#2a2a3a;color:#99f}
+/* Global section indicator */
+.sec-head.global-sec{border-left:2px solid #66f;padding-left:6px}
 /* Canvas area */
 #canvas-wrap{flex:1;position:relative;overflow:hidden;background:#0a0a0f}
 canvas{position:absolute;top:0;left:0;cursor:crosshair}
@@ -82,16 +91,28 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
   <!-- SIDEBAR -->
   <div id="sidebar">
 
-    <!-- EMITTER -->
-    <div class="sec-head" onclick="toggleSec(this)"><span>Emitter</span><span class="arrow">▼</span></div>
+    <!-- EMITTER TABS -->
+    <div id="emitter-tabs">
+      <!-- built by JS -->
+      <button id="etab-add" onclick="addEmitter()" title="Add emitter">＋</button>
+    </div>
+
+    <!-- PER-EMITTER CONTENTS (hidden/shown by tab) -->
+    <div id="emitter-panels">
+    <!-- built by JS, one div.emitter-panel per emitter -->
+    </div>
+
+    <!-- GLOBAL: CAMERA / 3D -->
+    <div class="sec-head global-sec" onclick="toggleSec(this)"><span>Camera / 3D</span><span class="arrow">▼</span></div>
     <div class="sec-body">
       <div class="row"><label>Type</label>
-        <select id="emitType" onchange="onCfgChange()">
+        <select id="emitType" onchange="onEmitTypeChange()">
           <option value="point">Point</option>
           <option value="box">Box</option>
           <option value="ring">Ring</option>
           <option value="line">Line</option>
           <option value="sphere">Sphere</option>
+          <option value="path">Path (draw on canvas)</option>
         </select>
       </div>
       <div class="two-col">
@@ -121,6 +142,18 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
       <div class="row"><label>Pre-Run sec</label>
         <input type="range" id="preRun" min="0" max="10" step="0.1" value="0" oninput="syncVal(this,'preRun_v');onCfgChange()">
         <span class="val" id="preRun_v">0</span>
+      </div>
+      <!-- PATH PANEL -->
+      <div id="pathPanel" style="display:none;margin-top:6px;padding:6px;background:#161626;border-radius:3px;border:1px solid #334">
+        <div class="sub-label" style="color:#0cf;margin-bottom:5px">Path Emitter</div>
+        <div style="display:flex;gap:5px;margin-bottom:5px">
+          <button id="pathEditBtn" onclick="togglePathEdit()" style="flex:1;font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✏️ Draw Path</button>
+          <button onclick="clearPath();onCfgChange()" style="font-size:11px;padding:3px 6px;cursor:pointer;background:#1e2030;color:#aaa;border:1px solid #444;border-radius:3px">✕ Clear</button>
+        </div>
+        <div style="font-size:10px;color:#556;margin-bottom:3px">Click canvas = add point &nbsp;|&nbsp; Right-click = done</div>
+        <div class="row"><label>Spread px</label>
+          <!-- emitRadius used as spread width in path mode too -->
+        </div>
       </div>
     </div>
 
@@ -867,11 +900,232 @@ function drawImageTinted(ctx,img,cx,cy,sz,op,r,g,b,doTint){
 // ============================================================
 //  PARTICLE SIMULATION
 // ============================================================
-var simState={particles:[],time:0,emitAccum:0};
+// ============================================================
+//  MULTI-EMITTER STATE
+// ============================================================
+// Each emitter = { name, cfg (snapshot), sim:{particles,time,emitAccum}, path:[] }
+// The sidebar controls always show the "active" emitter.
+// Switching tabs: snapshot current UI → emitters[activeIdx].cfg, restore new emitter cfg → UI.
+var activeEmitterIdx=0;
 
-function makeParticle(cfg, t){
+// --- per-emitter CFG snapshot (all keys from getConfig except globals) ---
+var GLOBAL_KEYS=['enable3D','camYaw','camPitch','camDist','camFOV','camPanX','camPanY',
+  'motionBlur','budget','exportFPS','exportDur','boneCount','spineScale'];
+
+function getPerEmitterCfg(){
+  // Full config minus global keys
+  var c=getConfig();
+  GLOBAL_KEYS.forEach(function(k){ delete c[k]; });
+  return c;
+}
+function getGlobalCfg(){
+  var c=getConfig();
+  var g={};
+  GLOBAL_KEYS.forEach(function(k){ if(c[k]!==undefined) g[k]=c[k]; });
+  return g;
+}
+
+// --- emitters array ---
+var emitters=[
+  {name:'Emitter 1', sim:{particles:[],time:0,emitAccum:0}, cfg:null, path:[], pathMode:'once'}
+];
+// simState now points to the active emitter's sim (legacy compat)
+var simState=emitters[0].sim;
+
+// ---- Emitter tabs UI ----
+function buildEmitterTabs(){
+  var bar=document.getElementById('emitter-tabs');
+  // remove old tabs (keep the + button)
+  var old=bar.querySelectorAll('.etab'); old.forEach(function(el){el.remove();});
+  var addBtn=document.getElementById('etab-add');
+  emitters.forEach(function(em,i){
+    var t=document.createElement('div');
+    t.className='etab'+(i===activeEmitterIdx?' active':'');
+    var nameSpan=document.createElement('span');
+    nameSpan.textContent=em.name;
+    nameSpan.ondblclick=(function(idx){return function(e){e.stopPropagation();
+      var v=prompt('Rename emitter:',emitters[idx].name);
+      if(v){ emitters[idx].name=v; buildEmitterTabs(); }
+    };})(i);
+    t.appendChild(nameSpan);
+    if(emitters.length>1){
+      var x=document.createElement('span');
+      x.textContent=' ✕'; x.style.cssText='font-size:9px;color:#666;margin-left:4px;cursor:pointer';
+      x.onclick=(function(idx){return function(e){e.stopPropagation();removeEmitter(idx);};})(i);
+      t.appendChild(x);
+    }
+    t.onclick=(function(idx){return function(){ switchEmitter(idx); };})(i);
+    bar.insertBefore(t, addBtn);
+  });
+}
+
+function addEmitter(){
+  // snapshot current UI into active emitter
+  saveCfgToEmitter(activeEmitterIdx);
+  var newEm={name:'Emitter '+(emitters.length+1),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:[],pathMode:'once'};
+  emitters.push(newEm);
+  switchEmitter(emitters.length-1);
+}
+
+function removeEmitter(idx){
+  if(emitters.length<=1) return;
+  saveCfgToEmitter(activeEmitterIdx);
+  emitters.splice(idx,1);
+  activeEmitterIdx=Math.min(activeEmitterIdx,emitters.length-1);
+  restoreCfgFromEmitter(activeEmitterIdx);
+  buildEmitterTabs();
+}
+
+function switchEmitter(idx){
+  saveCfgToEmitter(activeEmitterIdx);
+  activeEmitterIdx=idx;
+  restoreCfgFromEmitter(idx);
+  simState=emitters[idx].sim;
+  buildEmitterTabs();
+  updatePathPanel();
+}
+
+// Snapshot current UI values into emitters[idx].cfg
+var SNAPSHOT_SKIP_IDS=['bgColor','bgFit','bgOpacity','enable3D','camYaw','camPitch','camDist','camFOV','emitPitch',
+  'motionBlur','budget','budget_v','exportFPS','exportDur','boneCount','spineScale','exportName','loadCfgInput','bgFileInput'];
+function saveCfgToEmitter(idx){
+  var em=emitters[idx];
+  var data={};
+  // ranges + numbers + selects + text
+  var inputs=document.querySelectorAll('#sidebar input:not([type=file]):not([type=button]):not([type=submit]), #sidebar select');
+  inputs.forEach(function(el){
+    if(!el.id) return;
+    if(SNAPSHOT_SKIP_IDS.indexOf(el.id)>=0) return;
+    if(el.type==='checkbox') data[el.id]=el.checked;
+    else data[el.id]=el.value;
+  });
+  // gradient stops
+  data._grad=[];
+  document.querySelectorAll('#grad-editor .grad-stop').forEach(function(row){
+    data._grad.push({en:row.querySelector('.gEn').checked,col:row.querySelector('.gCol').value,
+      pos:row.querySelector('.gPos').value});
+  });
+  // size curve
+  data._szc=szcRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
+  // sub shapes
+  data._shapes=shapeRows.map(function(r){
+    return{en:r.en.checked,type:r.type.value,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
+  });
+  // path
+  data._path=em.path.slice();
+  data._pathMode=em.pathMode||'once';
+  em.cfg=data;
+}
+
+function restoreCfgFromEmitter(idx){
+  var em=emitters[idx];
+  var data=em.cfg;
+  if(!data) return; // new emitter, keep current UI defaults
+  Object.keys(data).forEach(function(key){
+    if(key[0]==='_') return;
+    var el=document.getElementById(key);
+    if(!el) return;
+    if(el.type==='checkbox') el.checked=!!data[key];
+    else{ el.value=data[key]; var vEl=document.getElementById(key+'_v'); if(vEl)vEl.textContent=data[key]; }
+  });
+  if(data._grad){
+    var rows=document.querySelectorAll('#grad-editor .grad-stop');
+    data._grad.forEach(function(s,i){
+      if(rows[i]){
+        rows[i].querySelector('.gEn').checked=s.en;
+        rows[i].querySelector('.gCol').value=s.col;
+        rows[i].querySelector('.gPos').value=s.pos;
+        rows[i].querySelector('.stop-pos').textContent=parseFloat(s.pos).toFixed(2);
+      }
+    });
+  }
+  if(data._szc){
+    data._szc.forEach(function(s,i){
+      if(szcRows[i]){szcRows[i].pos.value=s.pos;szcRows[i].posLbl.textContent=parseFloat(s.pos).toFixed(2);szcRows[i].val.value=s.val;}
+    });
+    updateSzcPreview();
+  }
+  if(data._shapes){
+    data._shapes.forEach(function(s,i){
+      if(shapeRows[i]){
+        shapeRows[i].en.checked=s.en;shapeRows[i].type.value=s.type;
+        shapeRows[i].sz.value=s.sz;shapeRows[i].szV.textContent=parseFloat(s.sz).toFixed(2);
+        shapeRows[i].ox.value=s.ox;shapeRows[i].oy.value=s.oy;
+        shapeRows[i].col.value=s.col;shapeRows[i].op.value=s.op;
+        shapeRows[i].opV.textContent=parseFloat(s.op).toFixed(2);
+      }
+    });
+  }
+  em.path=data._path||[];
+  em.pathMode=data._pathMode||'once';
+  onParticleShapeChange();
+  onPngModeChange();
+  updateGradPreview();
+  updateSzcPreview();
+  updatePathPanel();
+}
+
+// -- Init first emitter --
+// (will be called after the DOM is loaded -- deferred in INIT)
+
+// ============================================================
+//  PATH EMITTER
+// ============================================================
+var pathEditMode=false;
+var pathCanvas=null; // created by updatePathPanel
+
+function updatePathPanel(){
+  var isPath=document.getElementById('emitType').value==='path';
+  var panel=document.getElementById('pathPanel');
+  if(panel) panel.style.display=isPath?'block':'none';
+}
+
+function togglePathEdit(){
+  pathEditMode=!pathEditMode;
+  var btn=document.getElementById('pathEditBtn');
+  if(btn){btn.style.background=pathEditMode?'#006060':'#1e2030';btn.style.color=pathEditMode?'#0ff':'#aaa';}
+  var hint=document.getElementById('canvas-hint');
+  if(hint) hint.textContent=pathEditMode?'Click to add path point · Right-click to finish':'Click canvas to place emitter · Drag to move';
+  cvsMain.style.cursor=pathEditMode?'crosshair':'default';
+}
+
+function clearPath(){
+  emitters[activeEmitterIdx].path=[];
+}
+
+function samplePath(path, t){
+  // t = 0..1, returns {x,y,dx,dy}
+  if(!path||path.length===0) return null;
+  if(path.length===1) return{x:path[0].x,y:path[0].y,dx:0,dy:0};
+  // compute cumulative arc lengths
+  var dists=[0];
+  for(var i=1;i<path.length;i++){
+    var ddx=path[i].x-path[i-1].x, ddy=path[i].y-path[i-1].y;
+    dists.push(dists[i-1]+Math.sqrt(ddx*ddx+ddy*ddy));
+  }
+  var total=dists[dists.length-1];
+  if(total<0.001) return{x:path[0].x,y:path[0].y,dx:0,dy:0};
+  var target=t*total;
+  for(var i=1;i<dists.length;i++){
+    if(dists[i]>=target||i===dists.length-1){
+      var segLen=dists[i]-dists[i-1];
+      var f=segLen>0?(target-dists[i-1])/segLen:0;
+      var px=lerp(path[i-1].x,path[i].x,f);
+      var py=lerp(path[i-1].y,path[i].y,f);
+      var ddx2=path[i].x-path[i-1].x, ddy2=path[i].y-path[i-1].y;
+      var dlen=Math.sqrt(ddx2*ddx2+ddy2*ddy2)||1;
+      return{x:px,y:py,dx:ddx2/dlen,dy:ddy2/dlen};
+    }
+  }
+  return{x:path[path.length-1].x,y:path[path.length-1].y,dx:0,dy:0};
+}
+
+var simState=emitters[0].sim; // legacy compat placeholder — overridden above
+
+function makeParticle(cfg, t, emitterPath){
   var ex=cfg.emitX, ey=cfg.emitY;
   var type=cfg.emitType;
+  var dir=deg2rad(cfg.emitDir)+rnd(-1,1)*deg2rad(cfg.emitSpread/2);
   if(type==='box'){
     ex+=rnd(-cfg.boxW/2,cfg.boxW/2);
     ey+=rnd(-cfg.boxH/2,cfg.boxH/2);
@@ -885,8 +1139,16 @@ function makeParticle(cfg, t){
     ey+=cth*cfg.emitRadius;
   } else if(type==='line'){
     ex+=rnd(-cfg.emitRadius,cfg.emitRadius);
+  } else if(type==='path' && emitterPath && emitterPath.length>1){
+    var pathT=Math.random();
+    var sp=samplePath(emitterPath, pathT);
+    if(sp){
+      ex=sp.x + rnd(-cfg.emitRadius*0.15, cfg.emitRadius*0.15);
+      ey=sp.y + rnd(-cfg.emitRadius*0.15, cfg.emitRadius*0.15);
+      // Align emit direction to path tangent + spread
+      dir=Math.atan2(sp.dy,sp.dx)+rnd(-1,1)*deg2rad(cfg.emitSpread/2);
+    }
   }
-  var dir=deg2rad(cfg.emitDir)+rnd(-1,1)*deg2rad(cfg.emitSpread/2);
   var vel=rnd(cfg.velMin,cfg.velMax);
   var pvx,pvy,pvz=0;
   if(cfg.enable3D){
@@ -894,7 +1156,7 @@ function makeParticle(cfg, t){
     var cosP=Math.cos(pitchRad),sinP=Math.sin(pitchRad);
     pvx=Math.cos(dir)*vel*cosP;
     pvy=Math.sin(dir)*vel*cosP;
-    pvz=sinP*vel; // positive = away from camera
+    pvz=sinP*vel;
   } else {
     pvx=Math.cos(dir)*vel;
     pvy=Math.sin(dir)*vel;
@@ -922,16 +1184,13 @@ function makeParticle(cfg, t){
 function stepParticle(p, dt, cfg){
   p.age+=dt;
   var vx=p.vx, vy=p.vy, vz=p.vz||0;
-  // gravity + wind (Y axis)
   vx+=(cfg.gravX+cfg.windX)*dt/p.mass;
   vy+=(cfg.gravY+cfg.windY)*dt/p.mass;
-  // drag (3D)
   var spd=Math.sqrt(vx*vx+vy*vy+vz*vz);
   if(spd>0){
     var damp=Math.max(0,1-cfg.drag*dt);
     vx*=damp; vy*=damp; vz*=damp;
   }
-  // vortex (XY plane)
   if(cfg.vortexStr!==0){
     var vcx=cfg.vortexX!==null?cfg.vortexX:cfg.emitX;
     var vcy=cfg.vortexY!==null?cfg.vortexY:cfg.emitY;
@@ -941,7 +1200,6 @@ function stepParticle(p, dt, cfg){
     vx+=(-dy/dist)*vf;
     vy+=(dx/dist)*vf;
   }
-  // turbulence (3D)
   if(cfg.turbStr>0){
     var ns=cfg.turbScale;
     var nx=smoothNoise(p.x*ns+p.noiseOffset, p.age*0.8)*cfg.turbStr;
@@ -949,7 +1207,6 @@ function stepParticle(p, dt, cfg){
     var nz=smoothNoise((p.z||0)*ns+p.noiseOffset+63.5, p.age*0.8+37.2)*cfg.turbStr;
     vx+=nx*dt; vy+=ny*dt; vz+=nz*dt;
   }
-  // attractor / repeller (3D)
   if(cfg.attractorStr!==0){
     var acx=cfg.attractorX!==null?cfg.attractorX:cfg.emitX;
     var acy=cfg.attractorY!==null?cfg.attractorY:cfg.emitY;
@@ -962,32 +1219,31 @@ function stepParticle(p, dt, cfg){
       vz+=(adz/adist)*af;
     }
   }
-  // speed cap
   spd=Math.sqrt(vx*vx+vy*vy+vz*vz);
   if(spd>cfg.maxVel){ var sc=cfg.maxVel/spd; vx*=sc; vy*=sc; vz*=sc; }
   p.vx=vx; p.vy=vy; p.vz=vz;
   p.x+=vx*dt; p.y+=vy*dt; p.z=(p.z||0)+vz*dt;
-  // floor bounce
   if(cfg.floorY>0 && p.y>cfg.floorY){
     p.y=cfg.floorY;
     if(p.vy>0){ p.vy=-p.vy*cfg.bounce; p.vx*=(1-cfg.friction); }
   }
-  // spin with damping
   var lifeFrac=clamp(p.age/p.life,0,1);
   p.rot+=p.spin*(1-cfg.spinDamping*lifeFrac)*dt;
 }
 
-function tickSim(state, dt, cfg){
-  // clamp dt to avoid spiral of death
+// Total particle count across all emitters (for budget enforcement)
+function totalParticles(){
+  var n=0; for(var i=0;i<emitters.length;i++) n+=emitters[i].sim.particles.length; return n;
+}
+
+function tickSim(state, dt, cfg, emitterPath){
   dt=Math.min(dt, 0.1);
   state.time+=dt;
-  // spawn
   state.emitAccum+=cfg.emitRate*dt;
-  while(state.emitAccum>=1 && state.particles.length<cfg.budget){
-    state.particles.push(makeParticle(cfg, state.time));
+  while(state.emitAccum>=1 && totalParticles()<cfg.budget){
+    state.particles.push(makeParticle(cfg, state.time, emitterPath));
     state.emitAccum-=1;
   }
-  // step + cull
   var next=[];
   for(var i=0;i<state.particles.length;i++){
     var p=state.particles[i];
@@ -998,18 +1254,25 @@ function tickSim(state, dt, cfg){
 }
 
 function resetSim(){
-  simState.particles=[];
-  simState.time=0;
-  simState.emitAccum=0;
+  for(var i=0;i<emitters.length;i++){
+    emitters[i].sim.particles=[];
+    emitters[i].sim.time=0;
+    emitters[i].sim.emitAccum=0;
+  }
+  simState=emitters[activeEmitterIdx].sim;
 }
 
-// Pre-run warm-up
-function preRunSim(cfg){
-  resetSim();
+// Pre-run warm-up for one emitter
+function preRunSim(cfg, emIdx){
+  var si=emIdx!==undefined?emIdx:activeEmitterIdx;
+  var em=emitters[si];
+  em.sim.particles=[];
+  em.sim.time=0;
+  em.sim.emitAccum=0;
   if(cfg.preRun<=0) return;
   var step=1/30;
   var steps=Math.round(cfg.preRun/step);
-  for(var i=0;i<steps;i++) tickSim(simState, step, cfg);
+  for(var i=0;i<steps;i++) tickSim(em.sim, step, cfg, em.path);
 }
 
 // ============================================================
@@ -1318,22 +1581,39 @@ function renderFrame(cfg){
   } else {
     ctxMain.clearRect(0,0,W,H);
   }
-  ctxMain.globalCompositeOperation=cfg.blendMode||'lighter';
-  var ps=simState.particles;
+
+  // --- Draw all emitters ---
+  // Collect per-emitter cfgs (use cached from loop)
+  var emCfgs=window._emCfgs||[cfg];
   if(cfg.enable3D){
-    // project all, depth-sort: farther drawn first (behind), nearer drawn last (in front)
+    // Global depth sort across all emitters
     var projected=[];
-    for(var i=0;i<ps.length;i++){
-      var proj=project3D(ps[i].x,ps[i].y,ps[i].z||0,cfg);
-      if(proj) projected.push({p:ps[i],proj:proj});
+    for(var ei=0;ei<emitters.length;ei++){
+      var ecfg=emCfgs[ei]||cfg;
+      var ps=emitters[ei].sim.particles;
+      ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
+      for(var i=0;i<ps.length;i++){
+        var proj=project3D(ps[i].x,ps[i].y,ps[i].z||0,cfg);
+        if(proj) projected.push({p:ps[i],proj:proj,cfg:ecfg});
+      }
     }
     projected.sort(function(a,b){return b.proj.cz-a.proj.cz;});
-    for(var i=0;i<projected.length;i++){ drawParticle(ctxMain,projected[i].p,simState.time,cfg,projected[i].proj); }
+    for(var i=0;i<projected.length;i++){
+      ctxMain.globalCompositeOperation=projected[i].cfg.blendMode||'lighter';
+      drawParticle(ctxMain,projected[i].p,emitters[0].sim.time,projected[i].cfg,projected[i].proj);
+    }
   } else {
-    for(var i=0;i<ps.length;i++){ drawParticle(ctxMain,ps[i],simState.time,cfg,null); }
+    for(var ei=0;ei<emitters.length;ei++){
+      var ecfg=emCfgs[ei]||cfg;
+      var ps=emitters[ei].sim.particles;
+      ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
+      for(var i=0;i<ps.length;i++){
+        drawParticle(ctxMain,ps[i],emitters[ei].sim.time,ecfg,null);
+      }
+    }
   }
   ctxMain.globalCompositeOperation='source-over';
-  // emitter crosshair
+  // emitter crosshair for active emitter only
   var ex=cfg.emitX, ey=cfg.emitY;
   ctxMain.strokeStyle='rgba(255,160,0,0.6)';
   ctxMain.lineWidth=1;
@@ -1341,6 +1621,42 @@ function renderFrame(cfg){
   ctxMain.beginPath(); ctxMain.moveTo(ex-12,ey); ctxMain.lineTo(ex+12,ey); ctxMain.stroke();
   ctxMain.beginPath(); ctxMain.moveTo(ex,ey-12); ctxMain.lineTo(ex,ey+12); ctxMain.stroke();
   ctxMain.setLineDash([]);
+  // Draw paths for all emitters
+  for(var ei=0;ei<emitters.length;ei++){
+    var epath=emitters[ei].path;
+    var isActive=(ei===activeEmitterIdx);
+    if(epath&&epath.length>1){
+      ctxMain.save();
+      ctxMain.strokeStyle=isActive?'rgba(0,220,255,0.7)':'rgba(0,180,200,0.3)';
+      ctxMain.lineWidth=isActive?2:1;
+      ctxMain.setLineDash([5,4]);
+      ctxMain.beginPath();
+      ctxMain.moveTo(epath[0].x,epath[0].y);
+      for(var pi=1;pi<epath.length;pi++) ctxMain.lineTo(epath[pi].x,epath[pi].y);
+      ctxMain.stroke();
+      ctxMain.setLineDash([]);
+      // draw nodes
+      for(var pi=0;pi<epath.length;pi++){
+        ctxMain.beginPath();
+        ctxMain.arc(epath[pi].x,epath[pi].y,isActive?4:2.5,0,Math.PI*2);
+        ctxMain.fillStyle=pi===0?'rgba(0,255,120,0.9)':(pi===epath.length-1?'rgba(255,80,80,0.9)':'rgba(0,200,255,0.7)');
+        ctxMain.fill();
+      }
+      ctxMain.restore();
+    }
+    // ghost crosshair for non-active emitters
+    if(ei!==activeEmitterIdx){
+      var ecfg2=emCfgs[ei];
+      if(ecfg2){
+        ctxMain.strokeStyle='rgba(180,120,0,0.3)';
+        ctxMain.lineWidth=1;
+        ctxMain.setLineDash([2,4]);
+        ctxMain.beginPath(); ctxMain.moveTo(ecfg2.emitX-10,ecfg2.emitY); ctxMain.lineTo(ecfg2.emitX+10,ecfg2.emitY); ctxMain.stroke();
+        ctxMain.beginPath(); ctxMain.moveTo(ecfg2.emitX,ecfg2.emitY-10); ctxMain.lineTo(ecfg2.emitX,ecfg2.emitY+10); ctxMain.stroke();
+        ctxMain.setLineDash([]);
+      }
+    }
+  }
   // attractor crosshair
   if(cfg.attractorStr!==0){
     var ax=cfg.attractorX!==null?cfg.attractorX:cfg.emitX;
@@ -1424,13 +1740,86 @@ function loop(ts){
   frameCount++;
   fpsTime+=dt;
   if(fpsTime>=0.5){ fpsVal=Math.round(frameCount/fpsTime); frameCount=0; fpsTime=0; }
-  currentCfg=getConfig();
-  if(running) tickSim(simState, dt, currentCfg);
+
+  currentCfg=getConfig(); // active emitter cfg + globals
+  // Build per-emitter cfgs (active emitter uses live UI, others use snapshots)
+  var emCfgs=[];
+  for(var ei=0;ei<emitters.length;ei++){
+    var ecfg;
+    if(ei===activeEmitterIdx){
+      ecfg=currentCfg;
+    } else {
+      ecfg=buildCfgFromSnapshot(emitters[ei].cfg, currentCfg);
+    }
+    emCfgs.push(ecfg);
+  }
+  window._emCfgs=emCfgs;
+
+  if(running){
+    for(var ei=0;ei<emitters.length;ei++){
+      tickSim(emitters[ei].sim, dt, emCfgs[ei], emitters[ei].path);
+    }
+  }
+  simState=emitters[activeEmitterIdx].sim;
   renderFrame(currentCfg);
-  document.getElementById('fps-display').textContent=fpsVal+' fps · '+simState.particles.length+' particles';
-  document.getElementById('emitter-info').textContent='Emitter: ('+Math.round(currentCfg.emitX)+', '+Math.round(currentCfg.emitY)+')  Time: '+simState.time.toFixed(1)+'s';
+  var totalP=totalParticles();
+  document.getElementById('fps-display').textContent=fpsVal+' fps · '+totalP+' particles ('+emitters.length+' emitters)';
+  var ex=Math.round(currentCfg.emitX), ey=Math.round(currentCfg.emitY);
+  document.getElementById('emitter-info').textContent='['+emitters[activeEmitterIdx].name+'] Emitter: ('+ex+', '+ey+')  Time: '+emitters[activeEmitterIdx].sim.time.toFixed(1)+'s';
 }
 requestAnimationFrame(loop);
+
+// Build a full cfg object from a snapshot + global overrides
+function buildCfgFromSnapshot(snap, globalCfg){
+  if(!snap) return globalCfg; // new emitter, no snapshot yet
+  // Parse snapshot into cfg-like object
+  var c={};
+  // Copy primitives from snapshot
+  var numFields=['emitX','emitY','emitRadius','boxW','boxH','emitDir','emitSpread','emitRate','preRun',
+    'lifeMin','lifeMax','velMin','velMax','sizeStart','sizeEnd','sizeJitter','opStart','opEnd',
+    'spinRate','spinJitter','spinDamping','rotStart','rotJitter','massJitter','hueJitter',
+    'gravX','gravY','windX','windY','drag','maxVel','bounce','floorY','friction',
+    'vortexStr','vortexX','vortexY','turbStr','turbScale',
+    'attractorStr','attractorRadius','attractorX','attractorY',
+    'glowRadius','glowStr','pngSeqFPS'];
+  numFields.forEach(function(k){
+    if(snap[k]!==undefined) c[k]=parseFloat(snap[k])||0;
+    else if(globalCfg[k]!==undefined) c[k]=globalCfg[k];
+  });
+  var strFields=['emitType','particleShape','pngSeqMode','blendMode','glowColor','glowBlend','exportName'];
+  strFields.forEach(function(k){
+    c[k]=(snap[k]!==undefined?snap[k]:globalCfg[k]);
+  });
+  var boolFields=['rotAlignVel','sizeCurveEn','pngTint','glowAutoColor'];
+  boolFields.forEach(function(k){
+    c[k]=(snap[k]!==undefined?!!snap[k]:globalCfg[k]);
+  });
+  // Ensure sizeJitter is fractional
+  if(c.sizeJitter>1) c.sizeJitter/=100;
+  // Gradient stops
+  c.gradientStops=snap._grad?snap._grad.filter(function(s){return s.en;}).map(function(s){
+    return {pos:parseFloat(s.pos),col:hex2rgb(s.col)};
+  }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.gradientStops;
+  // Size curve
+  c.sizeCurveStops=snap._szc?snap._szc.map(function(r){
+    return{pos:parseFloat(r.pos),val:parseFloat(r.val)||0};
+  }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.sizeCurveStops;
+  // Sub-shapes
+  c.subShapes=snap._shapes?snap._shapes.filter(function(s){return s.en;}).map(function(s){
+    return{en:true,type:s.type,sz:parseFloat(s.sz),ox:parseFloat(s.ox)||0,oy:parseFloat(s.oy)||0,
+      col:hex2rgb(s.col),op:parseFloat(s.op)};
+  }):globalCfg.subShapes;
+  // Vortex/attractor nulls
+  c.vortexX=(snap.vortexX!==undefined&&snap.vortexX!=='')?parseFloat(snap.vortexX):null;
+  c.vortexY=(snap.vortexY!==undefined&&snap.vortexY!=='')?parseFloat(snap.vortexY):null;
+  c.attractorX=(snap.attractorX!==undefined&&snap.attractorX!=='')?parseFloat(snap.attractorX):null;
+  c.attractorY=(snap.attractorY!==undefined&&snap.attractorY!=='')?parseFloat(snap.attractorY):null;
+  // Inherit globals
+  c.enable3D=globalCfg.enable3D; c.camYaw=globalCfg.camYaw; c.camPitch=globalCfg.camPitch;
+  c.camDist=globalCfg.camDist; c.camFOV=globalCfg.camFOV; c.emitPitch=globalCfg.emitPitch||0;
+  c.motionBlur=globalCfg.motionBlur; c.budget=globalCfg.budget;
+  return c;
+}
 
 // ============================================================
 //  UI HELPERS
@@ -1442,6 +1831,11 @@ function syncVal(el, targetId){
 function onCfgChange(){
   updateGradPreview();
   updateSzcPreview();
+  updatePathPanel();
+}
+function onEmitTypeChange(){
+  updatePathPanel();
+  onCfgChange();
 }
 function onParticleShapeChange(){
   var v=document.getElementById('particleShape').value;
@@ -1505,25 +1899,31 @@ function stylePickBtn(id,on){
   btn.style.borderColor=on?'#c060ff':'#444';
 }
 
-cvsMain.addEventListener('contextmenu',function(e){ e.preventDefault(); });
+cvsMain.addEventListener('contextmenu',function(e){
+  e.preventDefault();
+  // Right-click in path edit mode = finish path
+  if(pathEditMode){ togglePathEdit(); }
+});
 cvsMain.addEventListener('mousedown',function(e){
   var rect=cvsMain.getBoundingClientRect();
   var x=Math.round(e.clientX-rect.left);
   var y=Math.round(e.clientY-rect.top);
   if(vortexPickMode){ document.getElementById('vortexX').value=x; document.getElementById('vortexY').value=y; onCfgChange(); toggleVortexPick(); return; }
   if(attractorPickMode){ document.getElementById('attractorX').value=x; document.getElementById('attractorY').value=y; onCfgChange(); toggleAttractorPick(); return; }
+  // Path editing: left-click adds point
+  if(pathEditMode && e.button===0){
+    emitters[activeEmitterIdx].path.push({x:x,y:y});
+    return;
+  }
   var is3D=document.getElementById('enable3D').checked;
-  // Right-click drag = orbit (when 3D on)
   if(e.button===2 && is3D){
     isDragOrbit=true; orbitLastX=e.clientX; orbitLastY=e.clientY;
     cvsMain.style.cursor='move'; e.preventDefault(); return;
   }
-  // Middle-click drag = pan (when 3D on)
   if(e.button===1 && is3D){
     isDragPan=true; panLastX=e.clientX; panLastY=e.clientY;
     cvsMain.style.cursor='grabbing'; e.preventDefault(); return;
   }
-  // Shift+left drag = orbit (legacy)
   if(e.shiftKey && is3D){
     isDragOrbit=true; orbitLastX=e.clientX; orbitLastY=e.clientY;
     cvsMain.style.cursor='move'; return;
@@ -1672,7 +2072,60 @@ var PRESETS=[
    velMin:10,velMax:50,sizeStart:2,sizeEnd:2,opStart:0.9,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
    drag:0.1,vortexStr:150,turbStr:10,hueJitter:50,blendMode:'lighter',
    grad:['#ffffff','#ffddaa','#ff8844','#441122'],motionBlur:0.1,glowRadius:8,glowStr:1.5,
-   sizeJitter:70,spinJitter:30}
+   sizeJitter:70,spinJitter:30},
+  // --- MULTI-EMITTER PRESETS ---
+  {name:'🎆 Rocket Exhaust',
+   emitters:[
+    {name:'Flame',emitType:'point',emitDir:90,emitSpread:25,emitRate:80,lifeMin:0.3,lifeMax:0.9,
+     velMin:80,velMax:200,sizeStart:16,sizeEnd:2,opStart:1,opEnd:0,gravX:0,gravY:-20,windX:0,windY:0,
+     drag:2.0,turbStr:120,turbScale:0.015,hueJitter:15,blendMode:'lighter',motionBlur:0.25,
+     glowRadius:18,glowStr:1.2,sizeJitter:40,spinJitter:60,emitX:400,emitY:300,
+     grad:['#ffffff','#ffee44','#ff7700','#330000']},
+    {name:'Smoke',emitType:'point',emitDir:90,emitSpread:20,emitRate:20,lifeMin:1.5,lifeMax:4,
+     velMin:30,velMax:90,sizeStart:12,sizeEnd:50,opStart:0.35,opEnd:0,gravX:0,gravY:10,windX:20,windY:0,
+     drag:0.7,turbStr:80,turbScale:0.006,hueJitter:0,blendMode:'source-over',motionBlur:0.35,
+     glowRadius:0,glowStr:0,sizeJitter:50,spinJitter:40,emitX:400,emitY:300,
+     grad:['#777777','#444444','#222222','#000000']}
+   ]},
+  {name:'🌺 Floral Burst',
+   emitters:[
+    {name:'Petals',emitType:'ring',emitDir:0,emitSpread:360,emitRate:35,lifeMin:1.5,lifeMax:4,
+     velMin:60,velMax:180,sizeStart:10,sizeEnd:4,opStart:1,opEnd:0,gravX:0,gravY:80,windX:0,windY:0,
+     drag:1.2,turbStr:40,hueJitter:60,blendMode:'lighter',motionBlur:0.1,
+     glowRadius:10,glowStr:0.8,sizeJitter:50,spinJitter:180,rotAlignVel:true,emitX:400,emitY:300,
+     grad:['#ffffff','#ffaacc','#ff3388','#550022']},
+    {name:'Pollen',emitType:'ring',emitDir:0,emitSpread:360,emitRate:60,lifeMin:0.5,lifeMax:1.5,
+     velMin:20,velMax:120,sizeStart:3,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:60,windX:0,windY:0,
+     drag:0.8,turbStr:20,hueJitter:30,blendMode:'lighter',motionBlur:0.15,
+     glowRadius:8,glowStr:1.2,sizeJitter:60,spinJitter:0,emitX:400,emitY:300,
+     grad:['#ffffff','#ffff88','#ffcc00','#886600']}
+   ]},
+  {name:'⚡ Thunder Storm',
+   emitters:[
+    {name:'Lightning',emitType:'line',emitDir:0,emitSpread:30,emitRate:200,lifeMin:0.05,lifeMax:0.3,
+     velMin:300,velMax:800,sizeStart:5,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:0,windX:0,windY:0,
+     drag:4.0,turbStr:600,turbScale:0.04,hueJitter:20,blendMode:'lighter',motionBlur:0.6,
+     glowRadius:25,glowStr:3.0,sizeJitter:40,spinJitter:0,emitX:400,emitY:200,emitRadius:300,
+     grad:['#ffffff','#ddddff','#8888ff','#2222aa']},
+    {name:'Rain',emitType:'box',emitDir:80,emitSpread:10,emitRate:60,lifeMin:0.8,lifeMax:2.0,
+     velMin:200,velMax:400,sizeStart:3,sizeEnd:2,opStart:0.6,opEnd:0,gravX:0,gravY:300,windX:30,windY:0,
+     drag:0.1,turbStr:0,hueJitter:5,blendMode:'screen',motionBlur:0.2,
+     glowRadius:0,glowStr:0,sizeJitter:20,spinJitter:0,rotAlignVel:true,emitX:400,emitY:0,boxW:800,boxH:10,
+     grad:['#aabbdd','#8899bb','#6677aa','#445588']}
+   ]},
+  {name:'🌊 Ocean Shore',
+   emitters:[
+    {name:'Foam',emitType:'line',emitDir:-90,emitSpread:40,emitRate:40,lifeMin:0.8,lifeMax:2.5,
+     velMin:20,velMax:100,sizeStart:8,sizeEnd:20,opStart:0.7,opEnd:0,gravX:0,gravY:-30,windX:25,windY:0,
+     drag:0.8,turbStr:80,turbScale:0.006,hueJitter:5,blendMode:'screen',motionBlur:0.25,
+     glowRadius:4,glowStr:0.3,sizeJitter:40,spinJitter:15,emitX:400,emitY:350,emitRadius:300,
+     grad:['#ffffff','#ddeeff','#aaccee','#5599bb']},
+    {name:'Mist',emitType:'line',emitDir:-80,emitSpread:60,emitRate:15,lifeMin:3,lifeMax:7,
+     velMin:15,velMax:50,sizeStart:20,sizeEnd:60,opStart:0.25,opEnd:0,gravX:0,gravY:-5,windX:40,windY:0,
+     drag:0.5,turbStr:60,turbScale:0.004,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     glowRadius:0,glowStr:0,sizeJitter:30,spinJitter:20,emitX:400,emitY:350,emitRadius:300,
+     grad:['#ffffff','#ccddee','#aabbcc','#889aaa']}
+   ]}
 ];
 
 function buildPresetList(){
@@ -1688,39 +2141,91 @@ buildPresetList();
 function applyPreset(){
   var idx=parseInt(document.getElementById('presetSel').value);
   var pd=PRESETS[idx];
+  // If preset has multiple emitters, set up all of them
+  if(pd.emitters && pd.emitters.length>1){
+    // Rebuild emitters array
+    emitters=[];
+    pd.emitters.forEach(function(ep,i){
+      emitters.push({name:ep.name||('Emitter '+(i+1)),sim:{particles:[],time:0,emitAccum:0},cfg:null,path:ep.path||[],pathMode:'once'});
+    });
+    activeEmitterIdx=0;
+    simState=emitters[0].sim;
+    buildEmitterTabs();
+    // Load first emitter into UI, then save snapshots for all
+    applyPresetData(pd.emitters[0]);
+    saveCfgToEmitter(0);
+    for(var i=1;i<pd.emitters.length;i++){
+      // Temporarily apply to get a snapshot
+      applyPresetData(pd.emitters[i]);
+      saveCfgToEmitter(i);
+    }
+    // Restore first emitter to UI
+    restoreCfgFromEmitter(0);
+    resetSim();
+    var cfg=getConfig();
+    preRunSim(cfg,0);
+    return;
+  }
+  // Single emitter preset - apply to active emitter
+  applyPresetData(pd);
+  emitters[activeEmitterIdx].path=pd.path||[];
+  updateGradPreview();
+  updatePathPanel();
+  resetSim();
+  var cfg=getConfig();
+  preRunSim(cfg,activeEmitterIdx);
+  saveCfgToEmitter(activeEmitterIdx);
+}
+
+function applyPresetData(pd){
   function setR(id, v){ if(v===undefined)return; var el=document.getElementById(id); if(el){el.value=v; var vEl=document.getElementById(id+'_v'); if(vEl)vEl.textContent=parseFloat(v).toFixed(Math.abs(v)<1?2:0); } }
   function setS(id, v){ if(v===undefined)return; var el=document.getElementById(id); if(el) el.value=v; }
+  function setC(id, v){ if(v===undefined)return; var el=document.getElementById(id); if(el) el.checked=!!v; }
   setS('emitType',pd.emitType||'point');
   setS('particleShape',pd.particleShape||'glow');
-  setR('emitRadius',pd.emitRadius||80);
+  setR('emitX', pd.emitX!=null?pd.emitX:400);
+  setR('emitY', pd.emitY!=null?pd.emitY:300);
+  setR('emitRadius',pd.emitRadius!=null?pd.emitRadius:80);
   setR('emitDir',pd.emitDir!=null?pd.emitDir:-90);
   setR('emitSpread',pd.emitSpread!=null?pd.emitSpread:30);
-  setR('emitRate',pd.emitRate||30);
-  setR('preRun',pd.preRun||0);
-  setR('lifeMin',pd.lifeMin||1.5);
-  setR('lifeMax',pd.lifeMax||3.5);
-  setR('velMin',pd.velMin||60);
-  setR('velMax',pd.velMax||180);
-  setR('sizeStart',pd.sizeStart||12);
-  setR('sizeEnd',pd.sizeEnd||0);
-  setR('sizeJitter',pd.sizeJitter||40);
+  setR('emitRate',pd.emitRate!=null?pd.emitRate:30);
+  setR('preRun',pd.preRun!=null?pd.preRun:0);
+  setR('lifeMin',pd.lifeMin!=null?pd.lifeMin:1.5);
+  setR('lifeMax',pd.lifeMax!=null?pd.lifeMax:3.5);
+  setR('velMin',pd.velMin!=null?pd.velMin:60);
+  setR('velMax',pd.velMax!=null?pd.velMax:180);
+  setR('sizeStart',pd.sizeStart!=null?pd.sizeStart:12);
+  setR('sizeEnd',pd.sizeEnd!=null?pd.sizeEnd:0);
+  setR('sizeJitter',pd.sizeJitter!=null?pd.sizeJitter:40);
+  setC('sizeCurveEn',pd.sizeCurveEn||false);
   setR('opStart',pd.opStart!=null?pd.opStart:1);
   setR('opEnd',pd.opEnd!=null?pd.opEnd:0);
-  setR('spinRate',pd.spinRate||0);
-  setR('spinJitter',pd.spinJitter||120);
-  setR('hueJitter',pd.hueJitter||15);
+  setR('spinRate',pd.spinRate!=null?pd.spinRate:0);
+  setR('spinJitter',pd.spinJitter!=null?pd.spinJitter:120);
+  setR('spinDamping',pd.spinDamping!=null?pd.spinDamping:0);
+  setR('hueJitter',pd.hueJitter!=null?pd.hueJitter:15);
   setS('blendMode',pd.blendMode||'lighter');
-  setR('gravX',pd.gravX||0);
+  setR('gravX',pd.gravX!=null?pd.gravX:0);
   setR('gravY',pd.gravY!=null?pd.gravY:120);
-  setR('windX',pd.windX||0);
-  setR('windY',pd.windY||0);
+  setR('windX',pd.windX!=null?pd.windX:0);
+  setR('windY',pd.windY!=null?pd.windY:0);
   setR('drag',pd.drag!=null?pd.drag:0.5);
-  setR('vortexStr',pd.vortexStr||0);
-  setR('turbStr',pd.turbStr||0);
-  setR('turbScale',pd.turbScale||0.008);
+  setR('vortexStr',pd.vortexStr!=null?pd.vortexStr:0);
+  setR('turbStr',pd.turbStr!=null?pd.turbStr:0);
+  setR('turbScale',pd.turbScale!=null?pd.turbScale:0.008);
+  setR('attractorStr',pd.attractorStr!=null?pd.attractorStr:0);
+  setR('attractorRadius',pd.attractorRadius!=null?pd.attractorRadius:0);
   setR('glowRadius',pd.glowRadius!=null?pd.glowRadius:18);
   setR('glowStr',pd.glowStr!=null?pd.glowStr:0.8);
   setR('motionBlur',pd.motionBlur!=null?pd.motionBlur:0.15);
+  setR('massJitter',pd.massJitter!=null?pd.massJitter:0.5);
+  setR('bounce',pd.bounce!=null?pd.bounce:0.4);
+  setR('friction',pd.friction!=null?pd.friction:0.3);
+  setR('maxVel',pd.maxVel!=null?pd.maxVel:800);
+  setR('floorY',pd.floorY!=null?pd.floorY:-1);
+  setR('rotStart',pd.rotStart!=null?pd.rotStart:0);
+  setR('rotJitter',pd.rotJitter!=null?pd.rotJitter:360);
+  setC('rotAlignVel',pd.rotAlignVel||false);
   // gradient
   if(pd.grad){
     var rows=document.querySelectorAll('#grad-editor .grad-stop');
@@ -1734,15 +2239,24 @@ function applyPreset(){
       }
     });
   }
-  // floor
-  if(pd.emitType==='box'||pd.emitType==='line'){
-    document.getElementById('boxW').value=pd.emitRadius?pd.emitRadius*2:200;
-    document.getElementById('boxH').value=40;
+  // size curve stops
+  if(pd.sizeCurve && pd.sizeCurve.length===4){
+    pd.sizeCurve.forEach(function(s,i){
+      if(szcRows[i]){
+        szcRows[i].pos.value=s[0];
+        szcRows[i].posLbl.textContent=parseFloat(s[0]).toFixed(2);
+        szcRows[i].val.value=s[1];
+      }
+    });
+    updateSzcPreview();
   }
+  if(pd.emitType==='box'||pd.emitType==='line'){
+    document.getElementById('boxW').value=pd.boxW||(pd.emitRadius?pd.emitRadius*2:200);
+    document.getElementById('boxH').value=pd.boxH||40;
+  }
+  onParticleShapeChange();
+  onEmitTypeChange();
   updateGradPreview();
-  resetSim();
-  var cfg=getConfig();
-  preRunSim(cfg);
 }
 
 // ============================================================
@@ -1937,10 +2451,15 @@ function downloadJSON(data, filename){
 // ============================================================
 //  INIT
 // ============================================================
-// Apply default preset (Fire)
 window.addEventListener('load', function(){
   setTimeout(function(){
+    // Initialize emitter tabs
+    buildEmitterTabs();
+    // Apply default Fire preset
     applyPreset();
+    // Snapshot initial state into first emitter
+    saveCfgToEmitter(0);
+    updatePathPanel();
   },100);
 });
 </script>
