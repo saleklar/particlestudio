@@ -154,6 +154,14 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
         <div class="row"><label>Spread px</label>
           <!-- emitRadius used as spread width in path mode too -->
         </div>
+        <div style="margin-top:7px">
+          <div class="sub-label" style="margin-bottom:3px;color:#0cf">Opacity Along Path
+            <input type="checkbox" id="opPathCurveEn" onchange="onCfgChange()" style="cursor:pointer;accent-color:#0cf;margin-left:6px;vertical-align:middle">
+            <span style="font-size:10px;color:#556"> enable</span>
+          </div>
+          <div id="opc-editor"></div>
+          <canvas id="opc-preview" width="268" height="30" style="display:block;border:1px solid #1a3040;border-radius:2px;margin-top:2px"></canvas>
+        </div>
       </div>
     </div>
 
@@ -763,6 +771,58 @@ function updateSzcPreview(){
   ctx2.fillText(Math.round(maxV)+'px',2,10);
 }
 
+// ============================================================
+//  OPACITY-ALONG-PATH CURVE
+// ============================================================
+var opPathRows=[];
+(function buildOpPathUI(){
+  var editor=document.getElementById('opc-editor');
+  var defPos=[0,0.33,0.66,1], defVal=[1,1,1,1];
+  for(var i=0;i<4;i++){
+    var div=document.createElement('div');
+    div.className='grad-stop';
+    div.innerHTML='<span style="font-size:10px;color:#777;width:12px">'+(i+1)+'</span>'+
+      '<input type="range" class="opcPos" min="0" max="1" step="0.01" value="'+defPos[i]+'">'+
+      '<span class="stop-pos">'+defPos[i].toFixed(2)+'</span>'+
+      '<input type="number" class="opcVal" min="0" max="1" step="0.01" value="'+defVal[i]+'" style="width:44px;background:#2a2a2a;border:1px solid #444;border-radius:2px;color:#0cf;font-size:11px;padding:2px 4px;font-family:monospace">';
+    editor.appendChild(div);
+    var row={pos:div.querySelector('.opcPos'),posLbl:div.querySelector('.stop-pos'),val:div.querySelector('.opcVal')};
+    row.pos.oninput=(function(r){return function(){r.posLbl.textContent=parseFloat(r.pos.value).toFixed(2);updateOpPathPreview();onCfgChange();};})(row);
+    row.val.onchange=function(){updateOpPathPreview();onCfgChange();};
+    opPathRows.push(row);
+  }
+  updateOpPathPreview();
+})();
+
+function getOpPathCurve(){
+  var stops=opPathRows.map(function(r){
+    return {pos:parseFloat(r.pos.value),val:clamp(parseFloat(r.val.value)||0,0,1)};
+  });
+  stops.sort(function(a,b){return a.pos-b.pos;});
+  return stops;
+}
+function updateOpPathPreview(){
+  var cv=document.getElementById('opc-preview');
+  if(!cv) return;
+  var ctx2=cv.getContext('2d'),w=cv.width,h=cv.height;
+  ctx2.fillStyle='#0d1820'; ctx2.fillRect(0,0,w,h);
+  var stops=getOpPathCurve();
+  ctx2.beginPath(); ctx2.strokeStyle='#00ccff'; ctx2.lineWidth=1.5;
+  for(var i=0;i<=w;i++){
+    var v=sampleSzCurve(i/w,stops);
+    var py=h-(v)*(h-4)-2;
+    if(i===0) ctx2.moveTo(i,py); else ctx2.lineTo(i,py);
+  }
+  ctx2.stroke();
+  ctx2.fillStyle='#0cf';
+  stops.forEach(function(s){
+    var px=s.pos*w, py=h-(s.val)*(h-4)-2;
+    ctx2.beginPath(); ctx2.arc(px,py,3,0,Math.PI*2); ctx2.fill();
+  });
+  ctx2.fillStyle='#1a4060'; ctx2.font='9px monospace';
+  ctx2.fillText('start',2,h-2); ctx2.fillText('end',w-20,h-2);
+}
+
 function getSubShapes(){
   return shapeRows.map(function(r){
     return {en:r.en.checked,type:r.type.value,sz:parseFloat(r.sz.value),ox:parseFloat(r.ox.value)||0,oy:parseFloat(r.oy.value)||0,
@@ -790,6 +850,8 @@ function getConfig(){
     sizeStart:V('sizeStart'), sizeEnd:V('sizeEnd'), sizeJitter:V('sizeJitter')/100,
     sizeCurveEn:document.getElementById('sizeCurveEn').checked,
     sizeCurveStops:getSizeCurve(),
+    opPathCurveEn:document.getElementById('opPathCurveEn').checked,
+    opPathCurveStops:getOpPathCurve(),
     opStart:V('opStart'), opEnd:V('opEnd'),
     spinRate:V('spinRate'), spinJitter:V('spinJitter'),
     spinDamping:V('spinDamping'),
@@ -1013,6 +1075,7 @@ function saveCfgToEmitter(idx){
   });
   // size curve
   data._szc=szcRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
+  data._opc=opPathRows.map(function(r){return{pos:r.pos.value,val:r.val.value};});
   // sub shapes
   data._shapes=shapeRows.map(function(r){
     return{en:r.en.checked,type:r.type.value,sz:r.sz.value,ox:r.ox.value,oy:r.oy.value,col:r.col.value,op:r.op.value};
@@ -1050,6 +1113,12 @@ function restoreCfgFromEmitter(idx){
       if(szcRows[i]){szcRows[i].pos.value=s.pos;szcRows[i].posLbl.textContent=parseFloat(s.pos).toFixed(2);szcRows[i].val.value=s.val;}
     });
     updateSzcPreview();
+  }
+  if(data._opc){
+    data._opc.forEach(function(s,i){
+      if(opPathRows[i]){opPathRows[i].pos.value=s.pos;opPathRows[i].posLbl.textContent=parseFloat(s.pos).toFixed(2);opPathRows[i].val.value=s.val;}
+    });
+    updateOpPathPreview();
   }
   if(data._shapes){
     data._shapes.forEach(function(s,i){
@@ -1132,6 +1201,7 @@ function makeParticle(cfg, t, emitterPath){
   var ex=cfg.emitX, ey=cfg.emitY;
   var type=cfg.emitType;
   var dir=deg2rad(cfg.emitDir)+rnd(-1,1)*deg2rad(cfg.emitSpread/2);
+  var spawnPathT=0;
   if(type==='box'){
     ex+=rnd(-cfg.boxW/2,cfg.boxW/2);
     ey+=rnd(-cfg.boxH/2,cfg.boxH/2);
@@ -1146,7 +1216,7 @@ function makeParticle(cfg, t, emitterPath){
   } else if(type==='line'){
     ex+=rnd(-cfg.emitRadius,cfg.emitRadius);
   } else if(type==='path' && emitterPath && emitterPath.length>1){
-    var pathT=Math.random();
+    var pathT=Math.random(); spawnPathT=pathT;
     var sp=samplePath(emitterPath, pathT);
     if(sp){
       ex=sp.x + rnd(-cfg.emitRadius*0.15, cfg.emitRadius*0.15);
@@ -1183,7 +1253,8 @@ function makeParticle(cfg, t, emitterPath){
     spin:spin, rot:cfg.rotStart + rnd(-cfg.rotJitter, cfg.rotJitter),
     hueJitter:hj,
     noiseOffset:noiseOffset,
-    bounces:0
+    bounces:0,
+    spawnPathT:spawnPathT
   };
 }
 
@@ -1388,6 +1459,10 @@ function drawParticle(ctx, p, t, cfg, proj){
   sz*=perspScale;
   if(sz<=0) return;
   var op=lerp(p.opStart,p.opEnd,lifeT);
+  // Opacity-along-path curve
+  if(cfg.opPathCurveEn && cfg.opPathCurveStops && cfg.opPathCurveStops.length && p.spawnPathT!==undefined){
+    op*=sampleSzCurve(p.spawnPathT, cfg.opPathCurveStops);
+  }
   if(op<=0) return;
   // Screen position
   var dx=proj?proj.sx:p.x;
@@ -1807,7 +1882,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
   strFields.forEach(function(k){
     c[k]=(snap[k]!==undefined?snap[k]:globalCfg[k]);
   });
-  var boolFields=['rotAlignVel','sizeCurveEn','pngTint','glowAutoColor'];
+  var boolFields=['rotAlignVel','sizeCurveEn','pngTint','glowAutoColor','opPathCurveEn'];
   boolFields.forEach(function(k){
     c[k]=(snap[k]!==undefined?!!snap[k]:globalCfg[k]);
   });
@@ -1822,6 +1897,10 @@ function buildCfgFromSnapshot(snap, globalCfg){
   c.sizeCurveStops=snap._szc?snap._szc.map(function(r){
     return{pos:parseFloat(r.pos),val:parseFloat(r.val)||0};
   }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.sizeCurveStops;
+  // Opacity-along-path curve
+  c.opPathCurveStops=snap._opc?snap._opc.map(function(r){
+    return{pos:parseFloat(r.pos),val:clamp(parseFloat(r.val)||0,0,1)};
+  }).sort(function(a,b){return a.pos-b.pos;}):globalCfg.opPathCurveStops;
   // Sub-shapes
   c.subShapes=snap._shapes?snap._shapes.filter(function(s){return s.en;}).map(function(s){
     return{en:true,type:s.type,sz:parseFloat(s.sz),ox:parseFloat(s.ox)||0,oy:parseFloat(s.oy)||0,
@@ -2230,6 +2309,7 @@ function applyPresetData(pd){
   setR('sizeEnd',pd.sizeEnd!=null?pd.sizeEnd:0);
   setR('sizeJitter',pd.sizeJitter!=null?pd.sizeJitter:40);
   setC('sizeCurveEn',pd.sizeCurveEn||false);
+  setC('opPathCurveEn',pd.opPathCurveEn||false);
   setR('opStart',pd.opStart!=null?pd.opStart:1);
   setR('opEnd',pd.opEnd!=null?pd.opEnd:0);
   setR('spinRate',pd.spinRate!=null?pd.spinRate:0);
