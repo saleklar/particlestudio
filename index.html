@@ -2151,30 +2151,44 @@ function applyPreset(){
     activeEmitterIdx=0;
     simState=emitters[0].sim;
     buildEmitterTabs();
-    // Load first emitter into UI, then save snapshots for all
-    applyPresetData(pd.emitters[0]);
-    saveCfgToEmitter(0);
-    for(var i=1;i<pd.emitters.length;i++){
-      // Temporarily apply to get a snapshot
+    // Apply top-level global overrides if present
+    if(pd.motionBlur!=null) document.getElementById('motionBlur').value=pd.motionBlur;
+    if(pd.budget!=null){ document.getElementById('budget').value=pd.budget; document.getElementById('budget_v').value=pd.budget; }
+    // Load each emitter into UI and save snapshot
+    for(var i=0;i<pd.emitters.length;i++){
       applyPresetData(pd.emitters[i]);
       saveCfgToEmitter(i);
     }
     // Restore first emitter to UI
     restoreCfgFromEmitter(0);
+    // Apply motionBlur from emitter 0 (since restoreCfgFromEmitter skips global keys)
+    if(pd.emitters[0].motionBlur!=null) document.getElementById('motionBlur').value=pd.emitters[0].motionBlur;
     resetSim();
-    var cfg=getConfig();
-    preRunSim(cfg,0);
+    // Pre-run all emitters that request it
+    for(var i=0;i<emitters.length;i++){
+      var ecfg=(i===0)?getConfig():buildCfgFromSnapshot(emitters[i].cfg,getConfig());
+      preRunSim(ecfg,i);
+    }
+    updateGradPreview();
+    updatePathPanel();
     return;
   }
-  // Single emitter preset - apply to active emitter
+  // Single emitter preset — collapse to 1 emitter (remove stale extra emitters)
+  if(emitters.length>1){
+    var kept={name:'Emitter 1',sim:{particles:[],time:0,emitAccum:0},cfg:null,path:[],pathMode:'once'};
+    emitters=[kept];
+    activeEmitterIdx=0;
+    simState=emitters[0].sim;
+    buildEmitterTabs();
+  }
   applyPresetData(pd);
-  emitters[activeEmitterIdx].path=pd.path||[];
+  emitters[0].path=pd.path||[];
   updateGradPreview();
   updatePathPanel();
   resetSim();
   var cfg=getConfig();
-  preRunSim(cfg,activeEmitterIdx);
-  saveCfgToEmitter(activeEmitterIdx);
+  preRunSim(cfg,0);
+  saveCfgToEmitter(0);
 }
 
 function applyPresetData(pd){
@@ -2183,8 +2197,8 @@ function applyPresetData(pd){
   function setC(id, v){ if(v===undefined)return; var el=document.getElementById(id); if(el) el.checked=!!v; }
   setS('emitType',pd.emitType||'point');
   setS('particleShape',pd.particleShape||'glow');
-  setR('emitX', pd.emitX!=null?pd.emitX:400);
-  setR('emitY', pd.emitY!=null?pd.emitY:300);
+  setR('emitX', pd.emitX!=null?pd.emitX:Math.round((W||800)/2));
+  setR('emitY', pd.emitY!=null?pd.emitY:Math.round((H||600)/2));
   setR('emitRadius',pd.emitRadius!=null?pd.emitRadius:80);
   setR('emitDir',pd.emitDir!=null?pd.emitDir:-90);
   setR('emitSpread',pd.emitSpread!=null?pd.emitSpread:30);
@@ -2211,9 +2225,14 @@ function applyPresetData(pd){
   setR('windY',pd.windY!=null?pd.windY:0);
   setR('drag',pd.drag!=null?pd.drag:0.5);
   setR('vortexStr',pd.vortexStr!=null?pd.vortexStr:0);
+  // clear vortex/attractor position overrides unless specified
+  if(pd.vortexX==null){ document.getElementById('vortexX').value=''; } else { setR('vortexX',pd.vortexX); }
+  if(pd.vortexY==null){ document.getElementById('vortexY').value=''; } else { setR('vortexY',pd.vortexY); }
   setR('turbStr',pd.turbStr!=null?pd.turbStr:0);
   setR('turbScale',pd.turbScale!=null?pd.turbScale:0.008);
   setR('attractorStr',pd.attractorStr!=null?pd.attractorStr:0);
+  if(pd.attractorX==null){ document.getElementById('attractorX').value=''; } else { setR('attractorX',pd.attractorX); }
+  if(pd.attractorY==null){ document.getElementById('attractorY').value=''; } else { setR('attractorY',pd.attractorY); }
   setR('attractorRadius',pd.attractorRadius!=null?pd.attractorRadius:0);
   setR('glowRadius',pd.glowRadius!=null?pd.glowRadius:18);
   setR('glowStr',pd.glowStr!=null?pd.glowStr:0.8);
