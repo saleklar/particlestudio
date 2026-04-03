@@ -337,6 +337,34 @@ canvas{position:absolute;top:0;left:0;cursor:crosshair}
       <!-- built by JS -->
     </div>
 
+    <!-- BACKGROUND -->
+    <div class="sec-head" onclick="toggleSec(this)"><span>Background</span><span class="arrow">▼</span></div>
+    <div class="sec-body">
+      <div class="row"><label>BG Color</label>
+        <input type="color" id="bgColor" value="#0a0a0f" onchange="drawBackground()" style="width:38px;height:22px;padding:1px;cursor:pointer">
+        <span style="font-size:10px;color:#666;margin-left:6px">canvas fill color</span>
+      </div>
+      <div class="row" style="margin-top:2px">
+        <button class="btn" style="flex:1" onclick="document.getElementById('bgFileInput').click()">&#128247; Load Image…</button>
+        <input type="file" id="bgFileInput" accept="image/*" style="display:none" onchange="loadBgImage(this)">
+        <button class="btn btn.red" style="margin-left:4px;padding:4px 8px" onclick="clearBgImage()" title="Remove background image">&#10005;</button>
+      </div>
+      <div id="bgInfo" style="font-size:10px;color:#666;text-align:center;margin:3px 0 5px">No image loaded</div>
+      <div class="row"><label>Fit Mode</label>
+        <select id="bgFit" onchange="drawBackground()">
+          <option value="cover">Cover (fill, crop)</option>
+          <option value="contain">Contain (letterbox)</option>
+          <option value="stretch">Stretch</option>
+          <option value="tile">Tile</option>
+          <option value="center">Center (actual size)</option>
+        </select>
+      </div>
+      <div class="row"><label>BG Opacity</label>
+        <input type="range" id="bgOpacity" min="0" max="1" step="0.01" value="1" oninput="syncVal(this,'bgOpacity_v');drawBackground()">
+        <span class="val" id="bgOpacity_v">1</span>
+      </div>
+    </div>
+
     <!-- FX -->
     <div class="sec-head" onclick="toggleSec(this)"><span>FX</span><span class="arrow">▼</span></div>
     <div class="sec-body">
@@ -770,10 +798,57 @@ function resizeCanvas(){
   drawBackground();
 }
 
+// ============================================================
+//  BACKGROUND IMAGE
+// ============================================================
+var bgImage=null;
+function loadBgImage(input){
+  if(!input.files||!input.files[0]) return;
+  var f=input.files[0];
+  var img=new Image();
+  img.onload=function(){ bgImage=img; document.getElementById('bgInfo').textContent=f.name+' ('+img.naturalWidth+'×'+img.naturalHeight+')'; drawBackground(); };
+  img.src=URL.createObjectURL(f);
+}
+function clearBgImage(){
+  bgImage=null;
+  document.getElementById('bgInfo').textContent='No image loaded';
+  document.getElementById('bgFileInput').value='';
+  drawBackground();
+}
+
 function drawBackground(){
   ctxBg.clearRect(0,0,W,H);
-  // subtle grid
-  ctxBg.strokeStyle='rgba(255,255,255,0.03)';
+  // fill color
+  ctxBg.fillStyle=document.getElementById('bgColor').value||'#0a0a0f';
+  ctxBg.fillRect(0,0,W,H);
+  // background image
+  if(bgImage&&bgImage.complete&&bgImage.naturalWidth>0){
+    var fit=document.getElementById('bgFit').value;
+    var op=parseFloat(document.getElementById('bgOpacity').value);
+    var iw=bgImage.naturalWidth, ih=bgImage.naturalHeight;
+    ctxBg.save();
+    ctxBg.globalAlpha=op;
+    if(fit==='stretch'){
+      ctxBg.drawImage(bgImage,0,0,W,H);
+    } else if(fit==='cover'){
+      var scale=Math.max(W/iw, H/ih);
+      var dw=iw*scale, dh=ih*scale;
+      ctxBg.drawImage(bgImage,(W-dw)/2,(H-dh)/2,dw,dh);
+    } else if(fit==='contain'){
+      var scale=Math.min(W/iw, H/ih);
+      var dw=iw*scale, dh=ih*scale;
+      ctxBg.drawImage(bgImage,(W-dw)/2,(H-dh)/2,dw,dh);
+    } else if(fit==='center'){
+      ctxBg.drawImage(bgImage,(W-iw)/2,(H-ih)/2,iw,ih);
+    } else if(fit==='tile'){
+      var pat=ctxBg.createPattern(bgImage,'repeat');
+      ctxBg.fillStyle=pat;
+      ctxBg.fillRect(0,0,W,H);
+    }
+    ctxBg.restore();
+  }
+  // subtle grid on top
+  ctxBg.strokeStyle='rgba(255,255,255,0.025)';
   ctxBg.lineWidth=1;
   var step=40;
   for(var x=0;x<W;x+=step){ ctxBg.beginPath();ctxBg.moveTo(x,0);ctxBg.lineTo(x,H);ctxBg.stroke(); }
@@ -954,8 +1029,9 @@ function drawStar(ctx, x, y, outerR, points, innerFactor, r, g, b, op){
 function renderFrame(cfg){
   var blur=cfg.motionBlur;
   if(blur>0){
+    var bgc=hex2rgb(document.getElementById('bgColor').value||'#0a0a0f');
     ctxMain.globalCompositeOperation='source-over';
-    ctxMain.fillStyle='rgba(0,0,0,'+(1-blur)+')';
+    ctxMain.fillStyle='rgba('+Math.round(bgc[0]*255)+','+Math.round(bgc[1]*255)+','+Math.round(bgc[2]*255)+','+(1-blur)+')';
     ctxMain.fillRect(0,0,W,H);
   } else {
     ctxMain.clearRect(0,0,W,H);
