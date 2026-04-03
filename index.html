@@ -2939,8 +2939,13 @@ function exportSpineJSON(){
   }
 
   // All slots default to the first attachment image (always a region)
+  // Map canvas blend modes to Spine 4.x blend modes
+  var _blendMap={'lighter':'additive','source-over':'normal','screen':'screen','overlay':'multiply'};
+  var spineBlend=_blendMap[cfg.blendMode||'lighter']||'additive';
   var slots=boneNames.map(function(bn){
-    return {name:bn, bone:bn, attachment:attNames[0]};
+    var sl={name:bn, bone:bn, attachment:attNames[0]};
+    if(spineBlend!=='normal') sl.blend=spineBlend;
+    return sl;
   });
 
   // Skins — Spine 4.x: skins is an ARRAY of skin objects,
@@ -3072,7 +3077,13 @@ function previewSpineJSON(){
     if(usingCustom&&customImages[0]){refW=customImages[0].naturalWidth||128;refH=customImages[0].naturalHeight||128;}
     var boneNames=[]; var bones=[{name:'root'}];
     for(var bi=0;bi<bCount;bi++){boneNames.push('p'+bi);bones.push({name:'p'+bi,parent:'root'});}
-    var slots=boneNames.map(function(bn){return {name:bn,bone:bn,attachment:attNames[0]};});
+    var _blendMap={'lighter':'additive','source-over':'normal','screen':'screen','overlay':'multiply'};
+    var spineBlend=_blendMap[cfg.blendMode||'lighter']||'additive';
+    var slots=boneNames.map(function(bn){
+      var sl={name:bn,bone:bn,attachment:attNames[0]};
+      if(spineBlend!=='normal') sl.blend=spineBlend;
+      return sl;
+    });
     var skinAttsObj={};
     boneNames.forEach(function(bn){
       skinAttsObj[bn]={};
