@@ -2729,10 +2729,9 @@ function exportSpineJSON(){
     return {name:bn, bone:bn, attachment:attNames[0]};
   });
 
-  // Skins — region attachments. Multiple slots share the SAME image path (Spine deduplicates by path).
-  var skins=[{name:'default',attachments:{}}];
+  // Skins — Spine 4.x format: flat array of {slot, name, type, path, ...} objects
+  var skinAtts=[];
   boneNames.forEach(function(bn){
-    skins[0].attachments[bn]={};
     for(var ai=0;ai<imgCount;ai++){
       var aname=attNames[ai];
       var imgW, imgH;
@@ -2740,10 +2739,11 @@ function exportSpineJSON(){
         imgW=(customImages[ai]&&customImages[ai].naturalWidth>0)?customImages[ai].naturalWidth:refW;
         imgH=(customImages[ai]&&customImages[ai].naturalHeight>0)?customImages[ai].naturalHeight:refH;
       } else { imgW=refW; imgH=refH; }
-      // path = just the filename so all slots with same image share one atlas entry
-      skins[0].attachments[bn][aname]={type:'region',path:aname,width:imgW,height:imgH,x:0,y:0,rotation:0,scaleX:1,scaleY:1};
+      skinAtts.push({slot:bn,name:aname,type:'region',path:aname,
+                     width:imgW,height:imgH,x:0,y:0,rotation:0,scaleX:1,scaleY:1});
     }
   });
+  var skins=[{name:'default',attachments:skinAtts}];
 
   // Bone animation timelines: translate + rotate + scale
   var bones_anim={};
