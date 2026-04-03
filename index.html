@@ -3164,52 +3164,48 @@ function exportSpineJSON(){
       for(var pi=0;pi<snaps.length&&pi<bCount;pi++) bAssign[f3][pi]=snaps[pi];
     }
 
-    // Bone animation timelines — sparse keyframes via RDP + stepped at transitions
-    var POS_TOL=1.2, ROT_TOL=0.5, SCA_TOL=0.004, TELEPORT=100;
+    // Bone animation timelines — sparse RDP keyframes, stepped only at birth/death/teleport
+    var POS_TOL=1.2, ROT_TOL=0.5, SCA_TOL=0.004, TELEPORT_SQ=10000;
     emBoneNames.forEach(function(bn,bi){
-      var translateKF=[],rotateKF=[],scaleKF=[];
-      var seg=null; // current live segment: {pos,rot,sca}
-      // Mark last key of an array as stepped
-      function stepped(arr){if(arr.length>0)arr[arr.length-1].curve='stepped';}
-      function writeSeg(){
-        if(!seg||seg.pos.length===0){seg=null;return;}
+      var translateKF=[], rotateKF=[], scaleKF=[];
+
+      function markStepped(arr){ if(arr.length) arr[arr.length-1].curve='stepped'; }
+
+      function flushSeg(seg, hideTime){
+        if(!seg||seg.pos.length===0) return;
         var rPos=_rdpXY(seg.pos,POS_TOL);
         var rRot=_rdp1D(seg.rot,ROT_TOL);
         var rSca=_rdpSca(seg.sca,SCA_TOL);
         rPos.forEach(function(k){translateKF.push({time:k.t,x:k.x,y:k.y});});
         rRot.forEach(function(k){rotateKF.push({time:k.t,angle:k.v});});
         rSca.forEach(function(k){scaleKF.push({time:k.t,x:k.x,y:k.y});});
-        seg=null;
+        // step at end of segment so value doesn't bleed into next segment
+        markStepped(translateKF); markStepped(rotateKF); markStepped(scaleKF);
+        if(hideTime>=0) scaleKF.push({time:hideTime,x:0,y:0,curve:'stepped'});
       }
-      // Initial hide key at t=0
-      translateKF.push({time:0,x:0,y:-9999,curve:'stepped'});
-      scaleKF.push({time:0,x:0,y:0,curve:'stepped'});
-      rotateKF.push({time:0,angle:0,curve:'stepped'});
-      var wasVisible=false;
+
+      // Only write t=0 hide key when bone is truly hidden at frame 0
+      var firstSnap=bAssign.length>0?bAssign[0][bi]:null;
+      if(!firstSnap) scaleKF.push({time:0,x:0,y:0,curve:'stepped'});
+
+      var seg=firstSnap?{pos:[],rot:[],sca:[]}:null;
+      var wasVisible=!!firstSnap;
+
       for(var f4=0;f4<totalFrames;f4++){
         var t4=f4/fps;
         var snap=bAssign[f4][bi];
         if(!snap){
-          if(wasVisible){ writeSeg(); stepped(translateKF); stepped(scaleKF); stepped(rotateKF);
-            translateKF.push({time:t4,x:0,y:-9999,curve:'stepped'});
-            scaleKF.push({time:t4,x:0,y:0,curve:'stepped'});
-            wasVisible=false; }
+          if(wasVisible){ flushSeg(seg,t4); seg=null; wasVisible=false; }
         } else {
           var sx=snap.sz*2/refW, sy=snap.sz*2/refH;
           if(!wasVisible){
-            // Instant appear: mark last hide key stepped, start segment
-            stepped(translateKF); stepped(scaleKF); stepped(rotateKF);
-            seg={pos:[],rot:[],sca:[]};
-            wasVisible=true;
-          } else {
-            // Detect teleport = new particle assigned to this bone
+            seg={pos:[],rot:[],sca:[]}; wasVisible=true;
+          } else if(seg.pos.length>0){
             var lp=seg.pos[seg.pos.length-1];
-            if(lp){
-              var ddx=snap.x-lp.x,ddy=snap.y-lp.y;
-              if(Math.sqrt(ddx*ddx+ddy*ddy)>TELEPORT){
-                writeSeg(); stepped(translateKF); stepped(scaleKF); stepped(rotateKF);
-                seg={pos:[],rot:[],sca:[]};
-              }
+            var ddx=snap.x-lp.x, ddy=snap.y-lp.y;
+            if(ddx*ddx+ddy*ddy>TELEPORT_SQ){
+              flushSeg(seg,-1); // stepped jump, no hide in between
+              seg={pos:[],rot:[],sca:[]};
             }
           }
           seg.pos.push({t:t4,x:snap.x,y:snap.y});
@@ -3217,7 +3213,7 @@ function exportSpineJSON(){
           seg.sca.push({t:t4,x:sx,y:sy});
         }
       }
-      writeSeg();
+      if(wasVisible) flushSeg(seg,-1);
       bones_anim[bn]={translate:translateKF,rotate:rotateKF,scale:scaleKF};
     });
 
