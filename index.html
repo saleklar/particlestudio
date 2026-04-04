@@ -236,6 +236,7 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <option value="cross">✚ Cross</option>
           <option value="arrow">➤ Arrow</option>
           <option value="heart">♥ Heart</option>
+          <option value="snowflake">❄ Snowflake</option>
           <option value="custom">⚙ Custom (sub-shapes)</option>
           <option value="custompng">🖼 Custom PNG / PNG Sequence</option>
         </select>
@@ -766,7 +767,7 @@ function updateGradPreview(){
 // ============================================================
 //  SUB-SHAPES UI
 // ============================================================
-var SHAPE_TYPES=['glow','circle','ring','square','diamond','triangle','pentagon','hexagon','star5','star6','star4','cross','arrow','heart'];
+var SHAPE_TYPES=['glow','circle','ring','square','diamond','triangle','pentagon','hexagon','star5','star6','star4','cross','arrow','heart','snowflake'];
 var SHAPE_TYPE_LABELS={'same':'★ same as main particle','custompng':'🖼️ custom (gallery)'};
 var SHAPE_COUNT=4;
 var shapeRows=[];
@@ -2223,10 +2224,54 @@ function drawShape(ctx, type, x, y, sz, r, g, b, op, glowR, glowStr, gr, gg, gb2
     drawArrow(ctx, x, y, sz, r, g, b, op);
   } else if(type==='heart'){
     drawHeart(ctx, x, y, sz, r, g, b, op);
+  } else if(type==='snowflake'){
+    drawSnowflake(ctx, x, y, sz, r, g, b, op);
   }
   // always reset shadow + gco
   ctx.shadowBlur=0; ctx.shadowColor='transparent';
   if(typeof prevGCO!=='undefined') ctx.globalCompositeOperation=prevGCO;
+}
+
+function drawSnowflake(ctx, x, y, sz, r, g, b, op){
+  ctx.strokeStyle='rgba('+r+','+g+','+b+','+op+')';
+  ctx.lineCap='round';
+  var arms=6;
+  var branchLen=sz*0.38;
+  var branchAngle=Math.PI/3; // 60°
+  var branchPos=[0.35,0.65]; // along the arm
+  for(var i=0;i<arms;i++){
+    var a=(i/arms)*Math.PI*2;
+    var ex2=x+Math.cos(a)*sz, ey2=y+Math.sin(a)*sz;
+    ctx.lineWidth=Math.max(1,sz*0.13);
+    ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(ex2,ey2); ctx.stroke();
+    // tip fork
+    ctx.lineWidth=Math.max(0.8,sz*0.09);
+    for(var s=-1;s<=1;s+=2){
+      var ta=a+s*(Math.PI*5/6);
+      ctx.beginPath();
+      ctx.moveTo(ex2,ey2);
+      ctx.lineTo(ex2+Math.cos(ta)*sz*0.28, ey2+Math.sin(ta)*sz*0.28);
+      ctx.stroke();
+    }
+    // two pairs of side branches
+    for(var bi=0;bi<branchPos.length;bi++){
+      var bx=x+Math.cos(a)*sz*branchPos[bi];
+      var by=y+Math.sin(a)*sz*branchPos[bi];
+      var bw=branchLen*(1-branchPos[bi]*0.4);
+      ctx.lineWidth=Math.max(0.7,sz*0.08);
+      for(var s2=-1;s2<=1;s2+=2){
+        var ba=a+s2*branchAngle;
+        ctx.beginPath();
+        ctx.moveTo(bx,by);
+        ctx.lineTo(bx+Math.cos(ba)*bw, by+Math.sin(ba)*bw);
+        ctx.stroke();
+      }
+    }
+  }
+  // center dot
+  ctx.beginPath(); ctx.arc(x,y,Math.max(1,sz*0.12),0,Math.PI*2);
+  ctx.fillStyle='rgba('+r+','+g+','+b+','+op+')';
+  ctx.fill();
 }
 
 function drawStar(ctx, x, y, outerR, points, innerFactor, r, g, b, op){
@@ -3033,28 +3078,17 @@ var PRESETS=[
   // ── SNOWSTORM ────────────────────────────────────────────
   {name:'❄️ Snowstorm',
    emitters:[
-    {name:'Ice Crystals',emitType:'box',emitDir:85,emitSpread:18,emitRate:22,lifeMin:5,lifeMax:12,
-     velMin:25,velMax:70,sizeStart:9,sizeEnd:9,opStart:0.9,opEnd:0,gravX:0,gravY:40,windX:38,windY:0,
+    {name:'Ice Crystals',emitType:'box',emitDir:85,emitSpread:18,emitRate:18,lifeMin:5,lifeMax:12,
+     velMin:25,velMax:70,sizeStart:14,sizeEnd:14,opStart:0.9,opEnd:0,gravX:0,gravY:40,windX:38,windY:0,
      drag:1.6,turbStr:90,turbScale:0.008,hueJitter:0,blendMode:'screen',motionBlur:0.0,
-     glowRadius:10,glowStr:0.6,sizeJitter:60,spinJitter:90,emitX:400,emitY:-10,boxW:900,boxH:15,
-     particleShape:'custom',
-     _shapes:[
-       {en:true,type:'hexagon',texIdx:0,sz:1.0, ox:0,oy:0,col:'#ffffff',op:1.0},
-       {en:true,type:'star6',  texIdx:0,sz:0.72,ox:0,oy:0,col:'#ddeeff',op:0.85},
-       {en:true,type:'circle', texIdx:0,sz:0.22,ox:0,oy:0,col:'#ffffff',op:1.0},
-       {en:true,type:'ring',   texIdx:0,sz:1.18,ox:0,oy:0,col:'#aaccff',op:0.35}
-     ],
+     glowRadius:10,glowStr:0.7,sizeJitter:60,spinJitter:90,emitX:400,emitY:-10,boxW:900,boxH:15,
+     particleShape:'snowflake',
      grad:['#ffffff','#eeeeff','#ccddff','#aabbff']},
-    {name:'Snowflakes',emitType:'box',emitDir:86,emitSpread:22,emitRate:30,lifeMin:4,lifeMax:10,
-     velMin:30,velMax:90,sizeStart:5,sizeEnd:5,opStart:0.8,opEnd:0.1,gravX:0,gravY:50,windX:40,windY:0,
+    {name:'Snowflakes',emitType:'box',emitDir:86,emitSpread:22,emitRate:35,lifeMin:4,lifeMax:10,
+     velMin:30,velMax:90,sizeStart:7,sizeEnd:7,opStart:0.8,opEnd:0.1,gravX:0,gravY:50,windX:40,windY:0,
      drag:1.5,turbStr:80,turbScale:0.008,hueJitter:0,blendMode:'screen',motionBlur:0.0,
-     glowRadius:6,glowStr:0.4,sizeJitter:70,spinJitter:60,emitX:400,emitY:-10,boxW:900,boxH:15,
-     particleShape:'custom',
-     _shapes:[
-       {en:true,type:'star4',  texIdx:0,sz:1.0, ox:0,oy:0,col:'#ffffff',op:0.9},
-       {en:true,type:'star6',  texIdx:0,sz:0.55,ox:0,oy:0,col:'#cce8ff',op:0.7},
-       {en:true,type:'circle', texIdx:0,sz:0.18,ox:0,oy:0,col:'#ffffff',op:1.0}
-     ],
+     glowRadius:6,glowStr:0.5,sizeJitter:70,spinJitter:60,emitX:400,emitY:-10,boxW:900,boxH:15,
+     particleShape:'snowflake',
      grad:['#ffffff','#eeeeff','#ccddff','#aabbff']},
     {name:'Snow Drift',emitType:'box',emitDir:88,emitSpread:10,emitRate:20,lifeMin:6,lifeMax:14,
      velMin:15,velMax:50,sizeStart:10,sizeEnd:14,opStart:0.35,opEnd:0,gravX:0,gravY:30,windX:50,windY:0,
