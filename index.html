@@ -789,8 +789,8 @@ function refreshShapeTexPickers(){
 (function buildShapesUI(){
   var body=document.getElementById('shapesBody');
   // Default offsets per row so sub-shapes spread naturally (circular arrangement)
-  var defOX=[0, 10,-10,  0,  0,  7, -7,  7];
-  var defOY=[0,  0,  0, 10,-10,  7,  7, -7];
+  var defOX=[  0,  70, -70,   0,   0,  55, -55,  55];
+  var defOY=[  0,   0,   0,  70, -70,  55,  55, -55];
   for(var i=0;i<SHAPE_COUNT;i++){
     var div=document.createElement('div');
     div.className='shape-row';
