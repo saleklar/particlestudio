@@ -429,6 +429,13 @@ select{background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;pad
           <option value="overlay">Overlay</option>
         </select>
       </div>
+      <div class="row"><label>Render Layer</label>
+        <select id="renderLayer" onchange="onCfgChange()" title="Back = drawn behind all other emitters; Front = drawn on top">
+          <option value="back">&#8600; Back (behind)</option>
+          <option value="normal" selected>&#8596; Normal</option>
+          <option value="front">&#8599; Front (on top)</option>
+        </select>
+      </div>
     </div>
 
     <!-- PHYSICS -->
@@ -1187,6 +1194,7 @@ function getConfig(){
     elongateLife:V('elongateLife'),
     hueJitter:V('hueJitter'),
     blendMode:document.getElementById('blendMode').value,
+    renderLayer:document.getElementById('renderLayer').value,
     gravX:V('gravX'), gravY:V('gravY'),
     windX:V('windX'), windY:V('windY'),
     drag:V('drag'), maxVel:V('maxVel'),
@@ -2248,34 +2256,51 @@ function renderFrame(cfg){
   // --- Draw all emitters ---
   // Collect per-emitter cfgs (use cached from loop)
   var emCfgs=window._emCfgs||[cfg];
+  // Split emitters into back / normal / front render layers
+  function drawEmitterSet2D(indices){
+    for(var _i=0;_i<indices.length;_i++){
+      var ei=indices[_i];
+      if(emitters[ei].muted) continue;
+      var ecfg=emCfgs[ei]||cfg;
+      var ps=emitters[ei].sim.particles;
+      ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
+      for(var i=0;i<ps.length;i++) drawParticle(ctxMain,ps[i],emitters[ei].sim.time,ecfg,null);
+    }
+  }
   if(cfg.enable3D){
-    // Global depth sort across all emitters
-    var projected=[];
-    for(var ei=0;ei<emitters.length;ei++){
-      if(emitters[ei].muted) continue;
-      var ecfg=emCfgs[ei]||cfg;
-      var ps=emitters[ei].sim.particles;
-      ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
-      for(var i=0;i<ps.length;i++){
-        var proj=project3D(ps[i].x,ps[i].y,ps[i].z||0,cfg);
-        if(proj) projected.push({p:ps[i],proj:proj,cfg:ecfg});
+    // Global depth sort across all emitters — honour layer ordering
+    function collectLayer3D(layer){
+      var projected=[];
+      for(var ei=0;ei<emitters.length;ei++){
+        if(emitters[ei].muted) continue;
+        var ecfg=emCfgs[ei]||cfg;
+        if((ecfg.renderLayer||'normal')!==layer) continue;
+        var ps=emitters[ei].sim.particles;
+        for(var i=0;i<ps.length;i++){
+          var proj=project3D(ps[i].x,ps[i].y,ps[i].z||0,cfg);
+          if(proj) projected.push({p:ps[i],proj:proj,cfg:ecfg});
+        }
+      }
+      projected.sort(function(a,b){return b.proj.cz-a.proj.cz;});
+      for(var i=0;i<projected.length;i++){
+        ctxMain.globalCompositeOperation=projected[i].cfg.blendMode||'lighter';
+        drawParticle(ctxMain,projected[i].p,emitters[0].sim.time,projected[i].cfg,projected[i].proj);
       }
     }
-    projected.sort(function(a,b){return b.proj.cz-a.proj.cz;});
-    for(var i=0;i<projected.length;i++){
-      ctxMain.globalCompositeOperation=projected[i].cfg.blendMode||'lighter';
-      drawParticle(ctxMain,projected[i].p,emitters[0].sim.time,projected[i].cfg,projected[i].proj);
-    }
+    collectLayer3D('back');
+    collectLayer3D('normal');
+    collectLayer3D('front');
   } else {
+    var layBack=[],layNorm=[],layFront=[];
     for(var ei=0;ei<emitters.length;ei++){
-      if(emitters[ei].muted) continue;
-      var ecfg=emCfgs[ei]||cfg;
-      var ps=emitters[ei].sim.particles;
-      ctxMain.globalCompositeOperation=ecfg.blendMode||'lighter';
-      for(var i=0;i<ps.length;i++){
-        drawParticle(ctxMain,ps[i],emitters[ei].sim.time,ecfg,null);
-      }
+      var rl=(emCfgs[ei]||cfg).renderLayer||'normal';
+      if(rl==='back') layBack.push(ei);
+      else if(rl==='front') layFront.push(ei);
+      else layNorm.push(ei);
     }
+    drawEmitterSet2D(layBack);
+    drawEmitterSet2D(layNorm);
+    drawEmitterSet2D(layFront);
   }
   ctxMain.globalCompositeOperation='source-over';
   // emitter crosshair for active emitter only
@@ -2477,7 +2502,7 @@ function buildCfgFromSnapshot(snap, globalCfg){
     if(snap[k]!==undefined) c[k]=parseFloat(snap[k])||0;
     else if(globalCfg[k]!==undefined) c[k]=globalCfg[k];
   });
-  var strFields=['emitType','particleShape','pngSeqMode','blendMode','glowColor','glowBlend','exportName'];
+  var strFields=['emitType','particleShape','pngSeqMode','blendMode','renderLayer','glowColor','glowBlend','exportName'];
   strFields.forEach(function(k){
     c[k]=(snap[k]!==undefined?snap[k]:globalCfg[k]);
   });
@@ -2779,7 +2804,7 @@ var PRESETS=[
      grad:['#ffffff','#ffdd00','#ff6600','#aa1100']},
     {name:'Smoke',emitType:'box',emitDir:-90,emitSpread:25,emitRate:12,lifeMin:4,lifeMax:10,
      velMin:15,velMax:50,sizeStart:18,sizeEnd:70,opStart:0.4,opEnd:0,gravX:0,gravY:-15,windX:20,windY:0,
-     drag:0.5,turbStr:120,turbScale:0.005,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     drag:0.5,turbStr:120,turbScale:0.005,hueJitter:0,blendMode:'source-over',renderLayer:'back',motionBlur:0.4,
      glowRadius:0,glowStr:0,sizeJitter:40,spinJitter:25,emitX:400,emitY:390,boxW:40,boxH:8,
      grad:['#666666','#444444','#222222','#000000']}
    ]},
@@ -2798,7 +2823,7 @@ var PRESETS=[
      grad:['#ffffff','#ffee44','#ff7700','#441100']},
     {name:'Smoke Trail',emitType:'point',emitDir:90,emitSpread:20,emitRate:18,lifeMin:2,lifeMax:5,
      velMin:25,velMax:80,sizeStart:10,sizeEnd:55,opStart:0.3,opEnd:0,gravX:0,gravY:12,windX:15,windY:0,
-     drag:0.6,turbStr:70,turbScale:0.006,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     drag:0.6,turbStr:70,turbScale:0.006,hueJitter:0,blendMode:'source-over',renderLayer:'back',motionBlur:0.4,
      glowRadius:0,glowStr:0,sizeJitter:50,spinJitter:35,emitX:400,emitY:300,
      grad:['#888888','#555555','#2a2a2a','#000000']}
    ]},
@@ -2823,7 +2848,7 @@ var PRESETS=[
      grad:['#aaaaaa','#888866','#664422','#221100']},
     {name:'Smoke Cloud',emitType:'ring',emitDir:0,emitSpread:360,emitRate:20,lifeMin:3,lifeMax:8,
      velMin:20,velMax:80,sizeStart:20,sizeEnd:80,opStart:0.5,opEnd:0,gravX:0,gravY:-10,windX:10,windY:0,
-     drag:0.4,turbStr:60,turbScale:0.005,hueJitter:0,blendMode:'source-over',motionBlur:0.4,
+     drag:0.4,turbStr:60,turbScale:0.005,hueJitter:0,blendMode:'source-over',renderLayer:'back',motionBlur:0.4,
      glowRadius:0,glowStr:0,sizeJitter:40,spinJitter:20,emitX:400,emitY:300,preRun:0,
      grad:['#777777','#555544','#333322','#111100']}
    ]},
