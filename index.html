@@ -3030,15 +3030,39 @@ var PRESETS=[
   // ── SNOWSTORM ────────────────────────────────────────────
   {name:'❄️ Snowstorm',
    emitters:[
-    {name:'Snowflakes',emitType:'box',emitDir:85,emitSpread:20,emitRate:40,lifeMin:4,lifeMax:10,
+    {name:'Ice Crystals',emitType:'box',emitDir:85,emitSpread:18,emitRate:22,lifeMin:5,lifeMax:12,
+     velMin:25,velMax:70,sizeStart:9,sizeEnd:9,opStart:0.9,opEnd:0,gravX:0,gravY:40,windX:38,windY:0,
+     drag:1.6,turbStr:90,turbScale:0.008,hueJitter:0,blendMode:'screen',motionBlur:0.0,
+     glowRadius:10,glowStr:0.6,sizeJitter:60,spinJitter:90,emitX:400,emitY:-10,boxW:900,boxH:15,
+     particleShape:'custom',
+     _shapes:[
+       {en:true,type:'hexagon',texIdx:0,sz:1.0, ox:0,oy:0,col:'#ffffff',op:1.0},
+       {en:true,type:'star6',  texIdx:0,sz:0.72,ox:0,oy:0,col:'#ddeeff',op:0.85},
+       {en:true,type:'circle', texIdx:0,sz:0.22,ox:0,oy:0,col:'#ffffff',op:1.0},
+       {en:true,type:'ring',   texIdx:0,sz:1.18,ox:0,oy:0,col:'#aaccff',op:0.35}
+     ],
+     grad:['#ffffff','#eeeeff','#ccddff','#aabbff']},
+    {name:'Snowflakes',emitType:'box',emitDir:86,emitSpread:22,emitRate:30,lifeMin:4,lifeMax:10,
      velMin:30,velMax:90,sizeStart:5,sizeEnd:5,opStart:0.8,opEnd:0.1,gravX:0,gravY:50,windX:40,windY:0,
      drag:1.5,turbStr:80,turbScale:0.008,hueJitter:0,blendMode:'screen',motionBlur:0.0,
-     glowRadius:8,glowStr:0.5,sizeJitter:70,spinJitter:60,emitX:400,emitY:-10,boxW:900,boxH:15,
+     glowRadius:6,glowStr:0.4,sizeJitter:70,spinJitter:60,emitX:400,emitY:-10,boxW:900,boxH:15,
+     particleShape:'custom',
+     _shapes:[
+       {en:true,type:'star4',  texIdx:0,sz:1.0, ox:0,oy:0,col:'#ffffff',op:0.9},
+       {en:true,type:'star6',  texIdx:0,sz:0.55,ox:0,oy:0,col:'#cce8ff',op:0.7},
+       {en:true,type:'circle', texIdx:0,sz:0.18,ox:0,oy:0,col:'#ffffff',op:1.0}
+     ],
      grad:['#ffffff','#eeeeff','#ccddff','#aabbff']},
     {name:'Snow Drift',emitType:'box',emitDir:88,emitSpread:10,emitRate:20,lifeMin:6,lifeMax:14,
-     velMin:15,velMax:50,sizeStart:8,sizeEnd:12,opStart:0.4,opEnd:0,gravX:0,gravY:30,windX:50,windY:0,
+     velMin:15,velMax:50,sizeStart:10,sizeEnd:14,opStart:0.35,opEnd:0,gravX:0,gravY:30,windX:50,windY:0,
      drag:1.0,turbStr:60,turbScale:0.005,hueJitter:0,blendMode:'screen',motionBlur:0.05,
      glowRadius:5,glowStr:0.3,sizeJitter:60,spinJitter:20,emitX:400,emitY:-10,boxW:900,boxH:15,
+     particleShape:'custom',
+     _shapes:[
+       {en:true,type:'circle', texIdx:0,sz:1.0, ox:0,oy:0,col:'#ffffff',op:0.55},
+       {en:true,type:'glow',   texIdx:0,sz:1.35,ox:0,oy:0,col:'#ddeeff',op:0.28},
+       {en:true,type:'hexagon',texIdx:0,sz:0.45,ox:0,oy:0,col:'#eef4ff',op:0.5}
+     ],
      grad:['#ffffff','#ddeeff','#bbccff','#9aabee']},
     {name:'Ground Powder',emitType:'box',emitDir:-90,emitSpread:30,emitRate:15,lifeMin:3,lifeMax:7,
      velMin:8,velMax:30,sizeStart:6,sizeEnd:18,opStart:0.3,opEnd:0,gravX:0,gravY:-5,windX:45,windY:0,
@@ -3170,6 +3194,26 @@ function applyPresetData(pd){
   setR('rotStart',pd.rotStart!=null?pd.rotStart:0);
   setR('rotJitter',pd.rotJitter!=null?pd.rotJitter:360);
   setC('rotAlignVel',pd.rotAlignVel||false);
+  setS('renderLayer',pd.renderLayer||'normal');
+  // sub-shapes
+  if(pd._shapes){
+    pd._shapes.forEach(function(s,i){
+      if(shapeRows[i]){
+        shapeRows[i].en.checked=(s.en!==false);
+        shapeRows[i].type.value=s.type||'circle';
+        shapeRows[i].sz.value=s.sz!=null?s.sz:1;
+        shapeRows[i].szV.textContent=parseFloat(s.sz||1).toFixed(2);
+        shapeRows[i].ox.value=s.ox||0;
+        shapeRows[i].oy.value=s.oy||0;
+        shapeRows[i].col.value=s.col||'#ffffff';
+        shapeRows[i].op.value=s.op!=null?s.op:1;
+        shapeRows[i].opV.textContent=parseFloat(s.op!=null?s.op:1).toFixed(2);
+        if(shapeRows[i].texPicker){shapeRows[i].texPicker.style.display=(s.type==='custompng')?'block':'none';}
+      }
+    });
+    // disable remaining rows
+    for(var si=pd._shapes.length;si<shapeRows.length;si++){shapeRows[si].en.checked=false;}
+  }
   // gradient
   if(pd.grad){
     var rows=document.querySelectorAll('#grad-editor .grad-stop');
