@@ -85,6 +85,10 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>End scale</label><input type="range" id="endScale" min="0" max="3" step="0.05" value="0.3" oninput="sync(this)"><span class="val">0.3</span></div>
   <div class="row"><label>Spin °/s</label><input type="range" id="spin" min="-720" max="720" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Fade out</label><input type="range" id="fade" min="0" max="1" step="0.05" value="0.5" oninput="sync(this)"><span class="val">0.5</span></div>
+  <div class="row"><label>Scale curve</label><input type="checkbox" id="scaleCurveOn" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">size over lifetime (overrides End scale)</span></div>
+  <canvas id="scaleCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
+  <div class="row"><label>Alpha curve</label><input type="checkbox" id="alphaCurveOn" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">opacity over lifetime (overrides Fade out)</span></div>
+  <canvas id="alphaCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
   <div class="row"><label>Blend</label><select id="blend"><option value="source-over">Normal</option><option value="lighter">Additive</option></select></div>
 
   <h2>Randomness</h2>
@@ -143,6 +147,12 @@ function resetDefaults(){
   document.getElementById('rateCurveOn').checked=false;
   ratePts=[0,0.6,1,1,0.6,0.25,0.05,0,0];
   drawRateCurve();
+  if(typeof scaleCurve!=='undefined'){
+    document.getElementById('scaleCurveOn').checked=false;
+    scaleCurve.pts=scaleCurve.def.slice();scaleCurve.draw();
+    document.getElementById('alphaCurveOn').checked=false;
+    alphaCurve.pts=alphaCurve.def.slice();alphaCurve.draw();
+  }
   onModeChange();
 }
 function onModeChange(){
@@ -205,6 +215,58 @@ rcCv.addEventListener('pointerdown',function(e){rcDrag=true;rcCv.setPointerCaptu
 rcCv.addEventListener('pointermove',function(e){if(rcDrag)rcSet(e);});
 rcCv.addEventListener('pointerup',function(){rcDrag=false;});
 drawRateCurve();
+
+// ── Generic over-lifetime curve editor ───────────────────
+function makeCurveEditor(cvId,chkId,defPts,maxVal){
+  var el=document.getElementById(cvId),cx=el.getContext('2d');
+  var obj={pts:defPts.slice(),def:defPts.slice()};
+  obj.sample=function(p){
+    if(!document.getElementById(chkId).checked)return null;
+    p=Math.max(0,Math.min(1,p));
+    var seg=p*(obj.pts.length-1),i=Math.floor(seg),f=seg-i;
+    if(i>=obj.pts.length-1)return obj.pts[obj.pts.length-1];
+    return obj.pts[i]*(1-f)+obj.pts[i+1]*f;
+  };
+  obj.draw=function(){
+    var w=el.width,h=el.height,on=document.getElementById(chkId).checked;
+    cx.clearRect(0,0,w,h);cx.globalAlpha=on?1:0.35;
+    cx.strokeStyle='#2a2a2a';cx.lineWidth=1;cx.beginPath();
+    for(var g=0;g<=4;g++){cx.moveTo(g*w/4,0);cx.lineTo(g*w/4,h);}
+    cx.moveTo(0,h/2);cx.lineTo(w,h/2);cx.stroke();
+    cx.strokeStyle='#f90';cx.lineWidth=2;cx.beginPath();
+    for(var i=0;i<obj.pts.length;i++){
+      var x=i/(obj.pts.length-1)*w,y=h-3-(obj.pts[i]/maxVal)*(h-6);
+      i===0?cx.moveTo(x,y):cx.lineTo(x,y);
+    }
+    cx.stroke();
+    cx.fillStyle='#fff';
+    for(var j=0;j<obj.pts.length;j++){
+      var px=j/(obj.pts.length-1)*w,py=h-3-(obj.pts[j]/maxVal)*(h-6);
+      cx.beginPath();cx.arc(px,py,3,0,Math.PI*2);cx.fill();
+    }
+    cx.globalAlpha=1;
+  };
+  var drag2=false;
+  function set(e){
+    var r=el.getBoundingClientRect();
+    var px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height;
+    var i=Math.round(px*(obj.pts.length-1));
+    i=Math.max(0,Math.min(obj.pts.length-1,i));
+    obj.pts[i]=Math.max(0,Math.min(maxVal,(1-(py*el.height-3)/(el.height-6))*maxVal));
+    var chk=document.getElementById(chkId);
+    if(!chk.checked)chk.checked=true;
+    obj.draw();
+  }
+  el.addEventListener('pointerdown',function(e){drag2=true;el.setPointerCapture(e.pointerId);set(e);});
+  el.addEventListener('pointermove',function(e){if(drag2)set(e);});
+  el.addEventListener('pointerup',function(){drag2=false;});
+  document.getElementById(chkId).addEventListener('change',obj.draw);
+  obj.draw();
+  return obj;
+}
+// scale: 0..2× size (grid centre line = 1.0) · alpha: 0..1
+var scaleCurve=makeCurveEditor('scaleCurve','scaleCurveOn',[0.2,0.8,1,1,0.95,0.85,0.7,0.4,0],2);
+var alphaCurve=makeCurveEditor('alphaCurve','alphaCurveOn',[0,1,1,1,1,0.9,0.7,0.4,0],1);
 function doBurst(){
   if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   var n=Math.round(V('maxCount'));
@@ -440,10 +502,18 @@ function exportSpine(){
     }
     for(var i=0;i<particles.length;i++){
       var p=particles[i],t=p.age/p.life;
-      var fs=1-Math.min(1,fadeVal*(p.fadeMul||1));
-      var alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
-      var es=endScale*(p.endScaleMul||1);
-      var scl=1+(es-1)*t;
+      var acv=alphaCurve.sample(t),alpha;
+      if(acv!==null){alpha=acv*Math.min(1,p.fadeMul||1);}
+      else{
+        var fs=1-Math.min(1,fadeVal*(p.fadeMul||1));
+        alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
+      }
+      var scv=scaleCurve.sample(t),scl;
+      if(scv!==null){scl=scv*(p.endScaleMul||1);}
+      else{
+        var es=endScale*(p.endScaleMul||1);
+        scl=1+(es-1)*t;
+      }
       p._trk.frames.push({x:p.x-emitX,y:-(p.y-emitY),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha))});
     }
     for(var i2=particles.length-1;i2>=0;i2--){
@@ -703,10 +773,18 @@ function loop(now){
   var fadeStart=1-V('fade'),endScale=V('endScale');
   for(var j=0;j<particles.length;j++){
     var q=particles[j],t=q.age/q.life;
-    var fs=1-Math.min(1,(1-fadeStart)*(q.fadeMul||1));
-    var alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
-    var es=endScale*(q.endScaleMul||1);
-    var scale=1+(es-1)*t;
+    var acv=alphaCurve.sample(t),alpha;
+    if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
+    else{
+      var fs=1-Math.min(1,(1-fadeStart)*(q.fadeMul||1));
+      alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
+    }
+    var scv=scaleCurve.sample(t),scale;
+    if(scv!==null){scale=scv*(q.endScaleMul||1);}
+    else{
+      var es=endScale*(q.endScaleMul||1);
+      scale=1+(es-1)*t;
+    }
     var s=q.size*scale;
     if(s<0.5||alpha<=0)continue;
     ctx.globalAlpha=alpha;
