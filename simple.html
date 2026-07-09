@@ -125,6 +125,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Alpha keys</label><input type="range" id="maxKeysAlpha" min="2" max="30" value="3" oninput="sync(this)"><span class="val">3</span></div>
   <div class="row"><label>Tolerance ×</label><input type="range" id="optTol" min="0.2" max="5" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:4px">Max keyframes per particle for each channel (Bézier eased). Higher tolerance = fewer keys before the cap.</div>
+  <div class="row"><label>Bone budget</label><input type="range" id="boneBudget" min="0" max="300" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:4px">Bones are pooled — when a particle dies its bone is recycled for the next spawn, so bone count ≈ peak concurrent particles, not total. 0 = no cap; &gt;0 drops particles that would exceed the budget.</div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -694,62 +696,87 @@ function exportSpine(){
     return [r3(t0+dt3),r2(vals[i0]+s0*dt3),r3(t1-dt3),r2(vals[i1]-s1*dt3)];
   }
 
-  tracks.forEach(function(tr,i){
+  // ── Bone pooling: when a particle dies, its bone is recycled ──
+  var budget=Math.round(V('boneBudget')); // 0 = unlimited (auto = peak concurrent)
+  var pool=[],kept=[],droppedN=0;
+  tracks.forEach(function(tr){
     if(!tr.frames.length)return;
+    var end=tr.born+tr.frames.length;   // frame of the hide key
+    var bi=-1;
+    for(var b=0;b<pool.length;b++)if(pool[b]<=tr.born){bi=b;break;}
+    if(bi<0){
+      if(budget>0&&pool.length>=budget){droppedN++;return;}
+      bi=pool.length;pool.push(0);
+    }
+    pool[bi]=end+1;                     // free again 1 frame after hide
+    tr.bone=bi;kept.push(tr);
+  });
+  var boneTracks=[];
+  kept.forEach(function(tr){(boneTracks[tr.bone]=boneTracks[tr.bone]||[]).push(tr);});
+
+  boneTracks.forEach(function(list,i){
     var bn='p'+i;
     json.bones.push({name:bn,parent:'root'});
     var slot={name:bn,bone:bn};
     if(blendAdd)slot.blend='additive';
     json.slots.push(slot);
-    var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
     json.skins[0].attachments[bn]={};
-    json.skins[0].attachments[bn][tr.texName]={width:w,height:h};
+    var tK=[],rK=[],sK=[],aK=[],atK=[];
 
-    // dense channel arrays
-    var n=tr.frames.length,times=[],xs=[],ys=[],rots=[],sxs=[],sys=[],as=[];
-    for(var f=0;f<n;f++){
-      var fr=tr.frames[f];
-      times.push((tr.born+f)/30);
-      xs.push(fr.x);ys.push(fr.y);rots.push(fr.rot);
-      sxs.push(fr.s/w);sys.push(fr.s/h);as.push(fr.a);
-    }
+    list.forEach(function(tr,seg){
+      var lastSeg=seg===list.length-1;
+      var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
+      json.skins[0].attachments[bn][tr.texName]={width:w,height:h};
 
-    // translate (tol 1.5px)
-    var tI=reduceIdx(times,[xs,ys],[1.5,1.5],Math.round(V('maxKeysPos'))),tK=[];
-    for(var a3=0;a3<tI.length;a3++){
-      var ii=tI[a3],k={time:r3(times[ii]),x:r2(xs[ii]),y:r2(ys[ii])};
-      if(a3<tI.length-1){
-        var nx=tI[a3+1];
-        k.curve=bez(times,xs,ii,nx).concat(bez(times,ys,ii,nx));
+      // dense channel arrays for this particle's lifetime
+      var n=tr.frames.length,times=[],xs=[],ys=[],rots=[],sxs=[],sys=[],as=[];
+      for(var f=0;f<n;f++){
+        var fr=tr.frames[f];
+        times.push((tr.born+f)/30);
+        xs.push(fr.x);ys.push(fr.y);rots.push(fr.rot);
+        sxs.push(fr.s/w);sys.push(fr.s/h);as.push(fr.a);
       }
-      tK.push(k);
-    }
-    // rotate (tol 2deg)
-    var rI=reduceIdx(times,[rots],[2],Math.round(V('maxKeysRot'))),rK=[];
-    for(var b3=0;b3<rI.length;b3++){
-      var ir=rI[b3],kr={time:r3(times[ir]),value:r2(rots[ir])};
-      if(b3<rI.length-1)kr.curve=bez(times,rots,ir,rI[b3+1]);
-      rK.push(kr);
-    }
-    // scale (tol 0.02)
-    var sI=reduceIdx(times,[sxs,sys],[0.02,0.02],Math.round(V('maxKeysScale'))),sK=[];
-    for(var c3=0;c3<sI.length;c3++){
-      var is2=sI[c3],ks={time:r3(times[is2]),x:r3(sxs[is2]),y:r3(sys[is2])};
-      if(c3<sI.length-1){
-        var ns=sI[c3+1];
-        ks.curve=bez(times,sxs,is2,ns).concat(bez(times,sys,is2,ns));
-      }
-      sK.push(ks);
-    }
-    // alpha (tol 0.02) — Spine 4.1 slot "alpha" timeline
-    var aI=reduceIdx(times,[as],[0.02],Math.round(V('maxKeysAlpha'))),aK=[];
-    for(var d3=0;d3<aI.length;d3++){
-      var ia=aI[d3],ka={time:r3(times[ia]),value:r3(Math.max(0,Math.min(1,as[ia])))};
-      if(d3<aI.length-1)ka.curve=bez(times,as,ia,aI[d3+1]);
-      aK.push(ka);
-    }
 
-    var atK=[{time:r3(tr.born/30),name:tr.texName},{time:r3((tr.born+n)/30),name:null}];
+      // translate (tol 1.5px)
+      var tI=reduceIdx(times,[xs,ys],[1.5,1.5],Math.round(V('maxKeysPos')));
+      for(var a3=0;a3<tI.length;a3++){
+        var ii=tI[a3],k={time:r3(times[ii]),x:r2(xs[ii]),y:r2(ys[ii])};
+        if(a3<tI.length-1){
+          var nx=tI[a3+1];
+          k.curve=bez(times,xs,ii,nx).concat(bez(times,ys,ii,nx));
+        }else if(!lastSeg)k.curve='stepped'; // snap to next particle while hidden
+        tK.push(k);
+      }
+      // rotate (tol 2deg)
+      var rI=reduceIdx(times,[rots],[2],Math.round(V('maxKeysRot')));
+      for(var b3=0;b3<rI.length;b3++){
+        var ir=rI[b3],kr={time:r3(times[ir]),value:r2(rots[ir])};
+        if(b3<rI.length-1)kr.curve=bez(times,rots,ir,rI[b3+1]);
+        else if(!lastSeg)kr.curve='stepped';
+        rK.push(kr);
+      }
+      // scale (tol 0.02)
+      var sI=reduceIdx(times,[sxs,sys],[0.02,0.02],Math.round(V('maxKeysScale')));
+      for(var c3=0;c3<sI.length;c3++){
+        var is2=sI[c3],ks={time:r3(times[is2]),x:r3(sxs[is2]),y:r3(sys[is2])};
+        if(c3<sI.length-1){
+          var ns=sI[c3+1];
+          ks.curve=bez(times,sxs,is2,ns).concat(bez(times,sys,is2,ns));
+        }else if(!lastSeg)ks.curve='stepped';
+        sK.push(ks);
+      }
+      // alpha (tol 0.02) — Spine 4.1 slot "alpha" timeline
+      var aI=reduceIdx(times,[as],[0.02],Math.round(V('maxKeysAlpha')));
+      for(var d3=0;d3<aI.length;d3++){
+        var ia=aI[d3],ka={time:r3(times[ia]),value:r3(Math.max(0,Math.min(1,as[ia])))};
+        if(d3<aI.length-1)ka.curve=bez(times,as,ia,aI[d3+1]);
+        else if(!lastSeg)ka.curve='stepped';
+        aK.push(ka);
+      }
+
+      atK.push({time:r3(tr.born/30),name:tr.texName},{time:r3((tr.born+n)/30),name:null});
+    });
+
     anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
     anim.slots[bn]={attachment:atK,alpha:aK};
   });
@@ -757,7 +784,7 @@ function exportSpine(){
 
   // collect PNGs actually used in this export
   var usedNames={};
-  tracks.forEach(function(tr){if(tr.frames.length)usedNames[tr.texName]=true;});
+  kept.forEach(function(tr){usedNames[tr.texName]=true;});
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
   files.push({name:name+'.json',data:strBytes(JSON.stringify(json))});
@@ -767,6 +794,13 @@ function exportSpine(){
     if(b)files.push({name:'images/'+t.name+'.png',data:b});
   });
   downloadZip(name+'.zip',files);
+
+  // report pooling result
+  var hintEl=document.getElementById('hint');
+  if(!window._hintDefault)window._hintDefault=hintEl.textContent;
+  hintEl.textContent='Exported '+kept.length+' particles → '+boneTracks.length+' bones (pooled)'+(droppedN?' · '+droppedN+' dropped by budget':'');
+  clearTimeout(window._hintTimer);
+  window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
 }
 
 // ── Tiny ZIP writer (stored, no compression) ──────────────
