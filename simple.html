@@ -106,9 +106,12 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 
   <h2>Export</h2>
   <div class="row"><label>FPS</label><span style="color:#f0c050;font-family:monospace;font-size:11px">30 (fixed)</span></div>
-  <div class="row"><label>Max keys</label><input type="range" id="maxKeys" min="2" max="30" value="5" oninput="sync(this)"><span class="val">5</span></div>
+  <div class="row"><label>Pos keys</label><input type="range" id="maxKeysPos" min="2" max="30" value="5" oninput="sync(this)"><span class="val">5</span></div>
+  <div class="row"><label>Rot keys</label><input type="range" id="maxKeysRot" min="2" max="30" value="3" oninput="sync(this)"><span class="val">3</span></div>
+  <div class="row"><label>Scale keys</label><input type="range" id="maxKeysScale" min="2" max="30" value="3" oninput="sync(this)"><span class="val">3</span></div>
+  <div class="row"><label>Alpha keys</label><input type="range" id="maxKeysAlpha" min="2" max="30" value="3" oninput="sync(this)"><span class="val">3</span></div>
   <div class="row"><label>Tolerance ×</label><input type="range" id="optTol" min="0.2" max="5" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:4px">Max keys caps keyframes per channel per particle (Bézier eased). Higher tolerance = fewer keys, less accuracy.</div>
+  <div style="font-size:10px;color:#666;margin-bottom:4px">Max keyframes per particle for each channel (Bézier eased). Higher tolerance = fewer keys before the cap.</div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -481,10 +484,10 @@ function exportSpine(){
       rdp(maxI,i1,times,vals,tol,keep);
     }
   }
-  function reduceIdx(times,chans,tols){
+  function reduceIdx(times,chans,tols,maxK){
     var n=times.length;
     if(n<=2){var all=[];for(var a2=0;a2<n;a2++)all.push(a2);return all;}
-    var tolMul=V('optTol'),maxK=Math.round(V('maxKeys'));
+    var tolMul=V('optTol');
     var keep=new Array(n);keep[0]=true;keep[n-1]=true;
     for(var c=0;c<chans.length;c++)rdp(0,n-1,times,chans[c],tols[c]*tolMul,keep);
     var out=[];for(var i=0;i<n;i++)if(keep[i])out.push(i);
@@ -540,7 +543,7 @@ function exportSpine(){
     }
 
     // translate (tol 1.5px)
-    var tI=reduceIdx(times,[xs,ys],[1.5,1.5]),tK=[];
+    var tI=reduceIdx(times,[xs,ys],[1.5,1.5],Math.round(V('maxKeysPos'))),tK=[];
     for(var a3=0;a3<tI.length;a3++){
       var ii=tI[a3],k={time:r3(times[ii]),x:r2(xs[ii]),y:r2(ys[ii])};
       if(a3<tI.length-1){
@@ -550,14 +553,14 @@ function exportSpine(){
       tK.push(k);
     }
     // rotate (tol 2deg)
-    var rI=reduceIdx(times,[rots],[2]),rK=[];
+    var rI=reduceIdx(times,[rots],[2],Math.round(V('maxKeysRot'))),rK=[];
     for(var b3=0;b3<rI.length;b3++){
       var ir=rI[b3],kr={time:r3(times[ir]),value:r2(rots[ir])};
       if(b3<rI.length-1)kr.curve=bez(times,rots,ir,rI[b3+1]);
       rK.push(kr);
     }
     // scale (tol 0.02)
-    var sI=reduceIdx(times,[sxs,sys],[0.02,0.02]),sK=[];
+    var sI=reduceIdx(times,[sxs,sys],[0.02,0.02],Math.round(V('maxKeysScale'))),sK=[];
     for(var c3=0;c3<sI.length;c3++){
       var is2=sI[c3],ks={time:r3(times[is2]),x:r3(sxs[is2]),y:r3(sys[is2])};
       if(c3<sI.length-1){
@@ -567,7 +570,7 @@ function exportSpine(){
       sK.push(ks);
     }
     // alpha (tol 0.02) — Spine 4.1 slot "alpha" timeline
-    var aI=reduceIdx(times,[as],[0.02]),aK=[];
+    var aI=reduceIdx(times,[as],[0.02],Math.round(V('maxKeysAlpha'))),aK=[];
     for(var d3=0;d3<aI.length;d3++){
       var ia=aI[d3],ka={time:r3(times[ia]),value:r3(Math.max(0,Math.min(1,as[ia])))};
       if(d3<aI.length-1)ka.curve=bez(times,as,ia,aI[d3+1]);
