@@ -288,17 +288,68 @@ function doBurst(){
 }
 
 // ── Textures ──────────────────────────────────────────────
-var textures=[];        // {img, sel}
-function defaultTexture(){
+var textures=[];        // {img, sel, name, builtin}
+function makeTex(name,drawFn){
   var c=document.createElement('canvas');c.width=c.height=64;
-  var g=c.getContext('2d');
-  var grad=g.createRadialGradient(32,32,2,32,32,30);
-  grad.addColorStop(0,'rgba(255,255,255,1)');
-  grad.addColorStop(0.5,'rgba(255,200,80,0.6)');
-  grad.addColorStop(1,'rgba(255,150,0,0)');
-  g.fillStyle=grad;g.fillRect(0,0,64,64);
+  drawFn(c.getContext('2d'));
   var img=new Image();img.src=c.toDataURL();
-  return {img:img,sel:true,name:'particle'};
+  return {img:img,sel:false,name:name,builtin:true};
+}
+function builtinTextures(){
+  var arr=[];
+  arr.push(makeTex('glow',function(g){
+    var gr=g.createRadialGradient(32,32,2,32,32,30);
+    gr.addColorStop(0,'rgba(255,255,255,1)');
+    gr.addColorStop(0.5,'rgba(255,200,80,0.6)');
+    gr.addColorStop(1,'rgba(255,150,0,0)');
+    g.fillStyle=gr;g.fillRect(0,0,64,64);
+  }));
+  arr.push(makeTex('dot',function(g){
+    var gr=g.createRadialGradient(32,32,0,32,32,30);
+    gr.addColorStop(0,'rgba(255,255,255,1)');
+    gr.addColorStop(0.4,'rgba(255,255,255,0.85)');
+    gr.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=gr;g.fillRect(0,0,64,64);
+  }));
+  arr.push(makeTex('spark',function(g){
+    function streak(rot){
+      g.save();g.translate(32,32);g.rotate(rot);g.scale(1,0.14);
+      var gr=g.createRadialGradient(0,0,0,0,0,30);
+      gr.addColorStop(0,'rgba(255,255,255,1)');
+      gr.addColorStop(0.35,'rgba(180,220,255,0.7)');
+      gr.addColorStop(1,'rgba(120,180,255,0)');
+      g.fillStyle=gr;g.beginPath();g.arc(0,0,30,0,Math.PI*2);g.fill();
+      g.restore();
+    }
+    streak(0);streak(Math.PI/2);
+    var core=g.createRadialGradient(32,32,0,32,32,8);
+    core.addColorStop(0,'rgba(255,255,255,1)');
+    core.addColorStop(1,'rgba(200,230,255,0)');
+    g.fillStyle=core;g.fillRect(0,0,64,64);
+  }));
+  arr.push(makeTex('smoke',function(g){
+    var blobs=[[32,34,22],[22,26,14],[43,25,13],[26,42,13],[41,41,12],[32,20,10]];
+    blobs.forEach(function(b){
+      var gr=g.createRadialGradient(b[0],b[1],1,b[0],b[1],b[2]);
+      gr.addColorStop(0,'rgba(205,205,205,0.35)');
+      gr.addColorStop(1,'rgba(180,180,180,0)');
+      g.fillStyle=gr;g.fillRect(0,0,64,64);
+    });
+  }));
+  arr.push(makeTex('star',function(g){
+    g.save();g.translate(32,32);
+    g.shadowColor='rgba(255,255,220,0.9)';g.shadowBlur=8;
+    g.fillStyle='rgba(255,255,240,0.95)';
+    g.beginPath();
+    for(var i=0;i<10;i++){
+      var r=i%2===0?24:9,a=-Math.PI/2+i*Math.PI/5;
+      var x=Math.cos(a)*r,y=Math.sin(a)*r;
+      if(i===0)g.moveTo(x,y);else g.lineTo(x,y);
+    }
+    g.closePath();g.fill();g.restore();
+  }));
+  arr[0].sel=true;
+  return arr;
 }
 function rebuildGallery(){
   var gal=document.getElementById('tex-gallery');gal.innerHTML='';
@@ -308,7 +359,7 @@ function rebuildGallery(){
     d.title=t.name;
     d.onclick=function(){t.sel=!t.sel;ensureOneSelected();rebuildGallery();};
     var im=document.createElement('img');im.src=t.img.src;d.appendChild(im);
-    if(textures.length>1){
+    if(!t.builtin){
       var x=document.createElement('div');x.className='x';x.textContent='✕';
       x.onclick=function(e){e.stopPropagation();libDelete(t.name);textures.splice(i,1);ensureOneSelected();rebuildGallery();};
       d.appendChild(x);
@@ -337,7 +388,7 @@ function loadImages(input){
   });
   input.value='';
 }
-textures.push(defaultTexture());
+builtinTextures().forEach(function(t){textures.push(t);});
 rebuildGallery();
 
 // ── Persistent image library (IndexedDB) ─────────────────
@@ -799,7 +850,8 @@ function saveProject(){
   document.querySelectorAll('input[type=checkbox]').forEach(function(el){if(el.id)proj.checks[el.id]=el.checked;});
   document.querySelectorAll('input[type=text]').forEach(function(el){if(el.id)proj.texts[el.id]=el.value;});
   textures.forEach(function(t){
-    proj.images.push({name:t.name,sel:t.sel,data:t.img.src});
+    if(t.builtin)proj.images.push({name:t.name,sel:t.sel,builtin:true});
+    else proj.images.push({name:t.name,sel:t.sel,data:t.img.src});
   });
   var name=(document.getElementById('expName').value||'particles').trim();
   var blob=new Blob([JSON.stringify(proj)],{type:'application/json'});
@@ -833,8 +885,14 @@ function loadProject(input){
     }else{bgImg=null;bgData=null;}
     if(proj.images&&proj.images.length){
       textures.length=0;
-      var pending=proj.images.length;
+      builtinTextures().forEach(function(t){t.sel=false;textures.push(t);});
+      var pending=0;
       proj.images.forEach(function(rec){
+        if(rec.builtin||!rec.data){
+          textures.forEach(function(t){if(t.builtin&&t.name===rec.name)t.sel=!!rec.sel;});
+          return;
+        }
+        pending++;
         var img=new Image();
         img.onload=function(){
           textures.push({img:img,sel:rec.sel,name:rec.name});
@@ -843,6 +901,7 @@ function loadProject(input){
         };
         img.src=rec.data;
       });
+      if(pending===0){ensureOneSelected();rebuildGallery();}
     }
     onModeChange();
     restartLoop();
