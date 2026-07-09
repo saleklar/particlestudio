@@ -119,6 +119,11 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
+
+  <h2>Project</h2>
+  <button class="btn" onclick="saveProject()">💾 Save Project…</button>
+  <label class="btn">📂 Load Project…<input type="file" accept=".psproj,.json" style="display:none" onchange="loadProject(this)"></label>
+  <div style="font-size:10px;color:#666;margin-top:2px">Saves every setting, all curves, emitter position and the selected images into one shareable file.</div>
 </div>
 
 <div id="stage">
@@ -716,6 +721,67 @@ function downloadZip(zipName,files){
   a.download=zipName;
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// ── Project save / load ─────────────────────────────────
+function saveProject(){
+  var proj={app:'particle-simple',version:1,
+    sliders:{},selects:{},checks:{},texts:{},
+    ratePts:ratePts.slice(),
+    scalePts:scaleCurve.pts.slice(),
+    alphaPts:alphaCurve.pts.slice(),
+    emitX:emitX,emitY:emitY,
+    images:[]};
+  document.querySelectorAll('input[type=range]').forEach(function(el){proj.sliders[el.id]=el.value;});
+  document.querySelectorAll('select').forEach(function(el){if(el.id)proj.selects[el.id]=el.value;});
+  document.querySelectorAll('input[type=checkbox]').forEach(function(el){if(el.id)proj.checks[el.id]=el.checked;});
+  document.querySelectorAll('input[type=text]').forEach(function(el){if(el.id)proj.texts[el.id]=el.value;});
+  textures.forEach(function(t){
+    proj.images.push({name:t.name,sel:t.sel,data:t.img.src});
+  });
+  var name=(document.getElementById('expName').value||'particles').trim();
+  var blob=new Blob([JSON.stringify(proj)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name+'.psproj';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function loadProject(input){
+  var f=input.files[0];
+  if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    var proj;
+    try{proj=JSON.parse(r.result);}catch(e){alert('Not a valid project file.');return;}
+    if(!proj||proj.app!=='particle-simple'){alert('Not a Particle Simple project file.');return;}
+    for(var id in proj.sliders||{}){var el=document.getElementById(id);if(el){el.value=proj.sliders[id];sync(el);}}
+    for(var id2 in proj.selects||{}){var el2=document.getElementById(id2);if(el2)el2.value=proj.selects[id2];}
+    for(var id3 in proj.checks||{}){var el3=document.getElementById(id3);if(el3)el3.checked=proj.checks[id3];}
+    for(var id4 in proj.texts||{}){var el4=document.getElementById(id4);if(el4)el4.value=proj.texts[id4];}
+    if(proj.ratePts)ratePts=proj.ratePts.slice();
+    if(proj.scalePts)scaleCurve.pts=proj.scalePts.slice();
+    if(proj.alphaPts)alphaCurve.pts=proj.alphaPts.slice();
+    drawRateCurve();scaleCurve.draw();alphaCurve.draw();
+    if(typeof proj.emitX==='number'){emitX=proj.emitX;emitY=proj.emitY;}
+    if(proj.images&&proj.images.length){
+      textures.length=0;
+      var pending=proj.images.length;
+      proj.images.forEach(function(rec){
+        var img=new Image();
+        img.onload=function(){
+          textures.push({img:img,sel:rec.sel,name:rec.name});
+          libSave(rec.name,rec.data);
+          if(--pending===0){ensureOneSelected();rebuildGallery();}
+        };
+        img.src=rec.data;
+      });
+    }
+    onModeChange();
+    restartLoop();
+  };
+  r.readAsText(f);
+  input.value='';
 }
 
 // ── Main loop ─────────────────────────────────────────────
