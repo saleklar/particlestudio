@@ -707,7 +707,7 @@ function exportSpine(){
   // In loop mode a particle alive at the loop end continues from the loop
   // start, so its remaining frames are re-timed to the beginning.
   var budget=Math.round(V('boneBudget')); // 0 = unlimited (auto = peak concurrent)
-  var units=[],droppedN=0,keptN=0;
+  var units=[],droppedN=0,keptN=0,seq=0;
   tracks.forEach(function(tr){
     if(!tr.frames.length)return;
     var cut=totF-tr.born;
@@ -715,14 +715,15 @@ function exportSpine(){
       var wrapFrames=tr.frames.slice(cut);
       if(wrapFrames.length>totF)wrapFrames=wrapFrames.slice(0,totF); // one wrap max
       units.push([
-        {born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true},
-        {born:0,frames:wrapFrames,img:tr.img,texName:tr.texName}
+        {born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true,ord:tr.born,seq:seq},
+        {born:0,frames:wrapFrames,img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}
       ]);
     }else{
-      units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName}]);
+      units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
     }
+    seq++;
   });
-  units.sort(function(a,b){return a[0].born-b[0].born;});
+  units.sort(function(a,b){return a[0].born-b[0].born||a[0].seq-b[0].seq;});
 
   // ── Bone pooling: a dead particle's bone is recycled. Wrapped tails occupy
   //    the loop start, so allocation checks full interval overlap. ──
@@ -746,7 +747,7 @@ function exportSpine(){
     });
     if(!ok){droppedN++;return;} // budget: drop whole particle (main + tail) so the loop stays clean
     keptN++;
-    homes.forEach(function(h){bonesArr[h.b].ivs.push(segIv(h.s));bonesArr[h.b].segs.push(h.s);});
+    homes.forEach(function(h){h.s.slot=h.b;bonesArr[h.b].ivs.push(segIv(h.s));bonesArr[h.b].segs.push(h.s);});
   });
 
   bonesArr.forEach(function(bone,i){
@@ -820,6 +821,37 @@ function exportSpine(){
     anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
     anim.slots[bn]={attachment:atK,alpha:aK};
   });
+
+  // ── Draw order: pooling breaks slot ordering, so key drawOrder at every
+  //    spawn event — active particles sorted oldest→newest (newest on top).
+  //    Wrapped tails use ord = born - totF, so they stay below fresh spawns
+  //    and layering is continuous across the loop boundary. ──
+  var allSegs=[];
+  bonesArr.forEach(function(b){b.segs.forEach(function(s){allSegs.push(s);});});
+  if(allSegs.length){
+    var evSet={};
+    allSegs.forEach(function(s){evSet[s.born]=true;});
+    var events=Object.keys(evSet).map(Number).sort(function(a,b){return a-b;});
+    var nSlots=bonesArr.length,doKeys=[],prevSig=null;
+    events.forEach(function(f){
+      var act=allSegs.filter(function(s){return f>=s.born&&f<s.born+s.frames.length;});
+      act.sort(function(a,b){return a.ord-b.ord||a.seq-b.seq;});
+      var used={};act.forEach(function(s){used[s.slot]=true;});
+      var desired=[];
+      for(var si=0;si<nSlots;si++)if(!used[si])desired.push(si); // hidden slots at bottom
+      act.forEach(function(s){desired.push(s.slot);});
+      var offsets=[];
+      for(var di=0;di<desired.length;di++)
+        if(desired[di]!==di)offsets.push({slot:'p'+desired[di],offset:di-desired[di]});
+      var sig=JSON.stringify(offsets);
+      if(sig===prevSig)return;
+      prevSig=sig;
+      var key={time:r3(f/30)};
+      if(offsets.length)key.offsets=offsets;
+      doKeys.push(key);
+    });
+    if(doKeys.length>1||(doKeys.length===1&&doKeys[0].offsets))anim.drawOrder=doKeys;
+  }
   json.animations['particles']=anim;
 
   // collect PNGs actually used in this export
