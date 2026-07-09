@@ -106,6 +106,9 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 
   <h2>Export</h2>
   <div class="row"><label>FPS</label><span style="color:#f0c050;font-family:monospace;font-size:11px">30 (fixed)</span></div>
+  <div class="row"><label>Max keys</label><input type="range" id="maxKeys" min="2" max="30" value="5" oninput="sync(this)"><span class="val">5</span></div>
+  <div class="row"><label>Tolerance ×</label><input type="range" id="optTol" min="0.2" max="5" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:4px">Max keys caps keyframes per channel per particle (Bézier eased). Higher tolerance = fewer keys, less accuracy.</div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -481,9 +484,27 @@ function exportSpine(){
   function reduceIdx(times,chans,tols){
     var n=times.length;
     if(n<=2){var all=[];for(var a2=0;a2<n;a2++)all.push(a2);return all;}
+    var tolMul=V('optTol'),maxK=Math.round(V('maxKeys'));
     var keep=new Array(n);keep[0]=true;keep[n-1]=true;
-    for(var c=0;c<chans.length;c++)rdp(0,n-1,times,chans[c],tols[c],keep);
+    for(var c=0;c<chans.length;c++)rdp(0,n-1,times,chans[c],tols[c]*tolMul,keep);
     var out=[];for(var i=0;i<n;i++)if(keep[i])out.push(i);
+    // hard cap: if still too many keys, keep the most important ones
+    if(out.length>maxK){
+      // score each interior kept point by its max deviation from the line
+      // between its kept neighbours across all channels
+      while(out.length>maxK){
+        var worstI=-1,worstErr=Infinity;
+        for(var j=1;j<out.length-1;j++){
+          var iA=out[j-1],iB=out[j],iC2=out[j+1],err=0;
+          for(var c2=0;c2<chans.length;c2++){
+            var v=chans[c2],f=(times[iB]-times[iA])/(times[iC2]-times[iA]);
+            err=Math.max(err,Math.abs(v[iB]-(v[iA]+(v[iC2]-v[iA])*f))/tols[c2]);
+          }
+          if(err<worstErr){worstErr=err;worstI=j;}
+        }
+        out.splice(worstI,1); // drop the least-needed key
+      }
+    }
     return out;
   }
   function slopeAt(times,vals,i,dir){
