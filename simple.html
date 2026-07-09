@@ -1256,6 +1256,112 @@ function loop(now){
 }
 resize();
 requestAnimationFrame(loop);
+
+// ── Tooltips ──────────────────────────────────────────────
+var TIPS={
+  presetSel:'Ready-made starting points. Pick one and press Apply Preset — you can tweak everything afterwards.',
+  mode:'Continuous: particles stream out at Rate/s. Burst: all particles fire at once (use the Burst! button or click the canvas).',
+  rate:'How many particles spawn per second (Continuous mode).',
+  rateCurveOn:'Multiply the spawn rate by a drawable curve over the animation length — e.g. ramp up then die down. Drag the 5 points below.',
+  rateCurve:'Drag the 5 points: spawn-rate multiplier from animation start (left) to end (right).',
+  maxCount:'Hard cap on simultaneously alive particles. Spawning pauses at the cap.',
+  burstBtn:'Fire all particles at once from the emitter.',
+  emitShape:'Where inside the emitter new particles appear: single point, filled box/circle, circle edge (ring), or horizontal line.',
+  emitW:'Emitter width in pixels (box/circle/ring/line).',
+  emitH:'Emitter height in pixels (box/circle/ring).',
+  life:'How long each particle lives, in seconds. Randomised by Life ±%.',
+  speed:'Initial velocity of each particle, pixels per second.',
+  speedVar:'Random speed variation: each particle gets Speed ± this amount.',
+  angle:'Direction particles fly, in degrees. 270 = up, 90 = down, 0 = right, 180 = left.',
+  spread:'Cone width around Angle. 360 = all directions.',
+  gravY:'Constant vertical acceleration. Positive pulls down, negative floats up.',
+  gravX:'Constant horizontal acceleration — use for wind.',
+  drag:'Air resistance: slows particles over time. 0 = none.',
+  size:'Base particle size in pixels.',
+  sizeVar:'Random size variation: each particle gets Size ± this amount.',
+  endScale:'Size multiplier at the end of life. 1 = constant, 0 = shrink away, >1 = grow. Overridden by Scale curve.',
+  spin:'Rotation speed in degrees per second. Randomised by Spin ±%.',
+  fade:'Portion of the lifetime spent fading out. 0.5 = fade during the last half. Overridden by Alpha curve.',
+  scaleCurveOn:'Draw size-over-lifetime yourself (5 points, birth→death) instead of a simple ramp to End scale.',
+  scaleCurve:'Drag the 5 points: size multiplier from birth (left) to death (right). 0–2×.',
+  alphaCurveOn:'Draw opacity-over-lifetime yourself (5 points, birth→death) instead of the simple Fade out.',
+  alphaCurve:'Drag the 5 points: opacity from birth (left) to death (right).',
+  blend:'Normal: standard transparency. Additive: colors add up and glow — great for fire, sparks, magic. Exported to Spine as slot blend mode.',
+  randAll:'Master randomness — adds this much variation on top of every ± setting below.',
+  randLife:'Per-particle lifetime variation, % of Lifetime.',
+  randSpin:'Per-particle spin variation, % of Spin.',
+  randGrav:'Per-particle gravity multiplier variation — some fall faster than others.',
+  randScale:'Per-particle End scale variation.',
+  randFade:'Per-particle fade timing variation.',
+  bgOpacity:'How visible the reference background is. Preview only.',
+  bgDim:'Darken the reference image so bright backgrounds don\u2019t drown out the particles.',
+  bgFit:'How the reference image maps to the canvas: fit inside, fill/crop, stretch, or original size centered.',
+  loopOn:'Fixed-length animation that repeats seamlessly \u2014 particles alive at the end continue at the start. Exports match exactly.',
+  totFrames:'Loop / export length in frames at 30 fps. 90 frames = 3 seconds.',
+  pauseBtn:'Pause or resume the preview.',
+  maxKeysPos:'Max translate keyframes per particle in the Spine export. 5 with easing usually looks smooth.',
+  maxKeysRot:'Max rotate keyframes per particle in the Spine export.',
+  maxKeysScale:'Max scale keyframes per particle in the Spine export.',
+  maxKeysAlpha:'Max alpha keyframes per particle in the Spine export.',
+  optTol:'Keyframe reduction aggressiveness. Higher = fewer keys (rougher), lower = more keys (more faithful).',
+  boneBudget:'Max bones in the export. Bones are recycled when particles die, so you need about as many as the peak alive count. 0 = automatic. If the budget is too small, excess particles are dropped.',
+  expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
+};
+var BTN_TIPS=[
+  ['button[onclick="applyPreset()"]','Apply the selected preset to all settings.'],
+  ['button[onclick="restartLoop()"]','Restart the loop from frame 0 with a clean seed.'],
+  ['button[onclick="particles.length=0"]','Instantly remove all live particles (keeps settings).'],
+  ['button[onclick="resetDefaults()"]','Reset every slider and option to its default value.'],
+  ['button[onclick="exportSpine()"]','Export a Spine 4.1 skeleton: pooled bones, B\u00e9zier-optimised keys, drawOrder, plus the used PNGs \u2014 zipped.'],
+  ['button[onclick="exportPNGSeq()"]','Render the animation to numbered transparent PNGs (30 fps) and download as a zip.'],
+  ['button[onclick="saveProject()"]','Save all settings, curves, images and background into one .psproj file.'],
+  ['button[onclick="bgImg=null;bgData=null"]','Remove the reference background.']
+];
+(function(){
+  for(var id in TIPS){
+    var el=document.getElementById(id);
+    if(!el)continue;
+    var host=el.closest('.row')||el;
+    host.setAttribute('data-tip',TIPS[id]);
+  }
+  BTN_TIPS.forEach(function(bt){
+    var b=document.querySelector(bt[0]);
+    if(b)b.setAttribute('data-tip',bt[1]);
+  });
+  var tip=document.createElement('div');
+  tip.id='tip';
+  tip.style.cssText='position:fixed;z-index:99;max-width:260px;background:#222;color:#ddd;border:1px solid #444;border-radius:5px;padding:7px 9px;font-size:11px;line-height:1.45;pointer-events:none;display:none;box-shadow:0 4px 14px rgba(0,0,0,.5)';
+  document.body.appendChild(tip);
+  var curHost=null,showTimer=null;
+  function place(e){
+    var x=e.clientX+14,y=e.clientY+16;
+    var r=tip.getBoundingClientRect();
+    if(x+r.width>innerWidth-8)x=e.clientX-r.width-10;
+    if(y+r.height>innerHeight-8)y=e.clientY-r.height-10;
+    tip.style.left=x+'px';tip.style.top=y+'px';
+  }
+  document.addEventListener('mouseover',function(e){
+    var host=e.target.closest?e.target.closest('[data-tip]'):null;
+    if(host===curHost)return;
+    curHost=host;
+    clearTimeout(showTimer);
+    tip.style.display='none';
+    if(!host)return;
+    showTimer=setTimeout(function(){
+      tip.textContent=host.getAttribute('data-tip');
+      tip.style.display='block';
+      place(e);
+    },350);
+  });
+  document.addEventListener('mousemove',function(e){
+    if(tip.style.display==='block')place(e);
+  });
+  document.addEventListener('mouseout',function(e){
+    if(curHost&&!curHost.contains(e.relatedTarget)){
+      curHost=null;clearTimeout(showTimer);tip.style.display='none';
+    }
+  });
+})();
 </script>
 </body>
 </html>
