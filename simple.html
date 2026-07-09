@@ -462,6 +462,42 @@ function exportSpine(){
   var anim={bones:{},slots:{}};
   var r2=function(v){return Math.round(v*100)/100;};
   var r3=function(v){return Math.round(v*1000)/1000;};
+
+  // ── Keyframe reduction (RDP) + Bézier handle fitting ──
+  function rdp(i0,i1,times,vals,tol,keep){
+    var t0=times[i0],v0=vals[i0],t1=times[i1],v1=vals[i1];
+    var maxD=0,maxI=-1;
+    for(var i=i0+1;i<i1;i++){
+      var f=(times[i]-t0)/(t1-t0);
+      var d=Math.abs(vals[i]-(v0+(v1-v0)*f));
+      if(d>maxD){maxD=d;maxI=i;}
+    }
+    if(maxD>tol&&maxI>0){
+      rdp(i0,maxI,times,vals,tol,keep);
+      keep[maxI]=true;
+      rdp(maxI,i1,times,vals,tol,keep);
+    }
+  }
+  function reduceIdx(times,chans,tols){
+    var n=times.length;
+    if(n<=2){var all=[];for(var a2=0;a2<n;a2++)all.push(a2);return all;}
+    var keep=new Array(n);keep[0]=true;keep[n-1]=true;
+    for(var c=0;c<chans.length;c++)rdp(0,n-1,times,chans[c],tols[c],keep);
+    var out=[];for(var i=0;i<n;i++)if(keep[i])out.push(i);
+    return out;
+  }
+  function slopeAt(times,vals,i,dir){
+    var j=i+dir;
+    if(j<0||j>=times.length||times[j]===times[i])return 0;
+    return (vals[j]-vals[i])/(times[j]-times[i]);
+  }
+  // Bézier handles for one channel between dense sample indices i0→i1
+  function bez(times,vals,i0,i1){
+    var t0=times[i0],t1=times[i1],dt3=(t1-t0)/3;
+    var s0=slopeAt(times,vals,i0,+1),s1=slopeAt(times,vals,i1,-1);
+    return [r3(t0+dt3),r2(vals[i0]+s0*dt3),r3(t1-dt3),r2(vals[i1]-s1*dt3)];
+  }
+
   tracks.forEach(function(tr,i){
     if(!tr.frames.length)return;
     var bn='p'+i;
@@ -472,31 +508,54 @@ function exportSpine(){
     var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
     json.skins[0].attachments[bn]={};
     json.skins[0].attachments[bn][tr.texName]={width:w,height:h};
-    var tK=[],rK=[],sK=[],aK=[],atK=[];
-    var bornT=r3(tr.born/30);
-    atK.push({time:bornT,name:tr.texName});
-    for(var f=0;f<tr.frames.length;f+=step){
-      var isLast=(f+step>=tr.frames.length);
+
+    // dense channel arrays
+    var n=tr.frames.length,times=[],xs=[],ys=[],rots=[],sxs=[],sys=[],as=[];
+    for(var f=0;f<n;f++){
       var fr=tr.frames[f];
-      var tm=r3((tr.born+f)/30);
-      tK.push({time:tm,x:r2(fr.x),y:r2(fr.y)});
-      rK.push({time:tm,value:r2(fr.rot)});
-      sK.push({time:tm,x:r3(fr.s/w),y:r3(fr.s/h)});
-      var ah=Math.round(fr.a*255).toString(16);if(ah.length<2)ah='0'+ah;
-      aK.push({time:tm,color:'ffffff'+ah});
-      if(isLast&&f<tr.frames.length-1){
-        var lf=tr.frames[tr.frames.length-1],lt2=r3((tr.born+tr.frames.length-1)/30);
-        tK.push({time:lt2,x:r2(lf.x),y:r2(lf.y)});
-        rK.push({time:lt2,value:r2(lf.rot)});
-        sK.push({time:lt2,x:r3(lf.s/w),y:r3(lf.s/h)});
-        var ah2=Math.round(lf.a*255).toString(16);if(ah2.length<2)ah2='0'+ah2;
-        aK.push({time:lt2,color:'ffffff'+ah2});
-      }
+      times.push((tr.born+f)/30);
+      xs.push(fr.x);ys.push(fr.y);rots.push(fr.rot);
+      sxs.push(fr.s/w);sys.push(fr.s/h);as.push(fr.a);
     }
-    var deadT=r3((tr.born+tr.frames.length)/30);
-    atK.push({time:deadT,name:null});
+
+    // translate (tol 1.5px)
+    var tI=reduceIdx(times,[xs,ys],[1.5,1.5]),tK=[];
+    for(var a3=0;a3<tI.length;a3++){
+      var ii=tI[a3],k={time:r3(times[ii]),x:r2(xs[ii]),y:r2(ys[ii])};
+      if(a3<tI.length-1){
+        var nx=tI[a3+1];
+        k.curve=bez(times,xs,ii,nx).concat(bez(times,ys,ii,nx));
+      }
+      tK.push(k);
+    }
+    // rotate (tol 2deg)
+    var rI=reduceIdx(times,[rots],[2]),rK=[];
+    for(var b3=0;b3<rI.length;b3++){
+      var ir=rI[b3],kr={time:r3(times[ir]),value:r2(rots[ir])};
+      if(b3<rI.length-1)kr.curve=bez(times,rots,ir,rI[b3+1]);
+      rK.push(kr);
+    }
+    // scale (tol 0.02)
+    var sI=reduceIdx(times,[sxs,sys],[0.02,0.02]),sK=[];
+    for(var c3=0;c3<sI.length;c3++){
+      var is2=sI[c3],ks={time:r3(times[is2]),x:r3(sxs[is2]),y:r3(sys[is2])};
+      if(c3<sI.length-1){
+        var ns=sI[c3+1];
+        ks.curve=bez(times,sxs,is2,ns).concat(bez(times,sys,is2,ns));
+      }
+      sK.push(ks);
+    }
+    // alpha (tol 0.02) — Spine 4.1 slot "alpha" timeline
+    var aI=reduceIdx(times,[as],[0.02]),aK=[];
+    for(var d3=0;d3<aI.length;d3++){
+      var ia=aI[d3],ka={time:r3(times[ia]),value:r3(Math.max(0,Math.min(1,as[ia])))};
+      if(d3<aI.length-1)ka.curve=bez(times,as,ia,aI[d3+1]);
+      aK.push(ka);
+    }
+
+    var atK=[{time:r3(tr.born/30),name:tr.texName},{time:r3((tr.born+n)/30),name:null}];
     anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
-    anim.slots[bn]={attachment:atK,rgba:aK};
+    anim.slots[bn]={attachment:atK,alpha:aK};
   });
   json.animations['particles']=anim;
 
