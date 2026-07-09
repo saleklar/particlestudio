@@ -31,7 +31,8 @@ h2{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margi
 #stage{flex:1;position:relative}
 canvas{display:block;width:100%;height:100%;cursor:crosshair}
 #hint{position:absolute;bottom:8px;left:10px;font-size:10px;color:#555;pointer-events:none}
-#fps{position:absolute;top:8px;right:10px;font-size:10px;color:#666;pointer-events:none;font-family:monospace}
+#stats{position:absolute;top:8px;right:10px;font:10px/1.5 monospace;color:#9a9a9a;background:rgba(14,14,14,.82);border:1px solid #333;border-radius:4px;padding:5px 9px;cursor:pointer;user-select:none;white-space:pre;text-align:right}
+#stats b{color:#f0c050;font-weight:700}
 </style>
 </head>
 <body>
@@ -137,7 +138,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 <div id="stage">
   <canvas id="cv"></canvas>
   <div id="hint">Click/drag: move emitter · Wheel: zoom · Middle/right-drag or Space+drag: pan · Double-click: reset view</div>
-  <div id="fps"></div>
+  <div id="stats" onclick="statsExpanded=!statsExpanded" title="Click to expand/collapse"></div>
 </div>
 
 <script>
@@ -519,6 +520,7 @@ function spawn(){
     fadeMul:Math.max(0.01,jit(1,V('randFade'))),
     tex:tex, texName:to.name||'particle'
   });
+  spawnCount++;
 }
 
 // ── Spine JSON export ───────────────────────────────
@@ -851,12 +853,36 @@ function loadProject(input){
 
 // ── Main loop ─────────────────────────────────────────────
 var last=performance.now(),frames=0,fpsTime=0;
+var statsExpanded=true,spawnedThisSec=0,spawnCount=0,spawnCountTime=0,peakP=0,drawnP=0;
+function updateStats(fps){
+  var el=document.getElementById('stats');
+  var live=particles.length;
+  if(live>peakP)peakP=live;
+  var cap=Math.round(V('maxCount'));
+  if(!statsExpanded){
+    el.innerHTML='<b>'+fps+'</b> fps · <b>'+live+'</b> p ▸';
+    return;
+  }
+  var mode=document.getElementById('mode').value;
+  var lines=[
+    'fps        <b>'+fps+'</b>',
+    'particles  <b>'+live+'</b> / '+cap,
+    'drawn      <b>'+drawnP+'</b>',
+    'peak       <b>'+peakP+'</b>',
+    'spawn/s    <b>'+spawnedThisSec+'</b>',
+    'mode       <b>'+(mode==='cont'?'continuous':'burst')+'</b>',
+    'zoom       <b>'+Math.round(camZ*100)+'%</b>',
+    'textures   <b>'+textures.filter(function(t){return t.sel;}).length+'</b> / '+textures.length
+  ];
+  el.innerHTML=lines.join('\n')+'\n▾';
+}
 function loop(now){
   requestAnimationFrame(loop);
   var dt=Math.min(0.05,(now-last)/1000);last=now;
-  // FPS
-  frames++;fpsTime+=dt;
-  if(fpsTime>=0.5){document.getElementById('fps').textContent=Math.round(frames/fpsTime)+' fps · '+particles.length+' p';frames=0;fpsTime=0;}
+  // FPS + stats (refresh twice a second)
+  frames++;fpsTime+=dt;spawnCountTime+=dt;
+  if(spawnCountTime>=1){spawnedThisSec=spawnCount;spawnCount=0;spawnCountTime=0;}
+  if(fpsTime>=0.5){updateStats(Math.round(frames/fpsTime));frames=0;fpsTime=0;}
   if(!cv.width)resize();
   if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   if(!paused){
@@ -926,6 +952,7 @@ function loop(now){
   }
   ctx.globalCompositeOperation=document.getElementById('blend').value;
   var fadeStart=1-V('fade'),endScale=V('endScale');
+  drawnP=0;
   for(var j=0;j<particles.length;j++){
     var q=particles[j],t=q.age/q.life;
     var acv=alphaCurve.sample(t),alpha;
@@ -942,6 +969,7 @@ function loop(now){
     }
     var s=q.size*scale;
     if(s<0.5||alpha<=0)continue;
+    drawnP++;
     ctx.globalAlpha=alpha;
     ctx.save();
     ctx.translate(q.x,q.y);
