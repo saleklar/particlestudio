@@ -98,14 +98,14 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Playback</h2>
   <div class="row"><label>Loop</label><input type="checkbox" id="loopOn" onchange="restartLoop()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">fixed length, repeats</span></div>
   <div class="row"><label>Frames</label><input type="range" id="totFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
-  <div class="row"><label>Frame</label><span id="frameInfo" style="color:#f0c050;font-family:monospace;font-size:11px">–</span></div>
+  <div class="row"><label>Frame</label><span id="frameInfo" style="color:#f0c050;font-family:monospace;font-size:11px">–</span><span style="color:#666;font-size:10px;margin-left:4px">@30fps</span></div>
   <button class="btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
   <button class="btn" onclick="restartLoop()">↩ Restart Loop</button>
   <button class="btn" onclick="particles.length=0">✕ Clear Particles</button>
   <button class="btn accent" onclick="resetDefaults()">↺ Reset Settings</button>
 
   <h2>Export</h2>
-  <div class="row"><label>Export FPS</label><input type="range" id="expFPS" min="12" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
+  <div class="row"><label>FPS</label><span style="color:#f0c050;font-family:monospace;font-size:11px">30 (fixed)</span></div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine JSON</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Bakes the loop (Frames setting) into bone keyframes. Put your particle PNGs next to the skeleton in Spine — attachment names match the image file names.</div>
@@ -408,8 +408,8 @@ function spawn(){
 function exportSpine(){
   if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   var totF=Math.round(V('totFrames'));
-  var expFps=Math.round(V('expFPS'));
-  var step=Math.max(1,Math.round(60/expFps));
+  var expFps=30;
+  var step=1;
   var mode=document.getElementById('mode').value;
   var blendAdd=document.getElementById('blend').value==='lighter';
   // save live state, run a deterministic headless re-sim
@@ -422,7 +422,7 @@ function exportSpine(){
       particles[k]._trk=tr;tracks.push(tr);
     }
   }
-  var dt=1/60,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
+  var dt=1/30,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
   var fadeVal=V('fade'),endScale=V('endScale');
   if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
   for(curF=0;curF<=totF;curF++){
@@ -473,19 +473,19 @@ function exportSpine(){
     json.skins[0].attachments[bn]={};
     json.skins[0].attachments[bn][tr.texName]={width:w,height:h};
     var tK=[],rK=[],sK=[],aK=[],atK=[];
-    var bornT=r3(tr.born/60);
+    var bornT=r3(tr.born/30);
     atK.push({time:bornT,name:tr.texName});
     for(var f=0;f<tr.frames.length;f+=step){
       var isLast=(f+step>=tr.frames.length);
       var fr=tr.frames[f];
-      var tm=r3((tr.born+f)/60);
+      var tm=r3((tr.born+f)/30);
       tK.push({time:tm,x:r2(fr.x),y:r2(fr.y)});
       rK.push({time:tm,value:r2(fr.rot)});
       sK.push({time:tm,x:r3(fr.s/w),y:r3(fr.s/h)});
       var ah=Math.round(fr.a*255).toString(16);if(ah.length<2)ah='0'+ah;
       aK.push({time:tm,color:'ffffff'+ah});
       if(isLast&&f<tr.frames.length-1){
-        var lf=tr.frames[tr.frames.length-1],lt2=r3((tr.born+tr.frames.length-1)/60);
+        var lf=tr.frames[tr.frames.length-1],lt2=r3((tr.born+tr.frames.length-1)/30);
         tK.push({time:lt2,x:r2(lf.x),y:r2(lf.y)});
         rK.push({time:lt2,value:r2(lf.rot)});
         sK.push({time:lt2,x:r3(lf.s/w),y:r3(lf.s/h)});
@@ -493,7 +493,7 @@ function exportSpine(){
         aK.push({time:lt2,color:'ffffff'+ah2});
       }
     }
-    var deadT=r3((tr.born+tr.frames.length)/60);
+    var deadT=r3((tr.born+tr.frames.length)/30);
     atK.push({time:deadT,name:null});
     anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
     anim.slots[bn]={attachment:atK,rgba:aK};
@@ -522,11 +522,11 @@ function loop(now){
   if(!paused){
     simTime+=dt;
     var totF=Math.round(V('totFrames'));
-    var animLen=totF/60;
+    var animLen=totF/30;
     var looping=document.getElementById('loopOn').checked;
     if(looping){
       loopTime+=dt;
-      var curF=Math.floor(loopTime*60);
+      var curF=Math.floor(loopTime*30);
       if(curF>=totF){restartLoop();curF=0;}
       document.getElementById('frameInfo').textContent=curF+' / '+totF;
     }else{
