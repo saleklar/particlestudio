@@ -127,6 +127,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div style="font-size:10px;color:#666;margin-bottom:4px">Max keyframes per particle for each channel (Bézier eased). Higher tolerance = fewer keys before the cap.</div>
   <div class="row"><label>Bone budget</label><input type="range" id="boneBudget" min="0" max="300" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:4px">Bones are pooled — when a particle dies its bone is recycled for the next spawn, so bone count ≈ peak concurrent particles, not total. 0 = no cap; &gt;0 drops particles that would exceed the budget.</div>
+  <div class="row"><label>Intro/Outro</label><input type="checkbox" id="introOutro" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">export 3 animations (needs Loop)</span></div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -603,8 +604,10 @@ function exportSpine(){
   var fadeVal=V('fade'),endScale=V('endScale');
   if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
   // loop mode: keep simulating past the end (no new spawns) so particles that
-  // outlive the loop get their tail recorded — it is wrapped to the start below
-  var endF=looping?totF*2:totF;
+  // outlive the loop get their tail recorded — it is wrapped to the start below.
+  // intro/outro mode: run until every particle has died so the outro is complete.
+  var introOutro=looping&&document.getElementById('introOutro').checked;
+  var endF=looping?(introOutro?totF+1800:totF*2):totF;
   for(curF=0;curF<=endF;curF++){
     if(mode==='cont'&&curF<totF){
       spawnAcc+=V('rate')*sampleRateCurve(curF/totF)*dt;
@@ -648,7 +651,6 @@ function exportSpine(){
     skins:[{name:'default',attachments:{}}],
     animations:{}
   };
-  var anim={bones:{},slots:{}};
   var r2=function(v){return Math.round(v*100)/100;};
   var r3=function(v){return Math.round(v*1000)/1000;};
 
@@ -705,67 +707,81 @@ function exportSpine(){
     return [r3(t0+dt3),r2(vals[i0]+s0*dt3),r3(t1-dt3),r2(vals[i1]-s1*dt3)];
   }
 
-  // ── Split loop-crossing particles into main part + wrapped tail ──
-  // In loop mode a particle alive at the loop end continues from the loop
-  // start, so its remaining frames are re-timed to the beginning.
+  // ── Build per-animation segment lists ──
+  // A particle alive at the loop end continues from the loop start, so:
+  //   intro = spawns from empty, survivors run to the intro end (= loop time 0)
+  //   loop  = main parts + tails wrapped to the start (seamless on its own)
+  //   outro = the survivors' remaining frames played to death, no new spawns
   var budget=Math.round(V('boneBudget')); // 0 = unlimited (auto = peak concurrent)
-  var units=[],droppedN=0,keptN=0,seq=0;
-  tracks.forEach(function(tr){
-    if(!tr.frames.length)return;
-    var cut=totF-tr.born;
-    if(looping&&tr.frames.length-1>cut){
-      var wrapFrames=tr.frames.slice(cut);
-      if(wrapFrames.length>totF)wrapFrames=wrapFrames.slice(0,totF); // one wrap max
-      units.push([
-        {born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true,ord:tr.born,seq:seq},
-        {born:0,frames:wrapFrames,img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}
-      ]);
-    }else{
-      units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
-    }
-    seq++;
-  });
-  units.sort(function(a,b){return a[0].born-b[0].born||a[0].seq-b[0].seq;});
+  function trackUnits(kind){
+    var units=[],seq=0;
+    tracks.forEach(function(tr){
+      seq++;
+      if(!tr.frames.length)return;
+      var cut=totF-tr.born,crosses=tr.frames.length-1>cut;
+      if(kind==='intro'){
+        if(crosses)units.push([{born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true,ord:tr.born,seq:seq}]);
+        else units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
+      }else if(kind==='loop'){
+        if(crosses){
+          var wrapFrames=tr.frames.slice(cut);
+          if(wrapFrames.length>totF)wrapFrames=wrapFrames.slice(0,totF); // one wrap max
+          units.push([
+            {born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true,ord:tr.born,seq:seq},
+            {born:0,frames:wrapFrames,img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}
+          ]);
+        }else units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
+      }else if(kind==='outro'){
+        if(crosses)units.push([{born:0,frames:tr.frames.slice(cut),img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}]);
+      }else{ // single (loop off)
+        units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
+      }
+    });
+    units.sort(function(a,b){return a[0].born-b[0].born||a[0].seq-b[0].seq;});
+    return units;
+  }
 
   // ── Bone pooling: a dead particle's bone is recycled. Wrapped tails occupy
   //    the loop start, so allocation checks full interval overlap. ──
-  var bonesArr=[]; // {ivs:[[startF,endF],...], segs:[...]}
-  function segIv(s){return [s.born,s.reachEnd?totF:s.born+s.frames.length];}
-  function conflicts(iv,b){
-    for(var i=0;i<b.ivs.length;i++){var o=b.ivs[i];if(iv[0]<=o[1]&&o[0]<=iv[1])return true;}
-    return false;
-  }
-  units.forEach(function(segs){
-    var homes=[],usedHere={};
-    var ok=segs.every(function(s){
-      var iv=segIv(s);
-      for(var b=0;b<bonesArr.length;b++){
-        if(usedHere[b])continue;
-        if(!conflicts(iv,bonesArr[b])){homes.push({s:s,b:b});usedHere[b]=true;return true;}
-      }
-      if(budget>0&&bonesArr.length>=budget)return false;
-      var nb=bonesArr.length;bonesArr.push({ivs:[],segs:[]});
-      homes.push({s:s,b:nb});usedHere[nb]=true;return true;
+  function poolUnits(units,lenF){
+    var bonesArr=[],dropped=0,kept=0;
+    function segIv(s){return [s.born,s.reachEnd?lenF:s.born+s.frames.length];}
+    function conflicts(iv,b){
+      for(var i=0;i<b.ivs.length;i++){var o=b.ivs[i];if(iv[0]<=o[1]&&o[0]<=iv[1])return true;}
+      return false;
+    }
+    units.forEach(function(segs){
+      var homes=[],usedHere={};
+      var ok=segs.every(function(s){
+        var iv=segIv(s);
+        for(var b=0;b<bonesArr.length;b++){
+          if(usedHere[b])continue;
+          if(!conflicts(iv,bonesArr[b])){homes.push({s:s,b:b});usedHere[b]=true;return true;}
+        }
+        if(budget>0&&bonesArr.length>=budget)return false;
+        var nb=bonesArr.length;bonesArr.push({ivs:[],segs:[]});
+        homes.push({s:s,b:nb});usedHere[nb]=true;return true;
+      });
+      if(!ok){dropped++;return;} // budget: drop whole particle (main + tail) so the loop stays clean
+      kept++;
+      homes.forEach(function(h){h.s.slot=h.b;bonesArr[h.b].ivs.push(segIv(h.s));bonesArr[h.b].segs.push(h.s);});
     });
-    if(!ok){droppedN++;return;} // budget: drop whole particle (main + tail) so the loop stays clean
-    keptN++;
-    homes.forEach(function(h){h.s.slot=h.b;bonesArr[h.b].ivs.push(segIv(h.s));bonesArr[h.b].segs.push(h.s);});
-  });
+    return {bonesArr:bonesArr,dropped:dropped,kept:kept};
+  }
 
-  bonesArr.forEach(function(bone,i){
-    var list=bone.segs.slice().sort(function(a,b){return a.born-b.born;});
-    var bn='p'+i;
-    json.bones.push({name:bn,parent:'root'});
-    var slot={name:bn,bone:bn};
-    if(blendAdd)slot.blend='additive';
-    json.slots.push(slot);
-    json.skins[0].attachments[bn]={};
-    var tK=[],rK=[],sK=[],aK=[],atK=[];
+  var attachMap={}; // bone name -> {texName:{width,height}}, union over animations
+  function buildAnim(pooled,isLoop,nSlots){
+    var anim={bones:{},slots:{}};
+    pooled.bonesArr.forEach(function(bone,i){
+      var list=bone.segs.slice().sort(function(a,b){return a.born-b.born;});
+      var bn='p'+i;
+      if(!attachMap[bn])attachMap[bn]={};
+      var tK=[],rK=[],sK=[],aK=[],atK=[];
 
-    list.forEach(function(tr,seg){
-      var hasNext=seg<list.length-1;
-      var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
-      json.skins[0].attachments[bn][tr.texName]={width:w,height:h};
+      list.forEach(function(tr,seg){
+        var hasNext=seg<list.length-1;
+        var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
+        attachMap[bn][tr.texName]={width:w,height:h};
 
       // dense channel arrays for this particle's lifetime
       var n=tr.frames.length,times=[],xs=[],ys=[],rots=[],sxs=[],sys=[],as=[];
@@ -813,52 +829,80 @@ function exportSpine(){
         aK.push(ka);
       }
 
-      atK.push({time:r3(tr.born/30),name:tr.texName});
-      if(!tr.reachEnd)atK.push({time:r3((tr.born+n)/30),name:null});
+        atK.push({time:r3(tr.born/30),name:tr.texName});
+        if(!tr.reachEnd)atK.push({time:r3((tr.born+n)/30),name:null});
+      });
+
+      // looped export: make the attachment state at time 0 explicit
+      if(isLoop&&atK.length&&atK[0].time>0)atK.unshift({time:0,name:null});
+
+      anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
+      anim.slots[bn]={attachment:atK,alpha:aK};
     });
 
-    // looped export: make the attachment state at time 0 explicit
-    if(looping&&atK.length&&atK[0].time>0)atK.unshift({time:0,name:null});
-
-    anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
-    anim.slots[bn]={attachment:atK,alpha:aK};
-  });
-
-  // ── Draw order: pooling breaks slot ordering, so key drawOrder at every
-  //    spawn event — active particles sorted oldest→newest (newest on top).
-  //    Wrapped tails use ord = born - totF, so they stay below fresh spawns
-  //    and layering is continuous across the loop boundary. ──
-  var allSegs=[];
-  bonesArr.forEach(function(b){b.segs.forEach(function(s){allSegs.push(s);});});
-  if(allSegs.length){
-    var evSet={};
-    allSegs.forEach(function(s){evSet[s.born]=true;});
-    var events=Object.keys(evSet).map(Number).sort(function(a,b){return a-b;});
-    var nSlots=bonesArr.length,doKeys=[],prevSig=null;
-    events.forEach(function(f){
-      var act=allSegs.filter(function(s){return f>=s.born&&f<s.born+s.frames.length;});
-      act.sort(function(a,b){return a.ord-b.ord||a.seq-b.seq;});
-      var used={};act.forEach(function(s){used[s.slot]=true;});
-      var desired=[];
-      for(var si=0;si<nSlots;si++)if(!used[si])desired.push(si); // hidden slots at bottom
-      act.forEach(function(s){desired.push(s.slot);});
-      var offsets=[];
-      for(var di=0;di<desired.length;di++)
-        if(desired[di]!==di)offsets.push({slot:'p'+desired[di],offset:di-desired[di]});
-      var sig=JSON.stringify(offsets);
-      if(sig===prevSig)return;
-      prevSig=sig;
-      var key={time:r3(f/30)};
-      if(offsets.length)key.offsets=offsets;
-      doKeys.push(key);
-    });
-    if(doKeys.length>1||(doKeys.length===1&&doKeys[0].offsets))anim.drawOrder=doKeys;
+    // ── Draw order: pooling breaks slot ordering, so key drawOrder at every
+    //    spawn event — active particles sorted oldest→newest (newest on top).
+    //    Wrapped tails use ord = born - totF, so they stay below fresh spawns
+    //    and layering is continuous across the loop boundary. ──
+    var allSegs=[];
+    pooled.bonesArr.forEach(function(b){b.segs.forEach(function(s){allSegs.push(s);});});
+    if(allSegs.length){
+      var evSet={};
+      allSegs.forEach(function(s){evSet[s.born]=true;});
+      var events=Object.keys(evSet).map(Number).sort(function(a,b){return a-b;});
+      var doKeys=[],prevSig=null;
+      events.forEach(function(f){
+        var act=allSegs.filter(function(s){return f>=s.born&&f<s.born+s.frames.length;});
+        act.sort(function(a,b){return a.ord-b.ord||a.seq-b.seq;});
+        var used={};act.forEach(function(s){used[s.slot]=true;});
+        var desired=[];
+        for(var si=0;si<nSlots;si++)if(!used[si])desired.push(si); // hidden slots at bottom
+        act.forEach(function(s){desired.push(s.slot);});
+        var offsets=[];
+        for(var di=0;di<desired.length;di++)
+          if(desired[di]!==di)offsets.push({slot:'p'+desired[di],offset:di-desired[di]});
+        var sig=JSON.stringify(offsets);
+        if(sig===prevSig)return;
+        prevSig=sig;
+        var key={time:r3(f/30)};
+        if(offsets.length)key.offsets=offsets;
+        doKeys.push(key);
+      });
+      if(doKeys.length>1||(doKeys.length===1&&doKeys[0].offsets))anim.drawOrder=doKeys;
+    }
+    return anim;
   }
-  json.animations['particles']=anim;
+
+  // ── Assemble animations (intro/loop/outro share one skeleton) ──
+  var animDefs;
+  if(introOutro)animDefs=[
+    {name:'intro',kind:'intro',isLoop:false},
+    {name:'loop',kind:'loop',isLoop:true},
+    {name:'outro',kind:'outro',isLoop:false}];
+  else if(looping)animDefs=[{name:'particles',kind:'loop',isLoop:true}];
+  else animDefs=[{name:'particles',kind:'single',isLoop:false}];
+  var droppedN=0,keptN=0,maxBones=0;
+  animDefs.forEach(function(d){
+    d.pooled=poolUnits(trackUnits(d.kind),totF);
+    maxBones=Math.max(maxBones,d.pooled.bonesArr.length);
+    if(d.kind!=='outro'&&d.kind!=='intro'){droppedN=d.pooled.dropped;keptN=d.pooled.kept;}
+  });
+  animDefs.forEach(function(d){
+    json.animations[d.name]=buildAnim(d.pooled,d.isLoop,maxBones);
+  });
+  // shared bones/slots/skins covering every animation
+  for(var bi2=0;bi2<maxBones;bi2++){
+    var bn2='p'+bi2;
+    json.bones.push({name:bn2,parent:'root'});
+    var slot2={name:bn2,bone:bn2};
+    if(blendAdd)slot2.blend='additive';
+    json.slots.push(slot2);
+    json.skins[0].attachments[bn2]=attachMap[bn2]||{};
+  }
 
   // collect PNGs actually used in this export
   var usedNames={};
-  bonesArr.forEach(function(b){b.segs.forEach(function(s){usedNames[s.texName]=true;});});
+  for(var bk in attachMap)for(var tk in attachMap[bk])usedNames[tk]=true;
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
   files.push({name:name+'.json',data:strBytes(JSON.stringify(json))});
@@ -872,7 +916,7 @@ function exportSpine(){
   // report pooling result
   var hintEl=document.getElementById('hint');
   if(!window._hintDefault)window._hintDefault=hintEl.textContent;
-  hintEl.textContent='Exported '+keptN+' particles → '+bonesArr.length+' bones ('+(looping?'pooled · seamless loop':'pooled')+')'+(droppedN?' · '+droppedN+' dropped by budget':'');
+  hintEl.textContent='Exported '+keptN+' particles → '+maxBones+' bones ('+(introOutro?'intro + loop + outro · seamless':looping?'pooled · seamless loop':'pooled')+')'+(droppedN?' · '+droppedN+' dropped by budget':'');
   clearTimeout(window._hintTimer);
   window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
 }
@@ -1305,6 +1349,7 @@ var TIPS={
   maxKeysAlpha:'Max alpha keyframes per particle in the Spine export.',
   optTol:'Keyframe reduction aggressiveness. Higher = fewer keys (rougher), lower = more keys (more faithful).',
   boneBudget:'Max bones in the export. Bones are recycled when particles die, so you need about as many as the peak alive count. 0 = automatic. If the budget is too small, excess particles are dropped.',
+  introOutro:'Export three animations sharing one skeleton: intro (builds up from empty), loop (seamless on its own) and outro (dies out to empty). Play intro \u2192 loop \u00d7N \u2192 outro with 0 mix duration for seamless transitions. Requires Loop.',
   expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
 };
 var BTN_TIPS=[
