@@ -17,6 +17,7 @@ h2{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margi
 .row input[type=range]{flex:1;accent-color:#f90;height:14px;cursor:pointer}
 .row .val{width:42px;text-align:right;color:#f0c050;font-size:11px;font-family:monospace}
 .row select{flex:1;background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;padding:3px 5px;font-size:11px}
+.row input[type=text]{flex:1;background:#2a2a2a;border:1px solid #444;border-radius:2px;color:#ddd;font-size:11px;padding:3px 5px}
 .btn{display:block;width:100%;background:#2e2e2e;color:#ccc;border:1px solid #555;border-radius:3px;padding:6px;cursor:pointer;font-size:11px;text-align:center;margin-bottom:5px}
 .btn:hover{background:#3d3d3d;color:#fff}
 .btn.accent{background:#c07000;border-color:#e09000;color:#fff}
@@ -84,6 +85,12 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="restartLoop()">↩ Restart Loop</button>
   <button class="btn" onclick="particles.length=0">✕ Clear Particles</button>
   <button class="btn accent" onclick="resetDefaults()">↺ Reset Settings</button>
+
+  <h2>Export</h2>
+  <div class="row"><label>Export FPS</label><input type="range" id="expFPS" min="12" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
+  <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
+  <button class="btn accent" onclick="exportSpine()">⬇ Export Spine JSON</button>
+  <div style="font-size:10px;color:#666;margin-top:2px">Bakes the loop (Frames setting) into bone keyframes. Put your particle PNGs next to the skeleton in Spine — attachment names match the image file names.</div>
 </div>
 
 <div id="stage">
@@ -133,7 +140,7 @@ function defaultTexture(){
   grad.addColorStop(1,'rgba(255,150,0,0)');
   g.fillStyle=grad;g.fillRect(0,0,64,64);
   var img=new Image();img.src=c.toDataURL();
-  return img;
+  return {img:img,sel:true,name:'particle'};
 }
 function rebuildGallery(){
   var gal=document.getElementById('tex-gallery');gal.innerHTML='';
@@ -156,17 +163,18 @@ function ensureOneSelected(){
 function loadImages(input){
   var files=Array.from(input.files);
   files.forEach(function(f){
+    var nm=f.name.replace(/\.[^.]+$/,'');
     var r=new FileReader();
     r.onload=function(){
       var img=new Image();
-      img.onload=function(){textures.push({img:img,sel:true});rebuildGallery();};
+      img.onload=function(){textures.push({img:img,sel:true,name:nm});rebuildGallery();};
       img.src=r.result;
     };
     r.readAsDataURL(f);
   });
   input.value='';
 }
-textures.push({img:defaultTexture(),sel:true});
+textures.push(defaultTexture());
 rebuildGallery();
 
 // ── Emitter position (click / drag) ───────────────────────
@@ -192,7 +200,8 @@ function togglePause(){
 function spawn(){
   var sel=textures.filter(function(t){return t.sel;});
   if(!sel.length)return;
-  var tex=sel[(rng()*sel.length)|0].img;
+  var to=sel[(rng()*sel.length)|0];
+  var tex=to.img;
   // jitter helper: ±pct% variation, boosted by Master randomness
   var master=V('randAll')/100;
   function jit(val,pct){var p=Math.min(1,pct/100+master);return val*(1+(rng()-0.5)*2*p);}
@@ -216,8 +225,113 @@ function spawn(){
     gravMul:Math.max(0,jit(1,V('randGrav'))),
     endScaleMul:Math.max(0,jit(1,V('randScale'))),
     fadeMul:Math.max(0.01,jit(1,V('randFade'))),
-    tex:tex
+    tex:tex, texName:to.name||'particle'
   });
+}
+
+// ── Spine JSON export ───────────────────────────────
+function exportSpine(){
+  if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
+  var totF=Math.round(V('totFrames'));
+  var expFps=Math.round(V('expFPS'));
+  var step=Math.max(1,Math.round(60/expFps));
+  var mode=document.getElementById('mode').value;
+  var blendAdd=document.getElementById('blend').value==='lighter';
+  // save live state, run a deterministic headless re-sim
+  var _p=particles,_sa=spawnAcc,_ss=_seed,_lt=loopTime;
+  particles=[];spawnAcc=0;_seed=1;
+  var tracks=[],curF=0;
+  function tagNew(prev){
+    for(var k=prev;k<particles.length;k++){
+      var tr={born:curF,img:particles[k].tex,texName:particles[k].texName,frames:[]};
+      particles[k]._trk=tr;tracks.push(tr);
+    }
+  }
+  var dt=1/60,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
+  var fadeVal=V('fade'),endScale=V('endScale');
+  if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
+  for(curF=0;curF<=totF;curF++){
+    if(mode==='cont'&&curF<totF){
+      spawnAcc+=V('rate')*dt;
+      var cap=Math.round(V('maxCount')),before=particles.length;
+      while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
+      tagNew(before);
+    }
+    for(var i=0;i<particles.length;i++){
+      var p=particles[i],t=p.age/p.life;
+      var fs=1-Math.min(1,fadeVal*(p.fadeMul||1));
+      var alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
+      var es=endScale*(p.endScaleMul||1);
+      var scl=1+(es-1)*t;
+      p._trk.frames.push({x:p.x-emitX,y:-(p.y-emitY),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha))});
+    }
+    for(var i2=particles.length-1;i2>=0;i2--){
+      var q=particles[i2];q.age+=dt;
+      if(q.age>=q.life){particles.splice(i2,1);continue;}
+      var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
+      if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
+      q.x+=q.vx*dt;q.y+=q.vy*dt;q.rot+=q.spin*dt;
+    }
+  }
+  // restore live state
+  particles=_p;spawnAcc=_sa;_seed=_ss;loopTime=_lt;
+
+  // build skeleton json
+  var json={
+    skeleton:{spine:'4.1.17',images:'./images/',fps:expFps,
+      hash:'simpleparticles',width:cv.width,height:cv.height},
+    bones:[{name:'root'}],slots:[],
+    skins:[{name:'default',attachments:{}}],
+    animations:{}
+  };
+  var anim={bones:{},slots:{}};
+  var r2=function(v){return Math.round(v*100)/100;};
+  var r3=function(v){return Math.round(v*1000)/1000;};
+  tracks.forEach(function(tr,i){
+    if(!tr.frames.length)return;
+    var bn='p'+i;
+    json.bones.push({name:bn,parent:'root'});
+    var slot={name:bn,bone:bn};
+    if(blendAdd)slot.blend='additive';
+    json.slots.push(slot);
+    var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
+    json.skins[0].attachments[bn]={};
+    json.skins[0].attachments[bn][tr.texName]={width:w,height:h};
+    var tK=[],rK=[],sK=[],aK=[],atK=[];
+    var bornT=r3(tr.born/60);
+    atK.push({time:bornT,name:tr.texName});
+    for(var f=0;f<tr.frames.length;f+=step){
+      var isLast=(f+step>=tr.frames.length);
+      var fr=tr.frames[f];
+      var tm=r3((tr.born+f)/60);
+      tK.push({time:tm,x:r2(fr.x),y:r2(fr.y)});
+      rK.push({time:tm,value:r2(fr.rot)});
+      sK.push({time:tm,x:r3(fr.s/w),y:r3(fr.s/h)});
+      var ah=Math.round(fr.a*255).toString(16);if(ah.length<2)ah='0'+ah;
+      aK.push({time:tm,color:'ffffff'+ah});
+      if(isLast&&f<tr.frames.length-1){
+        var lf=tr.frames[tr.frames.length-1],lt2=r3((tr.born+tr.frames.length-1)/60);
+        tK.push({time:lt2,x:r2(lf.x),y:r2(lf.y)});
+        rK.push({time:lt2,value:r2(lf.rot)});
+        sK.push({time:lt2,x:r3(lf.s/w),y:r3(lf.s/h)});
+        var ah2=Math.round(lf.a*255).toString(16);if(ah2.length<2)ah2='0'+ah2;
+        aK.push({time:lt2,color:'ffffff'+ah2});
+      }
+    }
+    var deadT=r3((tr.born+tr.frames.length)/60);
+    atK.push({time:deadT,name:null});
+    anim.bones[bn]={translate:tK,rotate:rK,scale:sK};
+    anim.slots[bn]={attachment:atK,rgba:aK};
+  });
+  json.animations['particles']=anim;
+
+  var name=(document.getElementById('expName').value||'particles').trim();
+  var blob=new Blob([JSON.stringify(json)],{type:'application/json'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name+'.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ── Main loop ─────────────────────────────────────────────
