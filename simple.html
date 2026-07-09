@@ -46,6 +46,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row" id="rateRow"><label>Rate /s</label><input type="range" id="rate" min="1" max="500" value="60" oninput="sync(this)"><span class="val">60</span></div>
   <div class="row"><label>Max count</label><input type="range" id="maxCount" min="1" max="2000" value="200" oninput="sync(this)"><span class="val">200</span></div>
   <button class="btn accent" id="burstBtn" style="display:none" onclick="doBurst()">💥 Burst!</button>
+  <div class="row"><label>Shape</label><select id="emitShape"><option value="point">Point</option><option value="box" selected>Box</option><option value="circle">Circle (filled)</option><option value="ring">Ring (edge)</option><option value="line">Line</option></select></div>
   <div class="row"><label>Emitter W</label><input type="range" id="emitW" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Emitter H</label><input type="range" id="emitH" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Lifetime s</label><input type="range" id="life" min="0.2" max="10" step="0.1" value="2.5" oninput="sync(this)"><span class="val">2.5</span></div>
@@ -66,6 +67,14 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Spin °/s</label><input type="range" id="spin" min="-720" max="720" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Fade out</label><input type="range" id="fade" min="0" max="1" step="0.05" value="0.5" oninput="sync(this)"><span class="val">0.5</span></div>
   <div class="row"><label>Blend</label><select id="blend"><option value="source-over">Normal</option><option value="lighter">Additive</option></select></div>
+
+  <h2>Randomness</h2>
+  <div class="row"><label>Master %</label><input type="range" id="randAll" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Life ±%</label><input type="range" id="randLife" min="0" max="100" value="25" oninput="sync(this)"><span class="val">25</span></div>
+  <div class="row"><label>Spin ±%</label><input type="range" id="randSpin" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Gravity ±%</label><input type="range" id="randGrav" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Scale ±%</label><input type="range" id="randScale" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Fade ±%</label><input type="range" id="randFade" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
 
   <h2>Playback</h2>
   <div class="row"><label>Loop</label><input type="checkbox" id="loopOn" onchange="restartLoop()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">fixed length, repeats</span></div>
@@ -99,6 +108,7 @@ function resetDefaults(){
   for(var id in DEFAULTS){var el=document.getElementById(id);el.value=DEFAULTS[id];sync(el);}
   document.getElementById('blend').value='source-over';
   document.getElementById('mode').value='cont';
+  document.getElementById('emitShape').value='box';
   onModeChange();
 }
 function onModeChange(){
@@ -183,15 +193,29 @@ function spawn(){
   var sel=textures.filter(function(t){return t.sel;});
   if(!sel.length)return;
   var tex=sel[(rng()*sel.length)|0].img;
-  var a=(V('angle')+ (rng()-0.5)*V('spread'))*Math.PI/180;
-  var sp=V('speed')+(rng()-0.5)*2*V('speedVar');
-  var sz=Math.max(1,V('size')+(rng()-0.5)*2*V('sizeVar'));
+  // jitter helper: ±pct% variation, boosted by Master randomness
+  var master=V('randAll')/100;
+  function jit(val,pct){var p=Math.min(1,pct/100+master);return val*(1+(rng()-0.5)*2*p);}
+  var a=(V('angle')+ (rng()-0.5)*(V('spread')+master*180))*Math.PI/180;
+  var sp=jit(V('speed'),0)+(rng()-0.5)*2*V('speedVar');
+  var sz=Math.max(1,jit(V('size'),0)+(rng()-0.5)*2*V('sizeVar'));
+  // emitter shape offset
+  var ox=0,oy=0,ew=V('emitW'),eh=V('emitH');
+  switch(document.getElementById('emitShape').value){
+    case 'point': break;
+    case 'box':    ox=(rng()-0.5)*ew; oy=(rng()-0.5)*eh; break;
+    case 'circle': {var t2=rng()*Math.PI*2,r2=Math.sqrt(rng()); ox=Math.cos(t2)*r2*ew/2; oy=Math.sin(t2)*r2*eh/2; break;}
+    case 'ring':   {var t3=rng()*Math.PI*2; ox=Math.cos(t3)*ew/2; oy=Math.sin(t3)*eh/2; break;}
+    case 'line':   ox=(rng()-0.5)*ew; oy=0; break;
+  }
   particles.push({
-    x:emitX+(rng()-0.5)*V('emitW'),
-    y:emitY+(rng()-0.5)*V('emitH'),
+    x:emitX+ox, y:emitY+oy,
     vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
-    rot:rng()*360, spin:V('spin')*(rng()<0.5?-1:1),
-    size:sz, age:0, life:V('life')*(0.75+rng()*0.5),
+    rot:rng()*360, spin:jit(V('spin'),V('randSpin'))*(rng()<0.5?-1:1),
+    size:sz, age:0, life:Math.max(0.05,jit(V('life'),V('randLife'))),
+    gravMul:Math.max(0,jit(1,V('randGrav'))),
+    endScaleMul:Math.max(0,jit(1,V('randScale'))),
+    fadeMul:Math.max(0.01,jit(1,V('randFade'))),
     tex:tex
   });
 }
@@ -229,7 +253,8 @@ function loop(now){
       var p=particles[i];
       p.age+=dt;
       if(p.age>=p.life){particles.splice(i,1);continue;}
-      p.vx+=gx*dt;p.vy+=gy*dt;
+      var gm=p.gravMul||1;
+      p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
       if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;}
       p.x+=p.vx*dt;p.y+=p.vy*dt;
       p.rot+=p.spin*dt;
@@ -245,8 +270,10 @@ function loop(now){
   var fadeStart=1-V('fade'),endScale=V('endScale');
   for(var j=0;j<particles.length;j++){
     var q=particles[j],t=q.age/q.life;
-    var alpha=t<fadeStart?1:(fadeStart>=1?1:1-(t-fadeStart)/(1-fadeStart));
-    var scale=1+(endScale-1)*t;
+    var fs=1-Math.min(1,(1-fadeStart)*(q.fadeMul||1));
+    var alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
+    var es=endScale*(q.endScaleMul||1);
+    var scale=1+(es-1)*t;
     var s=q.size*scale;
     if(s<0.5||alpha<=0)continue;
     ctx.globalAlpha=alpha;
@@ -261,8 +288,20 @@ function loop(now){
   ctx.globalAlpha=0.6;
   ctx.strokeStyle='#f90';
   ctx.lineWidth=1;
-  var ew=V('emitW'),eh=V('emitH');
-  ctx.strokeRect(emitX-ew/2,emitY-eh/2,Math.max(ew,6),Math.max(eh,6));
+  var ew=Math.max(V('emitW'),6),eh=Math.max(V('emitH'),6);
+  var shp=document.getElementById('emitShape').value;
+  ctx.beginPath();
+  if(shp==='circle'||shp==='ring'){
+    ctx.ellipse(emitX,emitY,ew/2,eh/2,0,0,Math.PI*2);
+  }else if(shp==='line'){
+    ctx.moveTo(emitX-ew/2,emitY);ctx.lineTo(emitX+ew/2,emitY);
+  }else if(shp==='point'){
+    ctx.moveTo(emitX-5,emitY);ctx.lineTo(emitX+5,emitY);
+    ctx.moveTo(emitX,emitY-5);ctx.lineTo(emitX,emitY+5);
+  }else{
+    ctx.rect(emitX-ew/2,emitY-eh/2,ew,eh);
+  }
+  ctx.stroke();
 }
 resize();
 requestAnimationFrame(loop);
