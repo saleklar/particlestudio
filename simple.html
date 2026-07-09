@@ -68,7 +68,11 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Blend</label><select id="blend"><option value="source-over">Normal</option><option value="lighter">Additive</option></select></div>
 
   <h2>Playback</h2>
+  <div class="row"><label>Loop</label><input type="checkbox" id="loopOn" onchange="restartLoop()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">fixed length, repeats</span></div>
+  <div class="row"><label>Frames</label><input type="range" id="totFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
+  <div class="row"><label>Frame</label><span id="frameInfo" style="color:#f0c050;font-family:monospace;font-size:11px">–</span></div>
   <button class="btn" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
+  <button class="btn" onclick="restartLoop()">↩ Restart Loop</button>
   <button class="btn" onclick="particles.length=0">✕ Clear Particles</button>
   <button class="btn accent" onclick="resetDefaults()">↺ Reset Settings</button>
 </div>
@@ -157,13 +161,20 @@ rebuildGallery();
 
 // ── Emitter position (click / drag) ───────────────────────
 var emitX=null,emitY=null,dragging=false;
-cv.addEventListener('pointerdown',function(e){dragging=true;setEmit(e);if(document.getElementById('mode').value==='burst')doBurst();});
+cv.addEventListener('pointerdown',function(e){dragging=true;setEmit(e);if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}});
 cv.addEventListener('pointermove',function(e){if(dragging)setEmit(e);});
 window.addEventListener('pointerup',function(){dragging=false;});
 function setEmit(e){var r=cv.getBoundingClientRect();emitX=e.clientX-r.left;emitY=e.clientY-r.top;}
 
 // ── Particles ─────────────────────────────────────────────
-var particles=[],spawnAcc=0,paused=false;
+// Seeded RNG so every loop repeat is identical
+var _seed=1;
+function rng(){_seed=(_seed*1103515245+12345)%2147483648;return _seed/2147483648;}
+var particles=[],spawnAcc=0,paused=false,loopTime=0;
+function restartLoop(){
+  particles.length=0;spawnAcc=0;loopTime=0;_seed=1;
+  if(document.getElementById('loopOn').checked&&document.getElementById('mode').value==='burst')doBurst();
+}
 function togglePause(){
   paused=!paused;
   document.getElementById('pauseBtn').textContent=paused?'▶ Play':'⏸ Pause';
@@ -171,16 +182,16 @@ function togglePause(){
 function spawn(){
   var sel=textures.filter(function(t){return t.sel;});
   if(!sel.length)return;
-  var tex=sel[(Math.random()*sel.length)|0].img;
-  var a=(V('angle')+ (Math.random()-0.5)*V('spread'))*Math.PI/180;
-  var sp=V('speed')+(Math.random()-0.5)*2*V('speedVar');
-  var sz=Math.max(1,V('size')+(Math.random()-0.5)*2*V('sizeVar'));
+  var tex=sel[(rng()*sel.length)|0].img;
+  var a=(V('angle')+ (rng()-0.5)*V('spread'))*Math.PI/180;
+  var sp=V('speed')+(rng()-0.5)*2*V('speedVar');
+  var sz=Math.max(1,V('size')+(rng()-0.5)*2*V('sizeVar'));
   particles.push({
-    x:emitX+(Math.random()-0.5)*V('emitW'),
-    y:emitY+(Math.random()-0.5)*V('emitH'),
+    x:emitX+(rng()-0.5)*V('emitW'),
+    y:emitY+(rng()-0.5)*V('emitH'),
     vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
-    rot:Math.random()*360, spin:V('spin')*(Math.random()<0.5?-1:1),
-    size:sz, age:0, life:V('life')*(0.75+Math.random()*0.5),
+    rot:rng()*360, spin:V('spin')*(rng()<0.5?-1:1),
+    size:sz, age:0, life:V('life')*(0.75+rng()*0.5),
     tex:tex
   });
 }
@@ -196,6 +207,16 @@ function loop(now){
   if(!cv.width)resize();
   if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   if(!paused){
+    var looping=document.getElementById('loopOn').checked;
+    if(looping){
+      loopTime+=dt;
+      var totF=Math.round(V('totFrames'));
+      var curF=Math.floor(loopTime*60);
+      if(curF>=totF){restartLoop();curF=0;}
+      document.getElementById('frameInfo').textContent=curF+' / '+totF;
+    }else{
+      document.getElementById('frameInfo').textContent='\u2013';
+    }
     // spawn (continuous mode only, capped at Max count live particles)
     if(document.getElementById('mode').value==='cont'){
       spawnAcc+=V('rate')*dt;
