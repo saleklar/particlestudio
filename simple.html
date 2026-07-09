@@ -127,7 +127,10 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div style="font-size:10px;color:#666;margin-bottom:4px">Max keyframes per particle for each channel (Bézier eased). Higher tolerance = fewer keys before the cap.</div>
   <div class="row"><label>Bone budget</label><input type="range" id="boneBudget" min="0" max="300" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:4px">Bones are pooled — when a particle dies its bone is recycled for the next spawn, so bone count ≈ peak concurrent particles, not total. 0 = no cap; &gt;0 drops particles that would exceed the budget.</div>
-  <div class="row"><label>Intro/Outro</label><input type="checkbox" id="introOutro" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">export 3 animations (needs Loop)</span></div>
+  <div class="row"><label>Animations</label><select id="animMode"><option value="single">Single animation</option><option value="trio">Intro + Loop + Outro</option></select></div>
+  <div class="row"><label>Intro frames</label><input type="range" id="introFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
+  <div class="row"><label>Outro frames</label><input type="range" id="outroFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:4px">Single: one animation (loops seamlessly if Loop is on). Trio: three seamless animations in one skeleton — needs Loop. Loop length = Frames (Playback).</div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -602,15 +605,22 @@ function exportSpine(){
   }
   var dt=1/30,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
   var fadeVal=V('fade'),endScale=V('endScale');
-  if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
-  // loop mode: keep simulating past the end (no new spawns) so particles that
-  // outlive the loop get their tail recorded — it is wrapped to the start below.
-  // intro/outro mode: run until every particle has died so the outro is complete.
-  var introOutro=looping&&document.getElementById('introOutro').checked;
-  var endF=looping?(introOutro?totF+1800:totF*2):totF;
+  // trio mode: pre-roll whole cycles so the intro window [L-iF, L] exists and
+  // the sim is at steady state when the recorded loop cycle [L, L+totF] begins
+  var introOutro=looping&&document.getElementById('animMode').value==='trio';
+  var iF=introOutro?Math.round(V('introFrames')):totF;
+  var oF=introOutro?Math.round(V('outroFrames')):0;
+  var L=introOutro?Math.max(1,Math.ceil(iF/totF))*totF:0;
+  var spawnEnd=L+totF;
+  var endF=introOutro?L+totF+oF:(looping?totF*2:totF);
   for(curF=0;curF<=endF;curF++){
-    if(mode==='cont'&&curF<totF){
-      spawnAcc+=V('rate')*sampleRateCurve(curF/totF)*dt;
+    // cycle restart — same soft reset the live preview does on loop wrap
+    if(curF<spawnEnd&&curF%totF===0){
+      _seed=1;spawnAcc=0;
+      if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
+    }
+    if(mode==='cont'&&curF<spawnEnd){
+      spawnAcc+=V('rate')*sampleRateCurve((curF%totF)/totF)*dt;
       var cap=Math.round(V('maxCount')),before=particles.length;
       while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
       tagNew(before);
@@ -638,10 +648,12 @@ function exportSpine(){
       if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
       q.x+=q.vx*dt;q.y+=q.vy*dt;q.rot+=q.spin*dt;
     }
-    if(looping&&curF>=totF&&!particles.length)break;
+    if(curF>=spawnEnd&&!particles.length)break;
   }
   // restore live state
   particles=_p;spawnAcc=_sa;_seed=_ss;loopTime=_lt;
+  // re-express births relative to the recorded loop cycle start
+  tracks.forEach(function(tr){tr.born-=L;});
 
   // build skeleton json
   var json={
@@ -707,22 +719,28 @@ function exportSpine(){
     return [r3(t0+dt3),r2(vals[i0]+s0*dt3),r3(t1-dt3),r2(vals[i1]-s1*dt3)];
   }
 
-  // ── Build per-animation segment lists ──
-  // A particle alive at the loop end continues from the loop start, so:
-  //   intro = spawns from empty, survivors run to the intro end (= loop time 0)
-  //   loop  = main parts + tails wrapped to the start (seamless on its own)
-  //   outro = the survivors' remaining frames played to death, no new spawns
+  // ── Build per-animation segment lists (births relative to loop start) ──
+  //   intro = window [-iF, 0]: build-up, survivors run to intro end (= loop time 0)
+  //   loop  = births in [0, totF): main parts + tails wrapped to the start
+  //   outro = loop survivors' remaining frames, cut at oF, no new spawns
   var budget=Math.round(V('boneBudget')); // 0 = unlimited (auto = peak concurrent)
   function trackUnits(kind){
     var units=[],seq=0;
     tracks.forEach(function(tr){
       seq++;
       if(!tr.frames.length)return;
-      var cut=totF-tr.born,crosses=tr.frames.length-1>cut;
+      var len=tr.frames.length;
+      var cut=totF-tr.born,crosses=len-1>cut;
       if(kind==='intro'){
-        if(crosses)units.push([{born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true,ord:tr.born,seq:seq}]);
-        else units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
+        if(tr.born>=0)return;                    // loop-cycle spawns are not in the intro
+        var s0=Math.max(0,-iF-tr.born);          // first frame inside the intro window
+        if(s0>=len)return;
+        var crossesZero=len-1>-tr.born;
+        var e0=crossesZero?-tr.born+1:len;       // include the frame at loop time 0
+        if(e0<=s0)return;
+        units.push([{born:tr.born+s0+iF,frames:tr.frames.slice(s0,e0),img:tr.img,texName:tr.texName,reachEnd:crossesZero,ord:tr.born+s0,seq:seq}]);
       }else if(kind==='loop'){
+        if(tr.born<0)return;                     // intro survivors = the wrapped tails
         if(crosses){
           var wrapFrames=tr.frames.slice(cut);
           if(wrapFrames.length>totF)wrapFrames=wrapFrames.slice(0,totF); // one wrap max
@@ -732,7 +750,12 @@ function exportSpine(){
           ]);
         }else units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
       }else if(kind==='outro'){
-        if(crosses)units.push([{born:0,frames:tr.frames.slice(cut),img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}]);
+        if(tr.born<0)return;
+        if(crosses){
+          var tail=tr.frames.slice(cut);
+          if(tail.length>oF)tail=tail.slice(0,oF); // cut at outro end (hide key lands there)
+          units.push([{born:0,frames:tail,img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}]);
+        }
       }else{ // single (loop off)
         units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
       }
@@ -883,7 +906,7 @@ function exportSpine(){
   else animDefs=[{name:'particles',kind:'single',isLoop:false}];
   var droppedN=0,keptN=0,maxBones=0;
   animDefs.forEach(function(d){
-    d.pooled=poolUnits(trackUnits(d.kind),totF);
+    d.pooled=poolUnits(trackUnits(d.kind),d.kind==='intro'?iF:totF);
     maxBones=Math.max(maxBones,d.pooled.bonesArr.length);
     if(d.kind!=='outro'&&d.kind!=='intro'){droppedN=d.pooled.dropped;keptN=d.pooled.kept;}
   });
@@ -916,7 +939,7 @@ function exportSpine(){
   // report pooling result
   var hintEl=document.getElementById('hint');
   if(!window._hintDefault)window._hintDefault=hintEl.textContent;
-  hintEl.textContent='Exported '+keptN+' particles → '+maxBones+' bones ('+(introOutro?'intro + loop + outro · seamless':looping?'pooled · seamless loop':'pooled')+')'+(droppedN?' · '+droppedN+' dropped by budget':'');
+  hintEl.textContent='Exported '+keptN+' particles → '+maxBones+' bones ('+(introOutro?'intro '+iF+'f + loop '+totF+'f + outro '+oF+'f · seamless':looping?'pooled · seamless loop':'pooled')+')'+(droppedN?' · '+droppedN+' dropped by budget':'');
   clearTimeout(window._hintTimer);
   window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
 }
@@ -938,7 +961,7 @@ function exportPNGSeq(){
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
   function pad(n){return ('0000'+n).slice(-4);}
-  function renderFrame(idx){
+  function renderFrame(prefix,idx){
     og.setTransform(1,0,0,1,0,0);
     og.globalCompositeOperation='source-over';og.globalAlpha=1;
     og.clearRect(0,0,oc.width,oc.height);
@@ -967,39 +990,47 @@ function exportPNGSeq(){
       og.restore();
     }
     var b=dataURLBytes(oc.toDataURL('image/png'));
-    if(b)files.push({name:name+'_'+pad(idx)+'.png',data:b});
+    if(b)files.push({name:name+(prefix?'_'+prefix:'')+'_'+pad(idx)+'.png',data:b});
   }
-  // loop mode: pre-roll one full cycle (not captured) so frame 0 already
-  // contains wrapped particles — the captured cycle tiles seamlessly
-  var cycles=looping?2:1;
-  for(var cyc=0;cyc<cycles;cyc++){
-    var capture=cyc===cycles-1;
-    if(mode==='burst')doBurst();
-    var lastF=looping?totF-1:totF;
-    for(var f=0;f<=lastF;f++){
-      if(mode==='cont'&&f<totF){
-        spawnAcc+=V('rate')*sampleRateCurve(f/totF)*dt;
-        var cap=Math.round(V('maxCount'));
-        while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
-      }
-      if(capture)renderFrame(f);
-      for(var i2=particles.length-1;i2>=0;i2--){
-        var q2=particles[i2];q2.age+=dt;
-        if(q2.age>=q2.life){particles.splice(i2,1);continue;}
-        var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
-        if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
-        q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.rot+=q2.spin*dt;
-      }
+  // same timeline as the Spine export: pre-roll whole cycles (uncaptured) so
+  // the intro window exists and loop frame 0 already contains wrapped particles
+  var introOutro=looping&&document.getElementById('animMode').value==='trio';
+  var iF=introOutro?Math.round(V('introFrames')):totF;
+  var oF=introOutro?Math.round(V('outroFrames')):0;
+  var L=introOutro?Math.max(1,Math.ceil(iF/totF))*totF:(looping?totF:0);
+  var spawnEnd=L+totF;
+  var endF=introOutro?L+totF+oF-1:(looping?L+totF-1:totF);
+  for(var g=0;g<=endF;g++){
+    if(g<spawnEnd&&g%totF===0){
+      _seed=1;spawnAcc=0;
+      if(mode==='burst')doBurst();
     }
-    // loop wrap — same as live soft restart: keep particles, reset seed
-    spawnAcc=0;_seed=1;
+    if(mode==='cont'&&g<spawnEnd){
+      spawnAcc+=V('rate')*sampleRateCurve((g%totF)/totF)*dt;
+      var cap=Math.round(V('maxCount'));
+      while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
+    }
+    if(introOutro){
+      if(g>=L-iF&&g<L)renderFrame('intro',g-(L-iF));
+      else if(g>=L&&g<L+totF)renderFrame('loop',g-L);
+      else if(g>=L+totF)renderFrame('outro',g-L-totF);
+    }else if(looping){
+      if(g>=L)renderFrame('',g-L);
+    }else renderFrame('',g);
+    for(var i2=particles.length-1;i2>=0;i2--){
+      var q2=particles[i2];q2.age+=dt;
+      if(q2.age>=q2.life){particles.splice(i2,1);continue;}
+      var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
+      if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
+      q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.rot+=q2.spin*dt;
+    }
   }
   // restore live state
   particles=_p;spawnAcc=_sa;_seed=_ss;loopTime=_lt;
   downloadZip(name+'_png.zip',files);
   var hintEl=document.getElementById('hint');
   if(!window._hintDefault)window._hintDefault=hintEl.textContent;
-  hintEl.textContent='Exported '+files.length+' PNG frames ('+oc.width+'×'+oc.height+(looping?', seamless loop':'')+')';
+  hintEl.textContent='Exported '+files.length+' PNG frames ('+oc.width+'×'+oc.height+(introOutro?', intro/loop/outro':looping?', seamless loop':'')+')';
   clearTimeout(window._hintTimer);
   window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
 }
@@ -1349,7 +1380,10 @@ var TIPS={
   maxKeysAlpha:'Max alpha keyframes per particle in the Spine export.',
   optTol:'Keyframe reduction aggressiveness. Higher = fewer keys (rougher), lower = more keys (more faithful).',
   boneBudget:'Max bones in the export. Bones are recycled when particles die, so you need about as many as the peak alive count. 0 = automatic. If the budget is too small, excess particles are dropped.',
-  introOutro:'Export three animations sharing one skeleton: intro (builds up from empty), loop (seamless on its own) and outro (dies out to empty). Play intro \u2192 loop \u00d7N \u2192 outro with 0 mix duration for seamless transitions. Requires Loop.',
+  introOutro:'',
+  animMode:'Single: exports one animation (seamlessly looping if Loop is on). Intro + Loop + Outro: three animations sharing one skeleton \u2014 intro builds up, loop repeats seamlessly, outro dies out. Play them back to back with 0 mix duration. Trio needs Loop enabled.',
+  introFrames:'Intro length in frames (30 fps, trio only). The intro ends exactly at the loop start state. Make it at least Lifetime \u00d7 30 so it can build up from empty \u2014 shorter intros start already populated.',
+  outroFrames:'Outro length in frames (30 fps, trio only). Surviving particles play out and die. Make it at least Lifetime \u00d7 30 to let everything die naturally \u2014 shorter outros cut particles off at the end.',
   expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
 };
 var BTN_TIPS=[
