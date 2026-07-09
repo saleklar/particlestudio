@@ -135,7 +135,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 
 <div id="stage">
   <canvas id="cv"></canvas>
-  <div id="hint">Click or drag on canvas to move the emitter · Burst mode: click canvas fires a burst</div>
+  <div id="hint">Click/drag: move emitter · Wheel: zoom · Middle/right-drag or Space+drag: pan · Double-click: reset view</div>
   <div id="fps"></div>
 </div>
 
@@ -432,12 +432,48 @@ function applyPreset(){
   if(p.mode==='burst'&&!document.getElementById('loopOn').checked)doBurst();
 }
 
+// ── Camera (pan/zoom) ─────────────────────────────────
+var camX=0,camY=0,camZ=1;          // world offset + zoom
+var panning=false,panSX=0,panSY=0,panCX=0,panCY=0,spaceHeld=false;
+function toWorld(px,py){return {x:(px-camX)/camZ,y:(py-camY)/camZ};}
+window.addEventListener('keydown',function(e){if(e.code==='Space'&&document.activeElement.tagName!=='INPUT'){spaceHeld=true;e.preventDefault();cv.style.cursor='grab';}});
+window.addEventListener('keyup',function(e){if(e.code==='Space'){spaceHeld=false;cv.style.cursor='crosshair';}});
+cv.addEventListener('wheel',function(e){
+  e.preventDefault();
+  var r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+  var f=e.deltaY<0?1.15:1/1.15;
+  var nz=Math.max(0.1,Math.min(10,camZ*f));
+  f=nz/camZ;
+  camX=mx-(mx-camX)*f;
+  camY=my-(my-camY)*f;
+  camZ=nz;
+},{passive:false});
+function resetView(){camX=0;camY=0;camZ=1;}
+
 // ── Emitter position (click / drag) ───────────────────────
 var emitX=null,emitY=null,dragging=false;
-cv.addEventListener('pointerdown',function(e){dragging=true;setEmit(e);if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}});
-cv.addEventListener('pointermove',function(e){if(dragging)setEmit(e);});
-window.addEventListener('pointerup',function(){dragging=false;});
-function setEmit(e){var r=cv.getBoundingClientRect();emitX=e.clientX-r.left;emitY=e.clientY-r.top;}
+cv.addEventListener('pointerdown',function(e){
+  var isPan=e.button===1||e.button===2||spaceHeld;
+  if(isPan){
+    panning=true;panSX=e.clientX;panSY=e.clientY;panCX=camX;panCY=camY;
+    cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';
+    e.preventDefault();return;
+  }
+  dragging=true;setEmit(e);
+  if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}
+});
+cv.addEventListener('pointermove',function(e){
+  if(panning){camX=panCX+(e.clientX-panSX);camY=panCY+(e.clientY-panSY);return;}
+  if(dragging)setEmit(e);
+});
+window.addEventListener('pointerup',function(){dragging=false;if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+cv.addEventListener('contextmenu',function(e){e.preventDefault();});
+cv.addEventListener('dblclick',function(e){resetView();});
+function setEmit(e){
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top);
+  emitX=w.x;emitY=w.y;
+}
 
 // ── Particles ─────────────────────────────────────────────
 // Seeded RNG so every loop repeat is identical
@@ -857,6 +893,8 @@ function loop(now){
   ctx.globalAlpha=1;
   ctx.fillStyle='#111';
   ctx.fillRect(0,0,cv.width,cv.height);
+  // camera transform for world content
+  ctx.setTransform(camZ,0,0,camZ,camX,camY);
   // reference background (never exported)
   if(bgImg){
     ctx.globalAlpha=V('bgOpacity');
@@ -900,7 +938,7 @@ function loop(now){
   ctx.globalCompositeOperation='source-over';
   ctx.globalAlpha=0.6;
   ctx.strokeStyle='#f90';
-  ctx.lineWidth=1;
+  ctx.lineWidth=1/camZ;
   var ew=Math.max(V('emitW'),6),eh=Math.max(V('emitH'),6);
   var shp=document.getElementById('emitShape').value;
   ctx.beginPath();
@@ -915,6 +953,13 @@ function loop(now){
     ctx.rect(emitX-ew/2,emitY-eh/2,ew,eh);
   }
   ctx.stroke();
+  // zoom badge (screen space)
+  ctx.setTransform(1,0,0,1,0,0);
+  if(Math.abs(camZ-1)>0.001||camX!==0||camY!==0){
+    ctx.globalAlpha=0.7;ctx.fillStyle='#888';ctx.font='10px monospace';
+    ctx.fillText(Math.round(camZ*100)+'%  (dbl-click to reset)',8,14);
+    ctx.globalAlpha=1;
+  }
 }
 resize();
 requestAnimationFrame(loop);
