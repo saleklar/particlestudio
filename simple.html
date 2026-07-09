@@ -99,6 +99,13 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Scale ±%</label><input type="range" id="randScale" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Fade ±%</label><input type="range" id="randFade" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
 
+  <h2>Background</h2>
+  <label class="btn">🖼 Load Reference…<input type="file" accept="image/*" style="display:none" onchange="loadBg(this)"></label>
+  <div class="row"><label>Opacity</label><input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.5" oninput="sync(this)"><span class="val">0.5</span></div>
+  <div class="row"><label>Fit</label><select id="bgFit"><option value="contain">Fit (contain)</option><option value="cover">Fill (cover)</option><option value="stretch">Stretch</option><option value="center">Center 1:1</option></select></div>
+  <button class="btn" onclick="bgImg=null">✕ Clear Background</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Reference only — never included in the Spine export.</div>
+
   <h2>Playback</h2>
   <div class="row"><label>Loop</label><input type="checkbox" id="loopOn" onchange="restartLoop()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">fixed length, repeats</span></div>
   <div class="row"><label>Frames</label><input type="range" id="totFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
@@ -723,6 +730,21 @@ function downloadZip(zipName,files){
   URL.revokeObjectURL(a.href);
 }
 
+// ── Reference background ───────────────────────────────
+var bgImg=null;
+function loadBg(input){
+  var f=input.files[0];
+  if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    var img=new Image();
+    img.onload=function(){bgImg=img;};
+    img.src=r.result;
+  };
+  r.readAsDataURL(f);
+  input.value='';
+}
+
 // ── Project save / load ─────────────────────────────────
 function saveProject(){
   var proj={app:'particle-simple',version:1,
@@ -835,6 +857,20 @@ function loop(now){
   ctx.globalAlpha=1;
   ctx.fillStyle='#111';
   ctx.fillRect(0,0,cv.width,cv.height);
+  // reference background (never exported)
+  if(bgImg){
+    ctx.globalAlpha=V('bgOpacity');
+    var bw=bgImg.naturalWidth,bh=bgImg.naturalHeight,cw=cv.width,ch=cv.height;
+    var fit=document.getElementById('bgFit').value;
+    if(fit==='stretch'){ctx.drawImage(bgImg,0,0,cw,ch);}
+    else if(fit==='center'){ctx.drawImage(bgImg,(cw-bw)/2,(ch-bh)/2);}
+    else{
+      var sc=(fit==='cover')?Math.max(cw/bw,ch/bh):Math.min(cw/bw,ch/bh);
+      var dw=bw*sc,dh=bh*sc;
+      ctx.drawImage(bgImg,(cw-dw)/2,(ch-dh)/2,dw,dh);
+    }
+    ctx.globalAlpha=1;
+  }
   ctx.globalCompositeOperation=document.getElementById('blend').value;
   var fadeStart=1-V('fade'),endScale=V('endScale');
   for(var j=0;j<particles.length;j++){
