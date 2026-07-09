@@ -107,8 +107,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Export</h2>
   <div class="row"><label>FPS</label><span style="color:#f0c050;font-family:monospace;font-size:11px">30 (fixed)</span></div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
-  <button class="btn accent" onclick="exportSpine()">⬇ Export Spine JSON</button>
-  <div style="font-size:10px;color:#666;margin-top:2px">Bakes the loop (Frames setting) into bone keyframes. Put your particle PNGs next to the skeleton in Spine — attachment names match the image file names.</div>
+  <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
+  <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
 </div>
 
 <div id="stage">
@@ -559,11 +559,67 @@ function exportSpine(){
   });
   json.animations['particles']=anim;
 
+  // collect PNGs actually used in this export
+  var usedNames={};
+  tracks.forEach(function(tr){if(tr.frames.length)usedNames[tr.texName]=true;});
+  var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
-  var blob=new Blob([JSON.stringify(json)],{type:'application/json'});
+  files.push({name:name+'.json',data:strBytes(JSON.stringify(json))});
+  textures.forEach(function(t){
+    if(!usedNames[t.name])return;
+    var b=dataURLBytes(t.img.src);
+    if(b)files.push({name:'images/'+t.name+'.png',data:b});
+  });
+  downloadZip(name+'.zip',files);
+}
+
+// ── Tiny ZIP writer (stored, no compression) ──────────────
+function strBytes(s){return new TextEncoder().encode(s);}
+function dataURLBytes(src){
+  var m=src.match(/^data:[^;]+;base64,(.*)$/);
+  if(!m)return null;
+  var bin=atob(m[1]),arr=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);
+  return arr;
+}
+var _crcTable=(function(){
+  var t=new Uint32Array(256);
+  for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}
+  return t;
+})();
+function crc32(d){
+  var c=0xFFFFFFFF;
+  for(var i=0;i<d.length;i++)c=_crcTable[(c^d[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+function downloadZip(zipName,files){
+  var parts=[],central=[],offset=0;
+  files.forEach(function(f){
+    var nm=strBytes(f.name),d=f.data,crc=crc32(d);
+    var lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0,true);
+    lh.setUint16(8,0,true);lh.setUint16(10,0,true);lh.setUint16(12,0,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,d.length,true);lh.setUint32(22,d.length,true);
+    lh.setUint16(26,nm.length,true);lh.setUint16(28,0,true);
+    parts.push(lh.buffer,nm,d);
+    var ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);
+    ch.setUint16(8,0,true);ch.setUint16(10,0,true);ch.setUint16(12,0,true);ch.setUint16(14,0,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,d.length,true);ch.setUint32(24,d.length,true);
+    ch.setUint16(28,nm.length,true);ch.setUint16(30,0,true);ch.setUint16(32,0,true);
+    ch.setUint16(34,0,true);ch.setUint16(36,0,true);ch.setUint32(38,0,true);
+    ch.setUint32(42,offset,true);
+    central.push(ch.buffer,nm);
+    offset+=30+nm.length+d.length;
+  });
+  var cdSize=0;central.forEach(function(b){cdSize+=b.byteLength||b.length;});
+  var end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);
+  end.setUint32(12,cdSize,true);end.setUint32(16,offset,true);end.setUint16(20,0,true);
+  var blob=new Blob(parts.concat(central,[end.buffer]),{type:'application/zip'});
   var a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=name+'.json';
+  a.download=zipName;
   a.click();
   URL.revokeObjectURL(a.href);
 }
