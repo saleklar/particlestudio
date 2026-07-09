@@ -130,6 +130,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
+  <button class="btn" onclick="exportPNGSeq()">🏞 Export PNG Sequence</button>
+  <div style="font-size:10px;color:#666;margin-top:2px">Renders every frame (30 fps, transparent background) into a .zip of numbered PNGs. With Loop on, the sequence is pre-rolled one cycle so it tiles seamlessly.</div>
 
   <h2>Project</h2>
   <button class="btn" onclick="saveProject()">💾 Save Project…</button>
@@ -871,6 +873,89 @@ function exportSpine(){
   var hintEl=document.getElementById('hint');
   if(!window._hintDefault)window._hintDefault=hintEl.textContent;
   hintEl.textContent='Exported '+keptN+' particles → '+bonesArr.length+' bones ('+(looping?'pooled · seamless loop':'pooled')+')'+(droppedN?' · '+droppedN+' dropped by budget':'');
+  clearTimeout(window._hintTimer);
+  window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
+}
+
+// ── PNG sequence export ───────────────────────────
+function exportPNGSeq(){
+  if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
+  var totF=Math.round(V('totFrames'));
+  var mode=document.getElementById('mode').value;
+  var blend=document.getElementById('blend').value;
+  var looping=document.getElementById('loopOn').checked;
+  // save live state, run a deterministic headless re-sim (same seed as Spine export)
+  var _p=particles,_sa=spawnAcc,_ss=_seed,_lt=loopTime;
+  particles=[];spawnAcc=0;_seed=1;
+  var oc=document.createElement('canvas');oc.width=cv.width;oc.height=cv.height;
+  var og=oc.getContext('2d');
+  var dt=1/30,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
+  var fadeVal=V('fade'),endScale=V('endScale');
+  var files=[];
+  var name=(document.getElementById('expName').value||'particles').trim();
+  function pad(n){return ('0000'+n).slice(-4);}
+  function renderFrame(idx){
+    og.setTransform(1,0,0,1,0,0);
+    og.globalCompositeOperation='source-over';og.globalAlpha=1;
+    og.clearRect(0,0,oc.width,oc.height);
+    og.globalCompositeOperation=blend;
+    for(var j=0;j<particles.length;j++){
+      var q=particles[j],t=q.age/q.life;
+      var acv=alphaCurve.sample(t),alpha;
+      if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
+      else{
+        var fs=1-Math.min(1,fadeVal*(q.fadeMul||1));
+        alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
+      }
+      var scv=scaleCurve.sample(t),scale;
+      if(scv!==null){scale=scv*(q.endScaleMul||1);}
+      else{
+        var es=endScale*(q.endScaleMul||1);
+        scale=1+(es-1)*t;
+      }
+      var s=q.size*scale;
+      if(s<0.5||alpha<=0)continue;
+      og.globalAlpha=Math.max(0,Math.min(1,alpha));
+      og.save();
+      og.translate(q.x,q.y);
+      og.rotate(q.rot*Math.PI/180);
+      og.drawImage(q.tex,-s/2,-s/2,s,s);
+      og.restore();
+    }
+    var b=dataURLBytes(oc.toDataURL('image/png'));
+    if(b)files.push({name:name+'_'+pad(idx)+'.png',data:b});
+  }
+  // loop mode: pre-roll one full cycle (not captured) so frame 0 already
+  // contains wrapped particles — the captured cycle tiles seamlessly
+  var cycles=looping?2:1;
+  for(var cyc=0;cyc<cycles;cyc++){
+    var capture=cyc===cycles-1;
+    if(mode==='burst')doBurst();
+    var lastF=looping?totF-1:totF;
+    for(var f=0;f<=lastF;f++){
+      if(mode==='cont'&&f<totF){
+        spawnAcc+=V('rate')*sampleRateCurve(f/totF)*dt;
+        var cap=Math.round(V('maxCount'));
+        while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
+      }
+      if(capture)renderFrame(f);
+      for(var i2=particles.length-1;i2>=0;i2--){
+        var q2=particles[i2];q2.age+=dt;
+        if(q2.age>=q2.life){particles.splice(i2,1);continue;}
+        var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
+        if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
+        q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.rot+=q2.spin*dt;
+      }
+    }
+    // loop wrap — same as live soft restart: keep particles, reset seed
+    spawnAcc=0;_seed=1;
+  }
+  // restore live state
+  particles=_p;spawnAcc=_sa;_seed=_ss;loopTime=_lt;
+  downloadZip(name+'_png.zip',files);
+  var hintEl=document.getElementById('hint');
+  if(!window._hintDefault)window._hintDefault=hintEl.textContent;
+  hintEl.textContent='Exported '+files.length+' PNG frames ('+oc.width+'×'+oc.height+(looping?', seamless loop':'')+')';
   clearTimeout(window._hintTimer);
   window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
 }
