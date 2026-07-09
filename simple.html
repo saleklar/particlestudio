@@ -131,6 +131,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Intro frames</label><input type="range" id="introFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
   <div class="row"><label>Outro frames</label><input type="range" id="outroFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:4px">Single: one animation (loops seamlessly if Loop is on). Trio: three seamless animations in one skeleton — needs Loop. Loop length = Frames (Playback).</div>
+  <div class="row"><label>Spine ver.</label><select id="spineVer"><option value="4.2" selected>4.2</option><option value="4.1">4.1</option></select></div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -656,8 +657,9 @@ function exportSpine(){
   tracks.forEach(function(tr){tr.born-=L;});
 
   // build skeleton json
+  var spineVer=document.getElementById('spineVer').value==='4.1'?'4.1.17':'4.2.43';
   var json={
-    skeleton:{spine:'4.1.17',images:'./images/',fps:expFps,
+    skeleton:{spine:spineVer,images:'./images/',fps:expFps,
       hash:'simpleparticles',width:cv.width,height:cv.height},
     bones:[{name:'root'}],slots:[],
     skins:[{name:'default',attachments:{}}],
@@ -1384,6 +1386,7 @@ var TIPS={
   animMode:'Single: exports one animation (seamlessly looping if Loop is on). Intro + Loop + Outro: three animations sharing one skeleton \u2014 intro builds up, loop repeats seamlessly, outro dies out. Play them back to back with 0 mix duration. Trio needs Loop enabled.',
   introFrames:'Intro length in frames (30 fps, trio only). The intro ends exactly at the loop start state. Make it at least Lifetime \u00d7 30 so it can build up from empty \u2014 shorter intros start already populated.',
   outroFrames:'Outro length in frames (30 fps, trio only). Surviving particles play out and die. Make it at least Lifetime \u00d7 30 to let everything die naturally \u2014 shorter outros cut particles off at the end.',
+  spineVer:'Spine requires the JSON version to match your editor\u2019s major.minor version. Pick 4.2 for Spine 4.2.x, 4.1 for Spine 4.1.x. The data format is identical.',
   expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
 };
 var BTN_TIPS=[
