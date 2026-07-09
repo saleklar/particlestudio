@@ -885,7 +885,10 @@ function exportSpine(){
         act.forEach(function(s){desired.push(s.slot);});
         var offsets=[];
         for(var di=0;di<desired.length;di++)
-          if(desired[di]!==di)offsets.push({slot:'p'+desired[di],offset:di-desired[di]});
+          if(desired[di]!==di)offsets.push({idx:desired[di],offset:di-desired[di]});
+        // Spine's JSON reader requires offsets ordered by setup slot index
+        offsets.sort(function(a,b){return a.idx-b.idx;});
+        offsets=offsets.map(function(o){return {slot:'p'+o.idx,offset:o.offset};});
         var sig=JSON.stringify(offsets);
         if(sig===prevSig)return;
         prevSig=sig;
