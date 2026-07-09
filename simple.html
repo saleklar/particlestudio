@@ -38,9 +38,25 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 <div id="sidebar">
   <h1>Particle <span>Simple</span></h1>
 
+  <h2>Presets</h2>
+  <div class="row"><label>Preset</label><select id="presetSel">
+    <option value="">— choose —</option>
+    <option value="explosion">💥 Explosion</option>
+    <option value="burst">✨ Burst (ring)</option>
+    <option value="fountain">⛲ Fountain</option>
+    <option value="rain">🌧 Rain</option>
+    <option value="snow">❄ Snow</option>
+    <option value="smoke">💨 Smoke</option>
+    <option value="fire">🔥 Fire</option>
+    <option value="sparks">⚡ Sparks</option>
+    <option value="bubbles">🫧 Bubbles</option>
+  </select></div>
+  <button class="btn" onclick="applyPreset()">Apply Preset</button>
+
   <h2>Particle Image</h2>
   <label class="btn">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
   <div id="tex-gallery"></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too.</div>
 
   <h2>Emitter</h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
@@ -207,11 +223,12 @@ function rebuildGallery(){
   textures.forEach(function(t,i){
     var d=document.createElement('div');
     d.className='tex-thumb'+(t.sel?' sel':'');
+    d.title=t.name;
     d.onclick=function(){t.sel=!t.sel;ensureOneSelected();rebuildGallery();};
     var im=document.createElement('img');im.src=t.img.src;d.appendChild(im);
     if(textures.length>1){
       var x=document.createElement('div');x.className='x';x.textContent='✕';
-      x.onclick=function(e){e.stopPropagation();textures.splice(i,1);ensureOneSelected();rebuildGallery();};
+      x.onclick=function(e){e.stopPropagation();libDelete(t.name);textures.splice(i,1);ensureOneSelected();rebuildGallery();};
       d.appendChild(x);
     }
     gal.appendChild(d);
@@ -227,7 +244,11 @@ function loadImages(input){
     var r=new FileReader();
     r.onload=function(){
       var img=new Image();
-      img.onload=function(){textures.push({img:img,sel:true,name:nm});rebuildGallery();};
+      img.onload=function(){
+        textures.push({img:img,sel:true,name:nm});
+        rebuildGallery();
+        libSave(nm,r.result);
+      };
       img.src=r.result;
     };
     r.readAsDataURL(f);
@@ -236,6 +257,100 @@ function loadImages(input){
 }
 textures.push(defaultTexture());
 rebuildGallery();
+
+// ── Persistent image library (IndexedDB) ─────────────────
+var _db=null;
+(function(){
+  var req=indexedDB.open('particleSimpleLib',1);
+  req.onupgradeneeded=function(e){e.target.result.createObjectStore('images',{keyPath:'name'});};
+  req.onsuccess=function(e){
+    _db=e.target.result;
+    var tx=_db.transaction('images','readonly').objectStore('images').getAll();
+    tx.onsuccess=function(){
+      (tx.result||[]).forEach(function(rec){
+        if(textures.some(function(t){return t.name===rec.name;}))return;
+        var img=new Image();
+        img.onload=function(){textures.push({img:img,sel:false,name:rec.name});rebuildGallery();};
+        img.src=rec.data;
+      });
+    };
+  };
+})();
+function libSave(name,dataURL){
+  if(!_db)return;
+  try{_db.transaction('images','readwrite').objectStore('images').put({name:name,data:dataURL});}catch(e){}
+}
+function libDelete(name){
+  if(!_db)return;
+  try{_db.transaction('images','readwrite').objectStore('images').delete(name);}catch(e){}
+}
+
+// ── Presets ────────────────────────────────────────────
+var PRESETS={
+  explosion:{mode:'burst',maxCount:300,emitShape:'point',emitW:10,emitH:10,life:1.5,
+    speed:400,speedVar:250,angle:270,spread:360,gravY:300,gravX:0,drag:1.2,
+    size:30,sizeVar:15,endScale:0.1,spin:200,fade:0.7,blend:'lighter',
+    randAll:20,randLife:40,randSpin:60,randGrav:30,randScale:40,randFade:30,
+    loopOn:true,totFrames:90},
+  burst:{mode:'burst',maxCount:120,emitShape:'ring',emitW:60,emitH:60,life:1.2,
+    speed:300,speedVar:60,angle:270,spread:360,gravY:0,gravX:0,drag:1.5,
+    size:20,sizeVar:8,endScale:0,spin:0,fade:0.8,blend:'lighter',
+    randAll:10,randLife:25,randSpin:0,randGrav:0,randScale:20,randFade:20,
+    loopOn:true,totFrames:60},
+  fountain:{mode:'cont',rate:150,maxCount:600,emitShape:'point',emitW:10,emitH:10,life:2.5,
+    speed:500,speedVar:80,angle:270,spread:30,gravY:400,gravX:0,drag:0,
+    size:20,sizeVar:8,endScale:0.4,spin:0,fade:0.5,blend:'source-over',
+    randAll:5,randLife:25,randSpin:0,randGrav:10,randScale:20,randFade:10,
+    loopOn:false,totFrames:180},
+  rain:{mode:'cont',rate:300,maxCount:900,emitShape:'line',emitW:1200,emitH:0,life:2,
+    speed:600,speedVar:100,angle:95,spread:5,gravY:400,gravX:0,drag:0,
+    size:12,sizeVar:4,endScale:1,spin:0,fade:0.1,blend:'source-over',
+    randAll:0,randLife:15,randSpin:0,randGrav:10,randScale:10,randFade:0,
+    loopOn:false,totFrames:120,emitTop:true},
+  snow:{mode:'cont',rate:60,maxCount:500,emitShape:'line',emitW:1200,emitH:0,life:8,
+    speed:50,speedVar:25,angle:90,spread:40,gravY:25,gravX:10,drag:0.3,
+    size:14,sizeVar:8,endScale:0.9,spin:60,fade:0.25,blend:'source-over',
+    randAll:15,randLife:30,randSpin:80,randGrav:40,randScale:30,randFade:20,
+    loopOn:false,totFrames:300,emitTop:true},
+  smoke:{mode:'cont',rate:40,maxCount:200,emitShape:'circle',emitW:60,emitH:20,life:4,
+    speed:80,speedVar:30,angle:270,spread:25,gravY:-60,gravX:0,drag:0.4,
+    size:60,sizeVar:25,endScale:2.5,spin:30,fade:0.7,blend:'source-over',
+    randAll:15,randLife:35,randSpin:70,randGrav:20,randScale:40,randFade:30,
+    loopOn:false,totFrames:240},
+  fire:{mode:'cont',rate:120,maxCount:400,emitShape:'circle',emitW:80,emitH:20,life:1.2,
+    speed:120,speedVar:50,angle:270,spread:20,gravY:-250,gravX:0,drag:0.5,
+    size:40,sizeVar:18,endScale:0.15,spin:40,fade:0.6,blend:'lighter',
+    randAll:20,randLife:35,randSpin:50,randGrav:25,randScale:30,randFade:25,
+    loopOn:false,totFrames:120},
+  sparks:{mode:'cont',rate:80,maxCount:300,emitShape:'point',emitW:6,emitH:6,life:0.8,
+    speed:450,speedVar:200,angle:270,spread:70,gravY:800,gravX:0,drag:0.8,
+    size:8,sizeVar:4,endScale:0.2,spin:0,fade:0.4,blend:'lighter',
+    randAll:15,randLife:40,randSpin:0,randGrav:20,randScale:20,randFade:20,
+    loopOn:false,totFrames:120},
+  bubbles:{mode:'cont',rate:25,maxCount:150,emitShape:'box',emitW:300,emitH:20,life:5,
+    speed:60,speedVar:30,angle:90,spread:20,gravY:-50,gravX:0,drag:0.2,
+    size:22,sizeVar:14,endScale:1.4,spin:0,fade:0.3,blend:'source-over',
+    randAll:15,randLife:35,randSpin:0,randGrav:35,randScale:40,randFade:25,
+    loopOn:false,totFrames:240}
+};
+function applyPreset(){
+  var key=document.getElementById('presetSel').value;
+  var p=PRESETS[key];
+  if(!p)return;
+  for(var k in p){
+    var el=document.getElementById(k);
+    if(!el)continue;
+    if(el.type==='checkbox')el.checked=p[k];
+    else{el.value=p[k];if(el.type==='range')sync(el);}
+  }
+  onModeChange();
+  // rain/snow: put emitter at top of canvas
+  if(p.emitTop){emitX=cv.width/2;emitY=-10;}
+  else if(p.mode==='cont'){emitX=cv.width/2;emitY=cv.height*0.65;}
+  else{emitX=cv.width/2;emitY=cv.height/2;}
+  restartLoop();
+  if(p.mode==='burst'&&!document.getElementById('loopOn').checked)doBurst();
+}
 
 // ── Emitter position (click / drag) ───────────────────────
 var emitX=null,emitY=null,dragging=false;
