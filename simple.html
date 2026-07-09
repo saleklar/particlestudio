@@ -102,8 +102,9 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Background</h2>
   <label class="btn">🖼 Load Reference…<input type="file" accept="image/*" style="display:none" onchange="loadBg(this)"></label>
   <div class="row"><label>Opacity</label><input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.5" oninput="sync(this)"><span class="val">0.5</span></div>
+  <div class="row"><label>Dim</label><input type="range" id="bgDim" min="0" max="1" step="0.05" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Fit</label><select id="bgFit"><option value="contain">Fit (contain)</option><option value="cover">Fill (cover)</option><option value="stretch">Stretch</option><option value="center">Center 1:1</option></select></div>
-  <button class="btn" onclick="bgImg=null">✕ Clear Background</button>
+  <button class="btn" onclick="bgImg=null;bgData=null">✕ Clear Background</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Reference only — never included in the Spine export.</div>
 
   <h2>Playback</h2>
@@ -767,14 +768,14 @@ function downloadZip(zipName,files){
 }
 
 // ── Reference background ───────────────────────────────
-var bgImg=null;
+var bgImg=null,bgData=null;
 function loadBg(input){
   var f=input.files[0];
   if(!f)return;
   var r=new FileReader();
   r.onload=function(){
     var img=new Image();
-    img.onload=function(){bgImg=img;};
+    img.onload=function(){bgImg=img;bgData=r.result;};
     img.src=r.result;
   };
   r.readAsDataURL(f);
@@ -789,6 +790,7 @@ function saveProject(){
     scalePts:scaleCurve.pts.slice(),
     alphaPts:alphaCurve.pts.slice(),
     emitX:emitX,emitY:emitY,
+    bg:bgData,
     images:[]};
   document.querySelectorAll('input[type=range]').forEach(function(el){proj.sliders[el.id]=el.value;});
   document.querySelectorAll('select').forEach(function(el){if(el.id)proj.selects[el.id]=el.value;});
@@ -822,6 +824,11 @@ function loadProject(input){
     if(proj.alphaPts)alphaCurve.pts=proj.alphaPts.slice();
     drawRateCurve();scaleCurve.draw();alphaCurve.draw();
     if(typeof proj.emitX==='number'){emitX=proj.emitX;emitY=proj.emitY;}
+    if(proj.bg){
+      var bimg=new Image();
+      bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
+      bimg.src=proj.bg;
+    }else{bgImg=null;bgData=null;}
     if(proj.images&&proj.images.length){
       textures.length=0;
       var pending=proj.images.length;
@@ -900,12 +907,20 @@ function loop(now){
     ctx.globalAlpha=V('bgOpacity');
     var bw=bgImg.naturalWidth,bh=bgImg.naturalHeight,cw=cv.width,ch=cv.height;
     var fit=document.getElementById('bgFit').value;
-    if(fit==='stretch'){ctx.drawImage(bgImg,0,0,cw,ch);}
-    else if(fit==='center'){ctx.drawImage(bgImg,(cw-bw)/2,(ch-bh)/2);}
+    var bx,by,bdw,bdh;
+    if(fit==='stretch'){bx=0;by=0;bdw=cw;bdh=ch;}
+    else if(fit==='center'){bx=(cw-bw)/2;by=(ch-bh)/2;bdw=bw;bdh=bh;}
     else{
       var sc=(fit==='cover')?Math.max(cw/bw,ch/bh):Math.min(cw/bw,ch/bh);
-      var dw=bw*sc,dh=bh*sc;
-      ctx.drawImage(bgImg,(cw-dw)/2,(ch-dh)/2,dw,dh);
+      bdw=bw*sc;bdh=bh*sc;bx=(cw-bdw)/2;by=(ch-bdh)/2;
+    }
+    ctx.drawImage(bgImg,bx,by,bdw,bdh);
+    // dim: darken the image area
+    var dim=V('bgDim');
+    if(dim>0){
+      ctx.globalAlpha=V('bgOpacity')*dim;
+      ctx.fillStyle='#000';
+      ctx.fillRect(bx,by,bdw,bdh);
     }
     ctx.globalAlpha=1;
   }
