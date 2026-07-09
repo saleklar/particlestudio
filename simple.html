@@ -45,6 +45,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Emitter</h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
   <div class="row" id="rateRow"><label>Rate /s</label><input type="range" id="rate" min="1" max="500" value="60" oninput="sync(this)"><span class="val">60</span></div>
+  <div class="row" id="rateCurveRow"><label>Rate curve</label><input type="checkbox" id="rateCurveOn" onchange="drawRateCurve()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">rate × curve over anim length</span></div>
+  <canvas id="rateCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
   <div class="row"><label>Max count</label><input type="range" id="maxCount" min="1" max="2000" value="200" oninput="sync(this)"><span class="val">200</span></div>
   <button class="btn accent" id="burstBtn" style="display:none" onclick="doBurst()">💥 Burst!</button>
   <div class="row"><label>Shape</label><select id="emitShape"><option value="point">Point</option><option value="box" selected>Box</option><option value="circle">Circle (filled)</option><option value="ring">Ring (edge)</option><option value="line">Line</option></select></div>
@@ -116,13 +118,71 @@ function resetDefaults(){
   document.getElementById('blend').value='source-over';
   document.getElementById('mode').value='cont';
   document.getElementById('emitShape').value='box';
+  document.getElementById('rateCurveOn').checked=false;
+  ratePts=[0,0.6,1,1,0.6,0.25,0.05,0,0];
+  drawRateCurve();
   onModeChange();
 }
 function onModeChange(){
   var burst=document.getElementById('mode').value==='burst';
   document.getElementById('rateRow').style.display=burst?'none':'flex';
+  document.getElementById('rateCurveRow').style.display=burst?'none':'flex';
+  document.getElementById('rateCurve').style.display=burst?'none':'block';
   document.getElementById('burstBtn').style.display=burst?'block':'none';
 }
+
+// ── Rate-over-time curve ─────────────────────────────
+var rcCv=document.getElementById('rateCurve'),rcCtx=rcCv.getContext('2d');
+var ratePts=[0,0.6,1,1,0.6,0.25,0.05,0,0];   // 9 points, 0..1, evenly spaced over anim length
+function sampleRateCurve(p){                  // p = 0..1 progress through animation
+  if(!document.getElementById('rateCurveOn').checked)return 1;
+  p=Math.max(0,Math.min(1,p));
+  var seg=p*(ratePts.length-1),i=Math.floor(seg),f=seg-i;
+  if(i>=ratePts.length-1)return ratePts[ratePts.length-1];
+  return ratePts[i]*(1-f)+ratePts[i+1]*f;
+}
+function drawRateCurve(progress){
+  var w=rcCv.width,h=rcCv.height,on=document.getElementById('rateCurveOn').checked;
+  rcCtx.clearRect(0,0,w,h);
+  rcCtx.globalAlpha=on?1:0.35;
+  // grid
+  rcCtx.strokeStyle='#2a2a2a';rcCtx.lineWidth=1;rcCtx.beginPath();
+  for(var gx2=0;gx2<=4;gx2++){rcCtx.moveTo(gx2*w/4,0);rcCtx.lineTo(gx2*w/4,h);}
+  rcCtx.moveTo(0,h/2);rcCtx.lineTo(w,h/2);rcCtx.stroke();
+  // curve
+  rcCtx.strokeStyle='#f90';rcCtx.lineWidth=2;rcCtx.beginPath();
+  for(var i=0;i<ratePts.length;i++){
+    var x=i/(ratePts.length-1)*w,y=h-3-ratePts[i]*(h-6);
+    i===0?rcCtx.moveTo(x,y):rcCtx.lineTo(x,y);
+  }
+  rcCtx.stroke();
+  // points
+  rcCtx.fillStyle='#fff';
+  for(var j=0;j<ratePts.length;j++){
+    var px=j/(ratePts.length-1)*w,py=h-3-ratePts[j]*(h-6);
+    rcCtx.beginPath();rcCtx.arc(px,py,3,0,Math.PI*2);rcCtx.fill();
+  }
+  // playhead
+  if(on&&progress!==undefined){
+    rcCtx.strokeStyle='#3cf';rcCtx.lineWidth=1;rcCtx.beginPath();
+    rcCtx.moveTo(progress*w,0);rcCtx.lineTo(progress*w,h);rcCtx.stroke();
+  }
+  rcCtx.globalAlpha=1;
+}
+var rcDrag=false;
+function rcSet(e){
+  var r=rcCv.getBoundingClientRect();
+  var px=(e.clientX-r.left)/r.width,py=(e.clientY-r.top)/r.height;
+  var i=Math.round(px*(ratePts.length-1));
+  i=Math.max(0,Math.min(ratePts.length-1,i));
+  ratePts[i]=Math.max(0,Math.min(1,1-(py*rcCv.height-3)/(rcCv.height-6)));
+  if(!document.getElementById('rateCurveOn').checked)document.getElementById('rateCurveOn').checked=true;
+  drawRateCurve();
+}
+rcCv.addEventListener('pointerdown',function(e){rcDrag=true;rcCv.setPointerCapture(e.pointerId);rcSet(e);});
+rcCv.addEventListener('pointermove',function(e){if(rcDrag)rcSet(e);});
+rcCv.addEventListener('pointerup',function(){rcDrag=false;});
+drawRateCurve();
 function doBurst(){
   if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   var n=Math.round(V('maxCount'));
@@ -188,9 +248,9 @@ function setEmit(e){var r=cv.getBoundingClientRect();emitX=e.clientX-r.left;emit
 // Seeded RNG so every loop repeat is identical
 var _seed=1;
 function rng(){_seed=(_seed*1103515245+12345)%2147483648;return _seed/2147483648;}
-var particles=[],spawnAcc=0,paused=false,loopTime=0;
+var particles=[],spawnAcc=0,paused=false,loopTime=0,simTime=0;
 function restartLoop(){
-  particles.length=0;spawnAcc=0;loopTime=0;_seed=1;
+  particles.length=0;spawnAcc=0;loopTime=0;simTime=0;_seed=1;
   if(document.getElementById('loopOn').checked&&document.getElementById('mode').value==='burst')doBurst();
 }
 function togglePause(){
@@ -252,7 +312,7 @@ function exportSpine(){
   if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
   for(curF=0;curF<=totF;curF++){
     if(mode==='cont'&&curF<totF){
-      spawnAcc+=V('rate')*dt;
+      spawnAcc+=V('rate')*sampleRateCurve(curF/totF)*dt;
       var cap=Math.round(V('maxCount')),before=particles.length;
       while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
       tagNew(before);
@@ -345,19 +405,24 @@ function loop(now){
   if(!cv.width)resize();
   if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   if(!paused){
+    simTime+=dt;
+    var totF=Math.round(V('totFrames'));
+    var animLen=totF/60;
     var looping=document.getElementById('loopOn').checked;
     if(looping){
       loopTime+=dt;
-      var totF=Math.round(V('totFrames'));
       var curF=Math.floor(loopTime*60);
       if(curF>=totF){restartLoop();curF=0;}
       document.getElementById('frameInfo').textContent=curF+' / '+totF;
     }else{
       document.getElementById('frameInfo').textContent='\u2013';
     }
+    // progress through animation for the rate curve
+    var prog=looping?loopTime/animLen:(simTime%animLen)/animLen;
+    if(document.getElementById('rateCurveOn').checked&&document.getElementById('mode').value==='cont')drawRateCurve(prog);
     // spawn (continuous mode only, capped at Max count live particles)
     if(document.getElementById('mode').value==='cont'){
-      spawnAcc+=V('rate')*dt;
+      spawnAcc+=V('rate')*sampleRateCurve(prog)*dt;
       var cap=Math.round(V('maxCount'));
       while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
     }
