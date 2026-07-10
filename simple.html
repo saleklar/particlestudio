@@ -371,6 +371,31 @@ function builtinTextures(){
     }
     g.closePath();g.fill();g.restore();
   }));
+  arr.push(makeTex('bubble',function(g){
+    // faint body fill, brighter toward the rim
+    var body=g.createRadialGradient(32,32,4,32,32,27);
+    body.addColorStop(0,'rgba(200,225,255,0.05)');
+    body.addColorStop(0.75,'rgba(205,230,255,0.10)');
+    body.addColorStop(0.94,'rgba(230,245,255,0.45)');
+    body.addColorStop(1,'rgba(240,250,255,0)');
+    g.fillStyle=body;g.beginPath();g.arc(32,32,27,0,Math.PI*2);g.fill();
+    // thin rim
+    g.strokeStyle='rgba(235,248,255,0.75)';
+    g.lineWidth=1.6;
+    g.beginPath();g.arc(32,32,25.6,0,Math.PI*2);g.stroke();
+    // main specular highlight (top-left)
+    g.save();g.translate(22,20);g.rotate(-0.75);g.scale(1,0.55);
+    var hl=g.createRadialGradient(0,0,0,0,0,9);
+    hl.addColorStop(0,'rgba(255,255,255,0.95)');
+    hl.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=hl;g.beginPath();g.arc(0,0,9,0,Math.PI*2);g.fill();
+    g.restore();
+    // small secondary glint (bottom-right)
+    var hl2=g.createRadialGradient(43,44,0,43,44,4.5);
+    hl2.addColorStop(0,'rgba(255,255,255,0.6)');
+    hl2.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=hl2;g.beginPath();g.arc(43,44,4.5,0,Math.PI*2);g.fill();
+  }));
   arr[0].sel=true;
   return arr;
 }
