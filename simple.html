@@ -83,6 +83,9 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Gravity</label><input type="range" id="gravY" min="-1000" max="1000" value="200" oninput="sync(this)"><span class="val">200</span></div>
   <div class="row"><label>Wind</label><input type="range" id="gravX" min="-1000" max="1000" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Drag</label><input type="range" id="drag" min="0" max="3" step="0.05" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Turbulence</label><input type="range" id="turbAmp" min="0" max="1500" step="10" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Turb scale</label><input type="range" id="turbScale" min="10" max="600" step="5" value="120" oninput="sync(this)"><span class="val">120</span></div>
+  <div class="row"><label>Turb speed</label><input type="range" id="turbSpeed" min="0" max="10" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
 
   <h2>Attractor</h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="attractOn" onchange="onAttractToggle()" style="accent-color:#3cf;cursor:pointer"><span style="color:#888;font-size:10px">drag the ◎ marker on canvas</span></div>
@@ -735,6 +738,19 @@ function applyAttractor(p,dt){
   p.vx+=dx/d*f*dt;p.vy+=dy/d*f*dt;
 }
 
+// ── Turbulence (deterministic flow field — depends only on particle
+//    position/age/seed, so live preview, loops and exports match exactly) ─
+function applyTurbulence(p,dt){
+  var amp=V('turbAmp');
+  if(amp<=0)return;
+  var sc=1/Math.max(1,V('turbScale'));
+  var t=p.age*V('turbSpeed')+(p.seed||0)*97.13;
+  var x=p.x*sc,y=p.y*sc;
+  var fx=Math.sin(y*1.3+t)+0.5*Math.sin(y*2.9-t*0.6+1.7)+0.25*Math.sin((x+y)*4.1+t*1.3);
+  var fy=Math.cos(x*1.1-t)+0.5*Math.sin(x*2.3+t*0.8+4.2)+0.25*Math.sin((x-y)*3.7-t*1.1);
+  p.vx+=fx*amp*0.57*dt;   // 0.57 normalises the max field magnitude to ~1
+  p.vy+=fy*amp*0.57*dt;
+}
 // ── Deflector (polyline particles bounce off / die on / transform at) ───
 var defPts=null;                       // [{x,y},...] — 2+ points
 var defDrag=null,defLX=0,defLY=0;      // {pt:i} or {line:true}
@@ -991,6 +1007,7 @@ function exportSpine(){
       if(q.age>=q.life){particles.splice(i2,1);continue;}
       var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
       applyAttractor(q,dt);
+      applyTurbulence(q,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
       var _ox=q.x,_oy=q.y;
       q.x+=q.vx*dt;q.y+=q.vy*dt;
@@ -1406,6 +1423,7 @@ function exportPNGSeq(){
       if(q2.age>=q2.life){particles.splice(i2,1);continue;}
       var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
       applyAttractor(q2,dt);
+      applyTurbulence(q2,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
       var _ox2=q2.x,_oy2=q2.y;
       q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;
@@ -1642,6 +1660,7 @@ function loop(now){
       var gm=p.gravMul||1;
       p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
       applyAttractor(p,dt);
+      applyTurbulence(p,dt);
       if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;}
       var _ox=p.x,_oy=p.y;
       p.x+=p.vx*dt;p.y+=p.vy*dt;
@@ -1837,6 +1856,9 @@ var TIPS={
   gravY:'Constant vertical acceleration. Positive pulls down, negative floats up.',
   gravX:'Wind: constant horizontal acceleration. Positive blows right, negative left.',
   drag:'Air resistance: slows particles over time. 0 = none.',
+  turbAmp:'Turbulence strength in px/s\u00b2. A swirling flow field pushes particles around so no two fly the same path. Fully deterministic \u2014 loops and exports match the preview. Wiggly paths need more Pos keys in Export to survive keyframe reduction.',
+  turbScale:'Size of the turbulence swirls in pixels. Small = fine jitter, large = broad sweeping currents.',
+  turbSpeed:'How fast the field churns over each particle\u2019s life. 0 = frozen field (paths still differ per particle).',
   attractOn:'A point that pulls (or pushes) particles. Drag the \u25ce marker on the canvas to move it.',
   attractForce:'Attraction strength in px/s\u00b2. Positive pulls particles toward the point, negative repels them.',
   attractRadius:'Range of influence in pixels. 0 = infinite \u2014 affects every particle.',
