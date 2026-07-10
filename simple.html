@@ -11,7 +11,11 @@ body{display:flex;height:100vh;background:#1a1a1a;color:#ddd;font:12px/1.4 'Sego
 #sidebar::-webkit-scrollbar-thumb{background:#444;border-radius:3px}
 h1{font-size:14px;color:#fff;margin-bottom:10px}
 h1 span{color:#f90}
-h2{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid #333}
+h2{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid #333;cursor:pointer;user-select:none}
+h2:hover{color:#fff}
+h2::before{content:'\25be';display:inline-block;margin-right:5px;color:#f90;transition:transform .12s ease}
+h2.collapsed::before{transform:rotate(-90deg)}
+.sec-body.collapsed{display:none}
 .row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
 .row label{width:86px;flex-shrink:0;color:#999;font-size:11px}
 .row input[type=range]{flex:1;accent-color:#f90;height:14px;cursor:pointer}
@@ -1414,6 +1418,30 @@ function loop(now){
 }
 resize();
 requestAnimationFrame(loop);
+
+// ── Collapsible sidebar sections ─────────────────────────
+(function(){
+  var sb=document.getElementById('sidebar');
+  var saved={};
+  try{saved=JSON.parse(localStorage.getItem('psSimpleCollapsed')||'{}');}catch(e){}
+  var heads=Array.prototype.slice.call(sb.querySelectorAll('h2'));
+  heads.forEach(function(h){
+    var body=document.createElement('div');
+    body.className='sec-body';
+    while(h.nextSibling&&!(h.nextSibling.tagName==='H2'))body.appendChild(h.nextSibling);
+    h.parentNode.insertBefore(body,h.nextSibling);
+    var key=h.textContent.trim();
+    function apply(c){h.classList.toggle('collapsed',c);body.classList.toggle('collapsed',c);}
+    if(saved[key])apply(true);
+    h.addEventListener('click',function(){
+      var c=!h.classList.contains('collapsed');
+      apply(c);
+      saved[key]=c;
+      try{localStorage.setItem('psSimpleCollapsed',JSON.stringify(saved));}catch(e){}
+      if(!c){drawRateCurve();scaleCurve.draw();alphaCurve.draw();}
+    });
+  });
+})();
 
 // ── Tooltips ──────────────────────────────────────────────
 var TIPS={
