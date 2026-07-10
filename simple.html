@@ -621,59 +621,96 @@ var PRESETS={
   explosion:{mode:'burst',maxCount:300,emitShape:'point',emitW:10,emitH:10,life:1.5,
     speed:400,speedVar:250,angle:270,spread:360,gravY:300,gravX:0,drag:1.2,
     size:30,sizeVar:15,endScale:0.1,spin:200,fade:0.7,blend:'lighter',
-    randAll:20,randLife:40,randSpin:60,randGrav:30,randScale:40,randFade:30,
+    randAll:20,randLife:40,randSpin:60,randGrav:30,randScale:40,randFade:30,randOpacity:20,
+    turbAmp:250,turbScale:140,turbSpeed:2,
+    tintMode:'life',tintStops:[{p:0,c:'#ffffff'},{p:0.25,c:'#ffd040'},{p:0.6,c:'#ff6010'},{p:1,c:'#802020'}],
     loopOn:true,totFrames:90},
   burst:{mode:'burst',maxCount:120,emitShape:'ring',emitW:60,emitH:60,life:1.2,
     speed:300,speedVar:60,angle:270,spread:360,gravY:0,gravX:0,drag:1.5,
     size:20,sizeVar:8,endScale:0,spin:0,fade:0.8,blend:'lighter',
-    randAll:10,randLife:25,randSpin:0,randGrav:0,randScale:20,randFade:20,
+    randAll:10,randLife:25,randSpin:0,randGrav:0,randScale:20,randFade:20,randOpacity:15,
+    tintMode:'rand',tintStops:[{p:0,c:'#40c0ff'},{p:0.5,c:'#c060ff'},{p:1,c:'#ff60a0'}],
     loopOn:true,totFrames:60},
   fountain:{mode:'cont',rate:150,maxCount:600,emitShape:'point',emitW:10,emitH:10,life:2.5,
     speed:500,speedVar:80,angle:270,spread:30,gravY:400,gravX:0,drag:0,
     size:20,sizeVar:8,endScale:0.4,spin:0,fade:0.5,blend:'source-over',
-    randAll:5,randLife:25,randSpin:0,randGrav:10,randScale:20,randFade:10,
+    randAll:5,randLife:25,randSpin:0,randGrav:10,randScale:20,randFade:10,randOpacity:10,
+    defOn:true,defAction:'bounce',defBounce:0.35,defFriction:0.3,defRandBounce:40,defScatter:12,
+    defRel:[[0.2,0.85],[0.8,0.85]],
     loopOn:false,totFrames:180},
   rain:{mode:'cont',rate:300,maxCount:900,emitShape:'line',emitW:1200,emitH:0,life:2,
     speed:600,speedVar:100,angle:95,spread:5,gravY:400,gravX:0,drag:0,
     size:12,sizeVar:4,endScale:1,spin:0,fade:0.1,blend:'source-over',
-    randAll:0,randLife:15,randSpin:0,randGrav:10,randScale:10,randFade:0,
+    randAll:0,randLife:15,randSpin:0,randGrav:10,randScale:10,randFade:0,randOpacity:25,
+    defOn:true,defAction:'xform',defXformTex:'dot',defXformLife:0.25,defBounce:0.2,defFriction:0.6,defScatter:25,
+    defRel:[[0.02,0.88],[0.98,0.88]],
     loopOn:false,totFrames:120,emitTop:true},
   snow:{mode:'cont',rate:60,maxCount:500,emitShape:'line',emitW:1200,emitH:0,life:8,
     speed:50,speedVar:25,angle:90,spread:40,gravY:25,gravX:10,drag:0.3,
     size:14,sizeVar:8,endScale:0.9,spin:60,fade:0.25,blend:'source-over',
-    randAll:15,randLife:30,randSpin:80,randGrav:40,randScale:30,randFade:20,
+    randAll:15,randLife:30,randSpin:80,randGrav:40,randScale:30,randFade:20,randOpacity:30,
+    turbAmp:70,turbScale:260,turbSpeed:0.5,
     loopOn:false,totFrames:300,emitTop:true},
   smoke:{mode:'cont',rate:40,maxCount:200,emitShape:'circle',emitW:60,emitH:20,life:4,
     speed:80,speedVar:30,angle:270,spread:25,gravY:-60,gravX:0,drag:0.4,
     size:60,sizeVar:25,endScale:2.5,spin:30,fade:0.7,blend:'source-over',
-    randAll:15,randLife:35,randSpin:70,randGrav:20,randScale:40,randFade:30,
+    randAll:15,randLife:35,randSpin:70,randGrav:20,randScale:40,randFade:30,randOpacity:25,
+    turbAmp:300,turbScale:210,turbSpeed:0.8,
+    tintMode:'life',tintStops:[{p:0,c:'#c8c8c8'},{p:0.5,c:'#909090'},{p:1,c:'#555555'}],
     loopOn:false,totFrames:240},
   fire:{mode:'cont',rate:120,maxCount:400,emitShape:'circle',emitW:80,emitH:20,life:1.2,
     speed:120,speedVar:50,angle:270,spread:20,gravY:-250,gravX:0,drag:0.5,
     size:40,sizeVar:18,endScale:0.15,spin:40,fade:0.6,blend:'lighter',
-    randAll:20,randLife:35,randSpin:50,randGrav:25,randScale:30,randFade:25,
+    randAll:20,randLife:35,randSpin:50,randGrav:25,randScale:30,randFade:25,randOpacity:15,
+    turbAmp:260,turbScale:120,turbSpeed:2.2,
+    tintMode:'life',tintStops:[{p:0,c:'#ffffff'},{p:0.3,c:'#ffe060'},{p:0.7,c:'#ff7020'},{p:1,c:'#a03010'}],
     loopOn:false,totFrames:120},
   sparks:{mode:'cont',rate:80,maxCount:300,emitShape:'point',emitW:6,emitH:6,life:0.8,
     speed:450,speedVar:200,angle:270,spread:70,gravY:800,gravX:0,drag:0.8,
     size:8,sizeVar:4,endScale:0.2,spin:0,fade:0.4,blend:'lighter',
-    randAll:15,randLife:40,randSpin:0,randGrav:20,randScale:20,randFade:20,
+    randAll:15,randLife:40,randSpin:0,randGrav:20,randScale:20,randFade:20,randOpacity:20,
+    defOn:true,defAction:'bounce',defBounce:0.5,defFriction:0.2,defRandBounce:50,defScatter:20,
+    defRel:[[0.15,0.82],[0.85,0.82]],
+    tintMode:'rand',tintStops:[{p:0,c:'#fff0c0'},{p:0.6,c:'#ffc040'},{p:1,c:'#ff8020'}],
     loopOn:false,totFrames:120},
   bubbles:{mode:'cont',rate:25,maxCount:150,emitShape:'box',emitW:300,emitH:20,life:5,
     speed:60,speedVar:30,angle:90,spread:20,gravY:-50,gravX:0,drag:0.2,
     size:22,sizeVar:14,endScale:1.4,spin:0,fade:0.3,blend:'source-over',
-    randAll:15,randLife:35,randSpin:0,randGrav:35,randScale:40,randFade:25,
+    randAll:15,randLife:35,randSpin:0,randGrav:35,randScale:40,randFade:25,randOpacity:35,
+    turbAmp:110,turbScale:170,turbSpeed:0.7,
+    tintMode:'rand',tintStops:[{p:0,c:'#b0e0ff'},{p:0.5,c:'#d0f0ff'},{p:1,c:'#ffffff'}],
     loopOn:false,totFrames:240}
 };
+// everything a preset may not mention returns to neutral
+var PRESET_NEUTRAL={gravX:0,drag:0,turbAmp:0,turbScale:120,turbSpeed:1,
+  attractOn:false,attractForce:600,attractRadius:0,attractFalloff:'linear',
+  defOn:false,defAction:'bounce',defBounce:0.6,defFriction:0.1,defRandBounce:0,defRandFriction:0,defScatter:0,defXformLife:0.6,
+  tintMode:'off',randOpacity:0};
 function applyPreset(){
   var key=document.getElementById('presetSel').value;
   var p=PRESETS[key];
   if(!p)return;
-  for(var k in p){
-    var el=document.getElementById(k);
-    if(!el)continue;
-    if(el.type==='checkbox')el.checked=p[k];
-    else{el.value=p[k];if(el.type==='range')sync(el);}
+  function setEl(id,val){
+    var el=document.getElementById(id);
+    if(!el)return;
+    if(el.type==='checkbox')el.checked=!!val;
+    else{el.value=val;if(el.type==='range')sync(el);}
   }
+  for(var k0 in PRESET_NEUTRAL)setEl(k0,PRESET_NEUTRAL[k0]);
+  for(var k in p){
+    if(k==='tintStops'||k==='defRel'||k==='attRel'||k==='emitTop')continue;
+    setEl(k,p[k]);
+  }
+  // tint gradient stops
+  if(p.tintStops){
+    tintStops=p.tintStops.map(function(s){return {p:s.p,c:s.c};});
+    tintSel=Math.min(tintSel,tintStops.length-1);
+    document.getElementById('tintStopColor').value=tintStops[tintSel].c;
+  }
+  drawTintGrad();
+  // attractor / deflector placement (relative to canvas)
+  if(p.attractOn&&p.attRel){attX=p.attRel[0]*cv.width;attY=p.attRel[1]*cv.height;}
+  if(p.defOn&&p.defRel)defPts=p.defRel.map(function(q){return {x:q[0]*cv.width,y:q[1]*cv.height};});
   onModeChange();
   // rain/snow: put emitter at top of canvas
   if(p.emitTop){emitX=cv.width/2;emitY=-10;}
