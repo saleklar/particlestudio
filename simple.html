@@ -93,7 +93,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div style="font-size:10px;color:#666;margin-bottom:2px">Positive force pulls particles in, negative pushes them away. Radius 0 = infinite range.</div>
 
   <h2>Deflector</h2>
-  <div class="row"><label>Enable</label><input type="checkbox" id="defOn" onchange="onDefToggle()" style="accent-color:#6d6;cursor:pointer"><span style="color:#888;font-size:10px">drag line ends on canvas</span></div>
+  <div class="row"><label>Enable</label><input type="checkbox" id="defOn" onchange="onDefToggle()" style="accent-color:#6d6;cursor:pointer"><span style="color:#888;font-size:10px">dbl-click line: add point</span></div>
   <div class="row"><label>On hit</label><select id="defAction"><option value="bounce" selected>Bounce</option><option value="die">Die</option><option value="xform">Transform</option></select></div>
   <div class="row"><label>Bounce</label><input type="range" id="defBounce" min="0" max="1" step="0.05" value="0.6" oninput="sync(this)"><span class="val">0.6</span></div>
   <div class="row"><label>Friction</label><input type="range" id="defFriction" min="0" max="1" step="0.05" value="0.1" oninput="sync(this)"><span class="val">0.1</span></div>
@@ -102,8 +102,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Bounce ±%</label><input type="range" id="defRandBounce" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Friction ±%</label><input type="range" id="defRandFriction" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Scatter °</label><input type="range" id="defScatter" min="0" max="90" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <button class="btn" onclick="centerDeflector()">─ Center Deflector</button>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">A line particles collide with. Bounce reflects them, Die removes them at the surface, Transform swaps the image and lets them live a short second life before dying.</div>
+  <button class="btn" onclick="centerDeflector()">─ Reset Deflector</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">A shapeable surface particles collide with. Double-click the line to add points, double-click a point to remove it. Bounce reflects particles, Die removes them, Transform swaps the image for a short second life.</div>
 
   <h2>Appearance</h2>
   <div class="row"><label>Size</label><input type="range" id="size" min="2" max="300" value="40" oninput="sync(this)"><span class="val">40</span></div>
@@ -735,15 +735,15 @@ function applyAttractor(p,dt){
   p.vx+=dx/d*f*dt;p.vy+=dy/d*f*dt;
 }
 
-// ── Deflector (line particles bounce off / die on / transform at) ───
-var defX1=null,defY1=null,defX2=null,defY2=null;
-var defDrag=0,defLX=0,defLY=0; // 1=end A, 2=end B, 3=whole line
+// ── Deflector (polyline particles bounce off / die on / transform at) ───
+var defPts=null;                       // [{x,y},...] — 2+ points
+var defDrag=null,defLX=0,defLY=0;      // {pt:i} or {line:true}
 function onDefToggle(){
-  if(document.getElementById('defOn').checked&&defX1===null)centerDeflector();
+  if(document.getElementById('defOn').checked&&!defPts)centerDeflector();
 }
 function centerDeflector(){
   var a=toWorld(cv.width*0.25,cv.height*0.75),b=toWorld(cv.width*0.75,cv.height*0.75);
-  defX1=a.x;defY1=a.y;defX2=b.x;defY2=b.y;
+  defPts=[{x:a.x,y:a.y},{x:b.x,y:b.y}];
   if(!document.getElementById('defOn').checked)document.getElementById('defOn').checked=true;
 }
 function ptSegDist(px,py,x1,y1,x2,y2){
@@ -753,39 +753,50 @@ function ptSegDist(px,py,x1,y1,x2,y2){
   return Math.sqrt((px-cx)*(px-cx)+(py-cy)*(py-cy));
 }
 function defHandleHit(e){
-  if(!document.getElementById('defOn').checked||defX1===null)return 0;
+  if(!document.getElementById('defOn').checked||!defPts)return null;
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top),g=12/camZ;
-  if((w.x-defX1)*(w.x-defX1)+(w.y-defY1)*(w.y-defY1)<=g*g)return 1;
-  if((w.x-defX2)*(w.x-defX2)+(w.y-defY2)*(w.y-defY2)<=g*g)return 2;
-  if(ptSegDist(w.x,w.y,defX1,defY1,defX2,defY2)<=g*0.7)return 3;
-  return 0;
+  for(var i=0;i<defPts.length;i++){
+    var dx=w.x-defPts[i].x,dy=w.y-defPts[i].y;
+    if(dx*dx+dy*dy<=g*g)return {pt:i};
+  }
+  for(var s=0;s<defPts.length-1;s++){
+    if(ptSegDist(w.x,w.y,defPts[s].x,defPts[s].y,defPts[s+1].x,defPts[s+1].y)<=g*0.7)
+      return {line:true,seg:s,x:w.x,y:w.y};
+  }
+  return null;
 }
 function moveDef(e){
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top);
-  if(defDrag===1){defX1=w.x;defY1=w.y;}
-  else if(defDrag===2){defX2=w.x;defY2=w.y;}
-  else if(defDrag===3){
+  if(defDrag.pt!==undefined){defPts[defDrag.pt].x=w.x;defPts[defDrag.pt].y=w.y;}
+  else if(defDrag.line){
     var dx=w.x-defLX,dy=w.y-defLY;
-    defX1+=dx;defY1+=dy;defX2+=dx;defY2+=dy;
+    for(var i=0;i<defPts.length;i++){defPts[i].x+=dx;defPts[i].y+=dy;}
     defLX=w.x;defLY=w.y;
   }
 }
 function applyDeflector(p,ox,oy){
-  if(defX1===null||!document.getElementById('defOn').checked)return;
+  if(!defPts||!document.getElementById('defOn').checked)return;
   var mx=p.x-ox,my=p.y-oy;                 // motion this step
-  var dx=defX2-defX1,dy=defY2-defY1;       // deflector direction
-  var den=mx*dy-my*dx;
-  if(!den)return;
-  var t=((defX1-ox)*dy-(defY1-oy)*dx)/den; // along motion
-  var u=((defX1-ox)*my-(defY1-oy)*mx)/den; // along deflector
-  if(t<0||t>1||u<0||u>1)return;
-  var hx=ox+mx*t,hy=oy+my*t;               // hit point
+  // find the earliest segment crossed along the motion
+  var bestT=Infinity,bDx=0,bDy=0;
+  for(var si=0;si<defPts.length-1;si++){
+    var x1=defPts[si].x,y1=defPts[si].y;
+    var dx=defPts[si+1].x-x1,dy=defPts[si+1].y-y1;
+    var den=mx*dy-my*dx;
+    if(!den)continue;
+    var t=((x1-ox)*dy-(y1-oy)*dx)/den;     // along motion
+    var u=((x1-ox)*my-(y1-oy)*mx)/den;     // along segment
+    if(t<0||t>1||u<0||u>1)continue;
+    if(t<bestT){bestT=t;bDx=dx;bDy=dy;}
+  }
+  if(bestT===Infinity)return;
+  var hx=ox+mx*bestT,hy=oy+my*bestT;       // hit point
   var act=document.getElementById('defAction').value;
   if(act==='die'){p.x=hx;p.y=hy;p.age=p.life;return;}
-  // reflect velocity about the line normal
-  var L=Math.sqrt(dx*dx+dy*dy)||1,nx=-dy/L,ny=dx/L;
+  // reflect velocity about the segment normal
+  var L=Math.sqrt(bDx*bDx+bDy*bDy)||1,nx=-bDy/L,ny=bDx/L;
   var vn=p.vx*nx+p.vy*ny;
   var e2=Math.max(0,V('defBounce')*(p.defBounceMul==null?1:p.defBounceMul));
   var fr=1-Math.max(0,Math.min(1,V('defFriction')*(p.defFricMul==null?1:p.defFricMul)));
@@ -840,9 +851,21 @@ cv.addEventListener('pointermove',function(e){
   if(defDrag){moveDef(e);return;}
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=0;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
-cv.addEventListener('dblclick',function(e){resetView();});
+cv.addEventListener('dblclick',function(e){
+  // deflector editing: dbl-click a point removes it, dbl-click the line inserts a point
+  var h=defHandleHit(e);
+  if(h){
+    if(h.pt!==undefined){
+      if(defPts.length>2)defPts.splice(h.pt,1);
+    }else if(h.line){
+      defPts.splice(h.seg+1,0,{x:h.x,y:h.y});
+    }
+    return;
+  }
+  resetView();
+});
 function setEmit(e){
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top);
@@ -1476,7 +1499,7 @@ function saveProject(){
     tintStops:tintStops.map(function(s){return {p:s.p,c:s.c};}),
     emitX:emitX,emitY:emitY,
     attX:attX,attY:attY,
-    defX1:defX1,defY1:defY1,defX2:defX2,defY2:defY2,
+    defPts:defPts?defPts.map(function(p){return {x:p.x,y:p.y};}):null,
     bg:bgData,
     images:[]};
   document.querySelectorAll('input[type=range]').forEach(function(el){proj.sliders[el.id]=el.value;});
@@ -1520,7 +1543,8 @@ function loadProject(input){
     drawRateCurve();scaleCurve.draw();alphaCurve.draw();drawTintGrad();
     if(typeof proj.emitX==='number'){emitX=proj.emitX;emitY=proj.emitY;}
     if(typeof proj.attX==='number'){attX=proj.attX;attY=proj.attY;}
-    if(typeof proj.defX1==='number'){defX1=proj.defX1;defY1=proj.defY1;defX2=proj.defX2;defY2=proj.defY2;}
+    if(proj.defPts&&proj.defPts.length>=2)defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
+    else if(typeof proj.defX1==='number')defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
     if(proj.bg){
       var bimg=new Image();
       bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
@@ -1728,28 +1752,34 @@ function loop(now){
     }
     ctx.globalAlpha=1;
   }
-  // deflector line
-  if(document.getElementById('defOn').checked&&defX1!==null){
+  // deflector polyline
+  if(document.getElementById('defOn').checked&&defPts){
     ctx.strokeStyle='#6d6';ctx.fillStyle='#6d6';
     ctx.globalAlpha=0.85;
     ctx.lineWidth=2/camZ;
-    ctx.beginPath();ctx.moveTo(defX1,defY1);ctx.lineTo(defX2,defY2);ctx.stroke();
-    // hatching on the underside to suggest a surface
-    var ddx=defX2-defX1,ddy=defY2-defY1,dL=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-    var hnx=-ddy/dL,hny=ddx/dL,hlen=7/camZ;
+    ctx.beginPath();
+    ctx.moveTo(defPts[0].x,defPts[0].y);
+    for(var pi2=1;pi2<defPts.length;pi2++)ctx.lineTo(defPts[pi2].x,defPts[pi2].y);
+    ctx.stroke();
+    // hatching on the underside of each segment to suggest a surface
     ctx.globalAlpha=0.35;ctx.lineWidth=1/camZ;
     ctx.beginPath();
-    var hn=Math.max(2,Math.floor(dL/(18/camZ)));
-    for(var hi2=0;hi2<=hn;hi2++){
-      var hx2=defX1+ddx*hi2/hn,hy2=defY1+ddy*hi2/hn;
-      ctx.moveTo(hx2,hy2);ctx.lineTo(hx2+(hnx-ddx/dL*0.5)*hlen,hy2+(hny-ddy/dL*0.5)*hlen);
+    for(var sg=0;sg<defPts.length-1;sg++){
+      var ddx=defPts[sg+1].x-defPts[sg].x,ddy=defPts[sg+1].y-defPts[sg].y;
+      var dL=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+      var hnx=-ddy/dL,hny=ddx/dL,hlen=7/camZ;
+      var hn=Math.max(2,Math.floor(dL/(18/camZ)));
+      for(var hi2=0;hi2<=hn;hi2++){
+        var hx2=defPts[sg].x+ddx*hi2/hn,hy2=defPts[sg].y+ddy*hi2/hn;
+        ctx.moveTo(hx2,hy2);ctx.lineTo(hx2+(hnx-ddx/dL*0.5)*hlen,hy2+(hny-ddy/dL*0.5)*hlen);
+      }
     }
     ctx.stroke();
-    // endpoint handles
+    // point handles
     ctx.globalAlpha=0.9;
     var hs=5/camZ;
-    ctx.fillRect(defX1-hs,defY1-hs,hs*2,hs*2);
-    ctx.fillRect(defX2-hs,defY2-hs,hs*2,hs*2);
+    for(var ph=0;ph<defPts.length;ph++)
+      ctx.fillRect(defPts[ph].x-hs,defPts[ph].y-hs,hs*2,hs*2);
     ctx.globalAlpha=1;
   }
   // zoom badge (screen space)
@@ -1811,7 +1841,7 @@ var TIPS={
   attractForce:'Attraction strength in px/s\u00b2. Positive pulls particles toward the point, negative repels them.',
   attractRadius:'Range of influence in pixels. 0 = infinite \u2014 affects every particle.',
   attractFalloff:'How force weakens with distance: constant, linear to the radius edge, or inverse / inverse-square of distance.',
-  defOn:'A line surface particles collide with. Drag the square end handles (or the line itself) on the canvas.',
+  defOn:'A polyline surface particles collide with. Drag the square handles to move points, drag the line to move it whole. Double-click the line to add a point, double-click a point to remove it.',
   defAction:'What happens on impact: Bounce reflects the particle, Die removes it at the surface, Transform swaps its image and gives it a short second life.',
   defBounce:'Bounciness (restitution). 1 = full-energy bounce, 0 = lands dead on the surface.',
   defFriction:'How much sliding speed along the surface is lost on each hit.',
