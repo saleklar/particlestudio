@@ -92,6 +92,16 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="centerAttractor()">◎ Center Attractor</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Positive force pulls particles in, negative pushes them away. Radius 0 = infinite range.</div>
 
+  <h2>Deflector</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="defOn" onchange="onDefToggle()" style="accent-color:#6d6;cursor:pointer"><span style="color:#888;font-size:10px">drag line ends on canvas</span></div>
+  <div class="row"><label>On hit</label><select id="defAction"><option value="bounce" selected>Bounce</option><option value="die">Die</option><option value="xform">Transform</option></select></div>
+  <div class="row"><label>Bounce</label><input type="range" id="defBounce" min="0" max="1" step="0.05" value="0.6" oninput="sync(this)"><span class="val">0.6</span></div>
+  <div class="row"><label>Friction</label><input type="range" id="defFriction" min="0" max="1" step="0.05" value="0.1" oninput="sync(this)"><span class="val">0.1</span></div>
+  <div class="row"><label>Xform to</label><select id="defXformTex"></select></div>
+  <div class="row"><label>Xform life s</label><input type="range" id="defXformLife" min="0.1" max="5" step="0.1" value="0.6" oninput="sync(this)"><span class="val">0.6</span></div>
+  <button class="btn" onclick="centerDeflector()">─ Center Deflector</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">A line particles collide with. Bounce reflects them, Die removes them at the surface, Transform swaps the image and lets them live a short second life before dying.</div>
+
   <h2>Appearance</h2>
   <div class="row"><label>Size</label><input type="range" id="size" min="2" max="300" value="40" oninput="sync(this)"><span class="val">40</span></div>
   <div class="row"><label>Size ±</label><input type="range" id="sizeVar" min="0" max="200" value="15" oninput="sync(this)"><span class="val">15</span></div>
@@ -181,6 +191,8 @@ function resetDefaults(){
   document.getElementById('emitShape').value='box';
   document.getElementById('attractOn').checked=false;
   document.getElementById('attractFalloff').value='linear';
+  document.getElementById('defOn').checked=false;
+  document.getElementById('defAction').value='bounce';
   document.getElementById('rateCurveOn').checked=false;
   ratePts=[0,0.6,1,1,0.6,0.25,0.05,0,0];
   drawRateCurve();
@@ -414,6 +426,17 @@ function rebuildGallery(){
     }
     gal.appendChild(d);
   });
+  // keep the deflector transform-target list in sync with the library
+  var xf=document.getElementById('defXformTex');
+  if(xf){
+    var cur=xf.value;
+    xf.innerHTML='';
+    textures.forEach(function(t){
+      var o=document.createElement('option');o.value=t.name;o.textContent=t.name;
+      xf.appendChild(o);
+    });
+    if(textures.some(function(t){return t.name===cur;}))xf.value=cur;
+  }
 }
 function ensureOneSelected(){
   if(textures.length&&!textures.some(function(t){return t.sel;}))textures[0].sel=true;
@@ -588,6 +611,75 @@ function applyAttractor(p,dt){
   p.vx+=dx/d*f*dt;p.vy+=dy/d*f*dt;
 }
 
+// ── Deflector (line particles bounce off / die on / transform at) ───
+var defX1=null,defY1=null,defX2=null,defY2=null;
+var defDrag=0,defLX=0,defLY=0; // 1=end A, 2=end B, 3=whole line
+function onDefToggle(){
+  if(document.getElementById('defOn').checked&&defX1===null)centerDeflector();
+}
+function centerDeflector(){
+  var a=toWorld(cv.width*0.25,cv.height*0.75),b=toWorld(cv.width*0.75,cv.height*0.75);
+  defX1=a.x;defY1=a.y;defX2=b.x;defY2=b.y;
+  if(!document.getElementById('defOn').checked)document.getElementById('defOn').checked=true;
+}
+function ptSegDist(px,py,x1,y1,x2,y2){
+  var dx=x2-x1,dy=y2-y1,L2=dx*dx+dy*dy;
+  var t=L2?Math.max(0,Math.min(1,((px-x1)*dx+(py-y1)*dy)/L2)):0;
+  var cx=x1+dx*t,cy=y1+dy*t;
+  return Math.sqrt((px-cx)*(px-cx)+(py-cy)*(py-cy));
+}
+function defHandleHit(e){
+  if(!document.getElementById('defOn').checked||defX1===null)return 0;
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top),g=12/camZ;
+  if((w.x-defX1)*(w.x-defX1)+(w.y-defY1)*(w.y-defY1)<=g*g)return 1;
+  if((w.x-defX2)*(w.x-defX2)+(w.y-defY2)*(w.y-defY2)<=g*g)return 2;
+  if(ptSegDist(w.x,w.y,defX1,defY1,defX2,defY2)<=g*0.7)return 3;
+  return 0;
+}
+function moveDef(e){
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top);
+  if(defDrag===1){defX1=w.x;defY1=w.y;}
+  else if(defDrag===2){defX2=w.x;defY2=w.y;}
+  else if(defDrag===3){
+    var dx=w.x-defLX,dy=w.y-defLY;
+    defX1+=dx;defY1+=dy;defX2+=dx;defY2+=dy;
+    defLX=w.x;defLY=w.y;
+  }
+}
+function applyDeflector(p,ox,oy){
+  if(defX1===null||!document.getElementById('defOn').checked)return;
+  var mx=p.x-ox,my=p.y-oy;                 // motion this step
+  var dx=defX2-defX1,dy=defY2-defY1;       // deflector direction
+  var den=mx*dy-my*dx;
+  if(!den)return;
+  var t=((defX1-ox)*dy-(defY1-oy)*dx)/den; // along motion
+  var u=((defX1-ox)*my-(defY1-oy)*mx)/den; // along deflector
+  if(t<0||t>1||u<0||u>1)return;
+  var hx=ox+mx*t,hy=oy+my*t;               // hit point
+  var act=document.getElementById('defAction').value;
+  if(act==='die'){p.x=hx;p.y=hy;p.age=p.life;return;}
+  // reflect velocity about the line normal
+  var L=Math.sqrt(dx*dx+dy*dy)||1,nx=-dy/L,ny=dx/L;
+  var vn=p.vx*nx+p.vy*ny;
+  var e2=V('defBounce'),fr=1-V('defFriction');
+  var tvx=p.vx-vn*nx,tvy=p.vy-vn*ny;       // tangential part
+  p.vx=tvx*fr-vn*e2*nx;
+  p.vy=tvy*fr-vn*e2*ny;
+  // place just off the surface on the side we came from
+  var side=vn>0?-1:1;
+  p.x=hx+nx*side*0.5;p.y=hy+ny*side*0.5;
+  if(act==='xform'&&!p.xformed){
+    var nm=document.getElementById('defXformTex').value;
+    for(var i=0;i<textures.length;i++){
+      if(textures[i].name===nm){p.tex=textures[i].img;p.texName=nm;break;}
+    }
+    p.age=0;p.life=Math.max(0.05,V('defXformLife'));
+    p.xformed=true;
+  }
+}
+
 // ── Emitter position (click / drag) ───────────────────────
 var emitX=null,emitY=null,dragging=false;
 cv.addEventListener('pointerdown',function(e){
@@ -598,15 +690,23 @@ cv.addEventListener('pointerdown',function(e){
     e.preventDefault();return;
   }
   if(attractorHit(e)){attDragging=true;cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;}
+  var dh=defHandleHit(e);
+  if(dh){
+    defDrag=dh;
+    var r0=cv.getBoundingClientRect(),w0=toWorld(e.clientX-r0.left,e.clientY-r0.top);
+    defLX=w0.x;defLY=w0.y;
+    cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;
+  }
   dragging=true;setEmit(e);
   if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}
 });
 cv.addEventListener('pointermove',function(e){
   if(panning){camX=panCX+(e.clientX-panSX);camY=panCY+(e.clientY-panSY);return;}
   if(attDragging){setAtt(e);return;}
+  if(defDrag){moveDef(e);return;}
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=0;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 cv.addEventListener('dblclick',function(e){resetView();});
 function setEmit(e){
@@ -718,7 +818,7 @@ function exportSpine(){
         var es=endScale*(p.endScaleMul||1);
         scl=1+(es-1)*t;
       }
-      p._trk.frames.push({x:p.x-emitX,y:-(p.y-emitY),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha))});
+      p._trk.frames.push({x:p.x-emitX,y:-(p.y-emitY),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName});
     }
     for(var i2=particles.length-1;i2>=0;i2--){
       var q=particles[i2];q.age+=dt;
@@ -726,7 +826,10 @@ function exportSpine(){
       var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
       applyAttractor(q,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
-      q.x+=q.vx*dt;q.y+=q.vy*dt;q.rot+=q.spin*dt;
+      var _ox=q.x,_oy=q.y;
+      q.x+=q.vx*dt;q.y+=q.vy*dt;
+      applyDeflector(q,_ox,_oy);
+      q.rot+=q.spin*dt;
     }
     if(curF>=spawnEnd&&!particles.length)break;
   }
@@ -874,6 +977,8 @@ function exportSpine(){
   }
 
   var attachMap={}; // bone name -> {texName:{width,height}}, union over animations
+  var texDim={};
+  textures.forEach(function(t){texDim[t.name]={w:t.img.naturalWidth||64,h:t.img.naturalHeight||64};});
   function buildAnim(pooled,isLoop,nSlots){
     var anim={bones:{},slots:{}};
     pooled.bonesArr.forEach(function(bone,i){
@@ -884,16 +989,17 @@ function exportSpine(){
 
       list.forEach(function(tr,seg){
         var hasNext=seg<list.length-1;
-        var w=tr.img.naturalWidth||64,h=tr.img.naturalHeight||64;
-        attachMap[bn][tr.texName]={width:w,height:h};
 
       // dense channel arrays for this particle's lifetime
       var n=tr.frames.length,times=[],xs=[],ys=[],rots=[],sxs=[],sys=[],as=[];
       for(var f=0;f<n;f++){
         var fr=tr.frames[f];
+        var nm=fr.tex||tr.texName;
+        var d0=texDim[nm]||{w:64,h:64};
+        attachMap[bn][nm]={width:d0.w,height:d0.h};
         times.push((tr.born+f)/30);
         xs.push(fr.x);ys.push(fr.y);rots.push(fr.rot);
-        sxs.push(fr.s/w);sys.push(fr.s/h);as.push(fr.a);
+        sxs.push(fr.s/d0.w);sys.push(fr.s/d0.h);as.push(fr.a);
       }
 
       // translate (tol 1.5px)
@@ -933,7 +1039,12 @@ function exportSpine(){
         aK.push(ka);
       }
 
-        atK.push({time:r3(tr.born/30),name:tr.texName});
+        // attachment keys — re-key whenever the texture changes (deflector transform)
+        var curNm=null;
+        for(var f5=0;f5<n;f5++){
+          var nm5=tr.frames[f5].tex||tr.texName;
+          if(nm5!==curNm){atK.push({time:r3((tr.born+f5)/30),name:nm5});curNm=nm5;}
+        }
         if(!tr.reachEnd)atK.push({time:r3((tr.born+n)/30),name:null});
       });
 
@@ -1107,7 +1218,10 @@ function exportPNGSeq(){
       var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
       applyAttractor(q2,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
-      q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.rot+=q2.spin*dt;
+      var _ox2=q2.x,_oy2=q2.y;
+      q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;
+      applyDeflector(q2,_ox2,_oy2);
+      q2.rot+=q2.spin*dt;
     }
   }
   // restore live state
@@ -1195,6 +1309,7 @@ function saveProject(){
     alphaPts:alphaCurve.pts.slice(),
     emitX:emitX,emitY:emitY,
     attX:attX,attY:attY,
+    defX1:defX1,defY1:defY1,defX2:defX2,defY2:defY2,
     bg:bgData,
     images:[]};
   document.querySelectorAll('input[type=range]').forEach(function(el){proj.sliders[el.id]=el.value;});
@@ -1231,6 +1346,7 @@ function loadProject(input){
     drawRateCurve();scaleCurve.draw();alphaCurve.draw();
     if(typeof proj.emitX==='number'){emitX=proj.emitX;emitY=proj.emitY;}
     if(typeof proj.attX==='number'){attX=proj.attX;attY=proj.attY;}
+    if(typeof proj.defX1==='number'){defX1=proj.defX1;defY1=proj.defY1;defX2=proj.defX2;defY2=proj.defY2;}
     if(proj.bg){
       var bimg=new Image();
       bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
@@ -1329,7 +1445,9 @@ function loop(now){
       p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
       applyAttractor(p,dt);
       if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;}
+      var _ox=p.x,_oy=p.y;
       p.x+=p.vx*dt;p.y+=p.vy*dt;
+      applyDeflector(p,_ox,_oy);
       p.rot+=p.spin*dt;
     }
   }
@@ -1433,6 +1551,30 @@ function loop(now){
     }
     ctx.globalAlpha=1;
   }
+  // deflector line
+  if(document.getElementById('defOn').checked&&defX1!==null){
+    ctx.strokeStyle='#6d6';ctx.fillStyle='#6d6';
+    ctx.globalAlpha=0.85;
+    ctx.lineWidth=2/camZ;
+    ctx.beginPath();ctx.moveTo(defX1,defY1);ctx.lineTo(defX2,defY2);ctx.stroke();
+    // hatching on the underside to suggest a surface
+    var ddx=defX2-defX1,ddy=defY2-defY1,dL=Math.sqrt(ddx*ddx+ddy*ddy)||1;
+    var hnx=-ddy/dL,hny=ddx/dL,hlen=7/camZ;
+    ctx.globalAlpha=0.35;ctx.lineWidth=1/camZ;
+    ctx.beginPath();
+    var hn=Math.max(2,Math.floor(dL/(18/camZ)));
+    for(var hi2=0;hi2<=hn;hi2++){
+      var hx2=defX1+ddx*hi2/hn,hy2=defY1+ddy*hi2/hn;
+      ctx.moveTo(hx2,hy2);ctx.lineTo(hx2+(hnx-ddx/dL*0.5)*hlen,hy2+(hny-ddy/dL*0.5)*hlen);
+    }
+    ctx.stroke();
+    // endpoint handles
+    ctx.globalAlpha=0.9;
+    var hs=5/camZ;
+    ctx.fillRect(defX1-hs,defY1-hs,hs*2,hs*2);
+    ctx.fillRect(defX2-hs,defY2-hs,hs*2,hs*2);
+    ctx.globalAlpha=1;
+  }
   // zoom badge (screen space)
   ctx.setTransform(1,0,0,1,0,0);
   if(Math.abs(camZ-1)>0.001||camX!==0||camY!==0){
@@ -1492,6 +1634,12 @@ var TIPS={
   attractForce:'Attraction strength in px/s\u00b2. Positive pulls particles toward the point, negative repels them.',
   attractRadius:'Range of influence in pixels. 0 = infinite \u2014 affects every particle.',
   attractFalloff:'How force weakens with distance: constant, linear to the radius edge, or inverse / inverse-square of distance.',
+  defOn:'A line surface particles collide with. Drag the square end handles (or the line itself) on the canvas.',
+  defAction:'What happens on impact: Bounce reflects the particle, Die removes it at the surface, Transform swaps its image and gives it a short second life.',
+  defBounce:'Bounciness (restitution). 1 = full-energy bounce, 0 = lands dead on the surface.',
+  defFriction:'How much sliding speed along the surface is lost on each hit.',
+  defXformTex:'Image the particle becomes on impact (Transform action). Pick any library texture, e.g. a splash or smoke puff.',
+  defXformLife:'How long the transformed particle lives after impact, in seconds.',
   size:'Base particle size in pixels.',
   sizeVar:'Random size variation: each particle gets Size ± this amount.',
   endScale:'Size multiplier at the end of life. 1 = constant, 0 = shrink away, >1 = grow. Overridden by Scale curve.',
