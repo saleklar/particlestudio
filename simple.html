@@ -80,6 +80,14 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Gravity X</label><input type="range" id="gravX" min="-1000" max="1000" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Drag</label><input type="range" id="drag" min="0" max="3" step="0.05" value="0" oninput="sync(this)"><span class="val">0</span></div>
 
+  <h2>Attractor</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="attractOn" onchange="onAttractToggle()" style="accent-color:#3cf;cursor:pointer"><span style="color:#888;font-size:10px">drag the ◎ marker on canvas</span></div>
+  <div class="row"><label>Force</label><input type="range" id="attractForce" min="-3000" max="3000" step="10" value="600" oninput="sync(this)"><span class="val">600</span></div>
+  <div class="row"><label>Radius</label><input type="range" id="attractRadius" min="0" max="2000" step="10" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Falloff</label><select id="attractFalloff"><option value="none">None (constant)</option><option value="linear" selected>Linear</option><option value="inv">Inverse (1/d)</option><option value="inv2">Inverse² (1/d²)</option></select></div>
+  <button class="btn" onclick="centerAttractor()">◎ Center Attractor</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Positive force pulls particles in, negative pushes them away. Radius 0 = infinite range.</div>
+
   <h2>Appearance</h2>
   <div class="row"><label>Size</label><input type="range" id="size" min="2" max="300" value="40" oninput="sync(this)"><span class="val">40</span></div>
   <div class="row"><label>Size ±</label><input type="range" id="sizeVar" min="0" max="200" value="15" oninput="sync(this)"><span class="val">15</span></div>
@@ -167,6 +175,8 @@ function resetDefaults(){
   document.getElementById('blend').value='source-over';
   document.getElementById('mode').value='cont';
   document.getElementById('emitShape').value='box';
+  document.getElementById('attractOn').checked=false;
+  document.getElementById('attractFalloff').value='linear';
   document.getElementById('rateCurveOn').checked=false;
   ratePts=[0,0.6,1,1,0.6,0.25,0.05,0,0];
   drawRateCurve();
@@ -512,6 +522,43 @@ cv.addEventListener('wheel',function(e){
 },{passive:false});
 function resetView(){camX=0;camY=0;camZ=1;}
 
+// ── Attractor ─────────────────────────────────────────────
+var attX=null,attY=null,attDragging=false;
+function onAttractToggle(){
+  if(document.getElementById('attractOn').checked&&attX===null)centerAttractor();
+}
+function centerAttractor(){
+  var w=toWorld(cv.width/2,cv.height/2);
+  attX=w.x;attY=w.y;
+  if(!document.getElementById('attractOn').checked)document.getElementById('attractOn').checked=true;
+}
+function attractorHit(e){
+  if(!document.getElementById('attractOn').checked||attX===null)return false;
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top);
+  var grab=14/camZ;
+  return (w.x-attX)*(w.x-attX)+(w.y-attY)*(w.y-attY)<=grab*grab;
+}
+function setAtt(e){
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top);
+  attX=w.x;attY=w.y;
+}
+function applyAttractor(p,dt){
+  if(attX===null||!document.getElementById('attractOn').checked)return;
+  var dx=attX-p.x,dy=attY-p.y;
+  var d=Math.sqrt(dx*dx+dy*dy);
+  if(d<1)d=1;
+  var f=V('attractForce'),R=V('attractRadius');
+  if(R>0&&d>R)return;
+  switch(document.getElementById('attractFalloff').value){
+    case 'linear': if(R>0)f*=1-d/R; break;
+    case 'inv':    f*=100/d; break;
+    case 'inv2':   f*=10000/(d*d); break;
+  }
+  p.vx+=dx/d*f*dt;p.vy+=dy/d*f*dt;
+}
+
 // ── Emitter position (click / drag) ───────────────────────
 var emitX=null,emitY=null,dragging=false;
 cv.addEventListener('pointerdown',function(e){
@@ -521,14 +568,16 @@ cv.addEventListener('pointerdown',function(e){
     cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';
     e.preventDefault();return;
   }
+  if(attractorHit(e)){attDragging=true;cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;}
   dragging=true;setEmit(e);
   if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}
 });
 cv.addEventListener('pointermove',function(e){
   if(panning){camX=panCX+(e.clientX-panSX);camY=panCY+(e.clientY-panSY);return;}
+  if(attDragging){setAtt(e);return;}
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 cv.addEventListener('dblclick',function(e){resetView();});
 function setEmit(e){
@@ -646,6 +695,7 @@ function exportSpine(){
       var q=particles[i2];q.age+=dt;
       if(q.age>=q.life){particles.splice(i2,1);continue;}
       var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
+      applyAttractor(q,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
       q.x+=q.vx*dt;q.y+=q.vy*dt;q.rot+=q.spin*dt;
     }
@@ -1026,6 +1076,7 @@ function exportPNGSeq(){
       var q2=particles[i2];q2.age+=dt;
       if(q2.age>=q2.life){particles.splice(i2,1);continue;}
       var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
+      applyAttractor(q2,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
       q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.rot+=q2.spin*dt;
     }
@@ -1114,6 +1165,7 @@ function saveProject(){
     scalePts:scaleCurve.pts.slice(),
     alphaPts:alphaCurve.pts.slice(),
     emitX:emitX,emitY:emitY,
+    attX:attX,attY:attY,
     bg:bgData,
     images:[]};
   document.querySelectorAll('input[type=range]').forEach(function(el){proj.sliders[el.id]=el.value;});
@@ -1149,6 +1201,7 @@ function loadProject(input){
     if(proj.alphaPts)alphaCurve.pts=proj.alphaPts.slice();
     drawRateCurve();scaleCurve.draw();alphaCurve.draw();
     if(typeof proj.emitX==='number'){emitX=proj.emitX;emitY=proj.emitY;}
+    if(typeof proj.attX==='number'){attX=proj.attX;attY=proj.attY;}
     if(proj.bg){
       var bimg=new Image();
       bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
@@ -1245,6 +1298,7 @@ function loop(now){
       if(p.age>=p.life){particles.splice(i,1);continue;}
       var gm=p.gravMul||1;
       p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
+      applyAttractor(p,dt);
       if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;}
       p.x+=p.vx*dt;p.y+=p.vy*dt;
       p.rot+=p.spin*dt;
@@ -1326,6 +1380,30 @@ function loop(now){
     ctx.rect(emitX-ew/2,emitY-eh/2,ew,eh);
   }
   ctx.stroke();
+  // attractor marker
+  if(document.getElementById('attractOn').checked&&attX!==null){
+    var attract=V('attractForce')>=0;
+    ctx.strokeStyle=attract?'#3cf':'#f55';
+    ctx.globalAlpha=0.8;
+    ctx.lineWidth=1.5/camZ;
+    var mr=8/camZ;
+    ctx.beginPath();ctx.arc(attX,attY,mr,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(attX,attY,mr*0.35,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(attX-mr*1.8,attY);ctx.lineTo(attX-mr*1.1,attY);
+    ctx.moveTo(attX+mr*1.1,attY);ctx.lineTo(attX+mr*1.8,attY);
+    ctx.moveTo(attX,attY-mr*1.8);ctx.lineTo(attX,attY-mr*1.1);
+    ctx.moveTo(attX,attY+mr*1.1);ctx.lineTo(attX,attY+mr*1.8);
+    ctx.stroke();
+    var R2=V('attractRadius');
+    if(R2>0){
+      ctx.globalAlpha=0.25;
+      ctx.setLineDash([6/camZ,6/camZ]);
+      ctx.beginPath();ctx.arc(attX,attY,R2,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.globalAlpha=1;
+  }
   // zoom badge (screen space)
   ctx.setTransform(1,0,0,1,0,0);
   if(Math.abs(camZ-1)>0.001||camX!==0||camY!==0){
@@ -1357,6 +1435,10 @@ var TIPS={
   gravY:'Constant vertical acceleration. Positive pulls down, negative floats up.',
   gravX:'Constant horizontal acceleration — use for wind.',
   drag:'Air resistance: slows particles over time. 0 = none.',
+  attractOn:'A point that pulls (or pushes) particles. Drag the \u25ce marker on the canvas to move it.',
+  attractForce:'Attraction strength in px/s\u00b2. Positive pulls particles toward the point, negative repels them.',
+  attractRadius:'Range of influence in pixels. 0 = infinite \u2014 affects every particle.',
+  attractFalloff:'How force weakens with distance: constant, linear to the radius edge, or inverse / inverse-square of distance.',
   size:'Base particle size in pixels.',
   sizeVar:'Random size variation: each particle gets Size ± this amount.',
   endScale:'Size multiplier at the end of life. 1 = constant, 0 = shrink away, >1 = grow. Overridden by Scale curve.',
