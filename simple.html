@@ -80,8 +80,8 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Speed ±</label><input type="range" id="speedVar" min="0" max="400" value="50" oninput="sync(this)"><span class="val">50</span></div>
   <div class="row"><label>Angle °</label><input type="range" id="angle" min="0" max="360" value="270" oninput="sync(this)"><span class="val">270</span></div>
   <div class="row"><label>Spread °</label><input type="range" id="spread" min="0" max="360" value="40" oninput="sync(this)"><span class="val">40</span></div>
-  <div class="row"><label>Gravity Y</label><input type="range" id="gravY" min="-1000" max="1000" value="200" oninput="sync(this)"><span class="val">200</span></div>
-  <div class="row"><label>Gravity X</label><input type="range" id="gravX" min="-1000" max="1000" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Gravity</label><input type="range" id="gravY" min="-1000" max="1000" value="200" oninput="sync(this)"><span class="val">200</span></div>
+  <div class="row"><label>Wind</label><input type="range" id="gravX" min="-1000" max="1000" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Drag</label><input type="range" id="drag" min="0" max="3" step="0.05" value="0" oninput="sync(this)"><span class="val">0</span></div>
 
   <h2>Attractor</h2>
@@ -1835,7 +1835,7 @@ var TIPS={
   angle:'Direction particles fly, in degrees. 270 = up, 90 = down, 0 = right, 180 = left.',
   spread:'Cone width around Angle. 360 = all directions.',
   gravY:'Constant vertical acceleration. Positive pulls down, negative floats up.',
-  gravX:'Constant horizontal acceleration — use for wind.',
+  gravX:'Wind: constant horizontal acceleration. Positive blows right, negative left.',
   drag:'Air resistance: slows particles over time. 0 = none.',
   attractOn:'A point that pulls (or pushes) particles. Drag the \u25ce marker on the canvas to move it.',
   attractForce:'Attraction strength in px/s\u00b2. Positive pulls particles toward the point, negative repels them.',
