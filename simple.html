@@ -61,17 +61,17 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Emitters</h2>
   <div id="emList" style="margin-bottom:4px"></div>
   <button class="btn" onclick="addEmitter()">+ Add Emitter</button>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Emitter, Motion, Appearance and Randomness settings plus its own images and position — the sidebar edits the highlighted one. Attractor, deflector, mesh, bodies, tint, curves, playback and export stay global. Click a name to edit it, ✎ or double-click to rename, 👁 toggles it. In the Spine export each emitter becomes a parent bone (using its name) with its particles as child bones.</div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Particle Image, Emitter, Motion, Appearance, Randomness and Mesh Deformer settings plus its own position — the sidebar edits the highlighted one. The 🌐 checkbox on a panel makes it global: that emitter’s values drive all emitters (only one owner per panel). Attractor, deflector, bodies, tint, curves, playback and export are always global. Click a name to edit it, ✎ or double-click to rename, 👁 toggles it. In the Spine export each emitter becomes a parent bone (using its name) with its particles as child bones.</div>
 
-  <h2>Particle Image</h2>
+  <h2>Particle Image<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_image">🌐 all</span> <input type="checkbox" id="glob_image" onchange="onGlobToggle('image',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
   <div id="tex-gallery"></div>
   <div id="seq-list"></div>
   <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
   <div class="row" id="seqFitRow" style="display:none"><label>Fit life</label><input type="checkbox" id="seqFitLife" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">play once over lifetime instead of looping</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox to load the remaining frames from its folder (the folder is granted once, then remembered — later sequences load silently). Plays as a flipbook, exports to Spine as attachment keys.</div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox to load the remaining frames from its folder (the folder is granted once, then remembered — later sequences load silently). Plays as a flipbook, exports to Spine as a native sequence attachment (or per-frame attachment keys — see Export).</div>
 
-  <h2>Emitter</h2>
+  <h2>Emitter<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_emitter">🌐 all</span> <input type="checkbox" id="glob_emitter" onchange="onGlobToggle('emitter',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
   <div class="row" id="rateRow"><label>Rate /s</label><input type="range" id="rate" min="1" max="500" value="60" oninput="sync(this)"><span class="val">60</span></div>
   <div class="row" id="rateCurveRow"><label>Rate curve</label><input type="checkbox" id="rateCurveOn" onchange="drawRateCurve()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">rate × curve over anim length</span></div>
@@ -84,7 +84,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Density</label><input type="range" id="emitDensity" min="-100" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Lifetime s</label><input type="range" id="life" min="0.2" max="10" step="0.1" value="2.5" oninput="sync(this)"><span class="val">2.5</span></div>
 
-  <h2>Motion</h2>
+  <h2>Motion<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_motion">🌐 all</span> <input type="checkbox" id="glob_motion" onchange="onGlobToggle('motion',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Speed</label><input type="range" id="speed" min="0" max="800" value="150" oninput="sync(this)"><span class="val">150</span></div>
   <div class="row"><label>Speed ±</label><input type="range" id="speedVar" min="0" max="400" value="50" oninput="sync(this)"><span class="val">50</span></div>
   <div class="row"><label>Angle °</label><input type="range" id="angle" min="0" max="360" value="270" oninput="sync(this)"><span class="val">270</span></div>
@@ -117,7 +117,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="centerDeflector()">─ Reset Deflector</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">A shapeable surface particles collide with. Double-click the line to add points, double-click a point to remove it. Bounce reflects particles, Die removes them, Transform swaps the image for a short second life.</div>
 
-  <h2>Mesh Deformer</h2>
+  <h2>Mesh Deformer<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_mesh">🌐 all</span> <input type="checkbox" id="glob_mesh" onchange="onGlobToggle('mesh',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="meshOn" onchange="onMeshToggle()" style="accent-color:#c6f;cursor:pointer"><span style="color:#888;font-size:10px">drag vertices on canvas</span></div>
   <div class="row"><label>Grid</label><input type="range" id="meshN" min="3" max="12" value="5" oninput="sync(this);meshRebuild()"><span class="val">5</span></div>
   <div class="row"><label>Weight</label><input type="range" id="meshWeight" min="0" max="1" step="0.05" value="0.6" oninput="sync(this)"><span class="val">0.6</span></div>
@@ -136,7 +136,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="bodies.length=0;rebuildBodyList()">✕ Clear Bodies</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Photoshop layers become pixel-accurate colliders. Static bodies block particles; dynamic bodies fall with gravity, bounce off statics and stage edges, and can be thrown with the mouse. Preview only — not exported.</div>
 
-  <h2>Appearance</h2>
+  <h2>Appearance<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_appearance">🌐 all</span> <input type="checkbox" id="glob_appearance" onchange="onGlobToggle('appearance',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Size</label><input type="range" id="size" min="2" max="300" value="40" oninput="sync(this)"><span class="val">40</span></div>
   <div class="row"><label>Size ±</label><input type="range" id="sizeVar" min="0" max="200" value="15" oninput="sync(this)"><span class="val">15</span></div>
   <div class="row"><label>End scale</label><input type="range" id="endScale" min="0" max="3" step="0.05" value="0.3" oninput="sync(this)"><span class="val">0.3</span></div>
@@ -153,7 +153,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Stop color</label><input type="color" id="tintStopColor" value="#ff8800" style="flex:1;height:22px;background:#2a2a2a;border:1px solid #444;border-radius:3px;padding:1px;cursor:pointer"></div>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Tint multiplies the image color and exports as Spine slot color keys. Gradient: click to add a stop, drag to move, double-click to remove.</div>
 
-  <h2>Randomness</h2>
+  <h2>Randomness<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_random">🌐 all</span> <input type="checkbox" id="glob_random" onchange="onGlobToggle('random',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Master %</label><input type="range" id="randAll" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Life ±%</label><input type="range" id="randLife" min="0" max="100" value="25" oninput="sync(this)"><span class="val">25</span></div>
   <div class="row"><label>Spin ±%</label><input type="range" id="randSpin" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
@@ -193,6 +193,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Intro frames</label><input type="range" id="introFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
   <div class="row"><label>Outro frames</label><input type="range" id="outroFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:4px">Single: one animation (loops seamlessly if Loop is on). Trio: three seamless animations in one skeleton — needs Loop. Loop length = Frames (Playback).</div>
+  <div class="row"><label>Sequences</label><select id="expSeqMode"><option value="native" selected>Spine sequence (native)</option><option value="keys">Attachment keys</option></select></div>
   <div class="row"><label>Spine ver.</label><select id="spineVer"><option value="4.2" selected>4.2</option><option value="4.1">4.1</option></select></div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
@@ -270,7 +271,8 @@ function onModeChange(){
 var EM_IDS=['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','life',
  'speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed',
  'size','sizeVar','endScale','spin','fade',
- 'randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity'];
+ 'randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity',
+ 'meshOn','meshN','meshWeight'];
 var emitters=[],emIdx=0;
 function emSnapshot(){
   var s={};
@@ -285,7 +287,8 @@ function emX(em){return em.x==null?cv.width/2:em.x;}
 function emY(em){return em.y==null?cv.height/2:em.y;}
 function addEmitter(){
   var em={name:'Emitter '+(emitters.length+1),on:true,x:null,y:null,
-          s:emSnapshot(),ratePts:ratePts.slice(),texSel:{},pool:[],acc:0};
+          s:emSnapshot(),ratePts:ratePts.slice(),texSel:{},pool:[],acc:0,
+          meshPts:null,meshRect:null};
   textures.forEach(function(t){if(t.sel)em.texSel[t.name]=true;});
   emitters.push(em);
   emIdx=emitters.length-1;
@@ -297,18 +300,23 @@ function emLoad(i){
   var em=emitters[i];
   EM_IDS.forEach(function(id){
     var el=document.getElementById(id);
-    if(el.type==='checkbox')el.checked=!!em.s[id];
-    else{el.value=em.s[id];if(el.type==='range')sync(el);}
+    var src=emOf(em,id);   // globally owned panels show the owner's values
+    if(el.type==='checkbox')el.checked=!!src.s[id];
+    else{el.value=src.s[id];if(el.type==='range')sync(el);}
   });
-  ratePts=em.ratePts;
-  textures.forEach(function(t){t.sel=!!(em.texSel&&em.texSel[t.name]);});
+  ratePts=emFor(em,'emitter').ratePts;
+  var iOwn=emFor(em,'image');
+  textures.forEach(function(t){t.sel=!!(iOwn.texSel&&iOwn.texSel[t.name]);});
   ensureOneSelected();
+  updateGlobUI(em);
   onModeChange();drawRateCurve();rebuildGallery();rebuildEmList();
 }
 function emActivate(i){if(i!==emIdx&&emitters[i])emLoad(i);}
 function emDelete(i){
   if(emitters.length<=1)return;
+  var dead=emitters[i];
   emitters.splice(i,1);
+  for(var g in emGlobals)if(emGlobals[g]===dead)emGlobals[g]=null;
   if(i<emIdx)emIdx--;
   emLoad(Math.min(emIdx,emitters.length-1));
 }
@@ -343,9 +351,10 @@ function rebuildEmList(){
 }
 // per-emitter rate-over-time sampling
 function emRateCurve(em,p){
-  if(!em.s.rateCurveOn)return 1;
+  var o=emFor(em,'emitter');
+  if(!o.s.rateCurveOn)return 1;
   p=Math.max(0,Math.min(1,p));
-  var pts=em.ratePts,seg=p*(pts.length-1),i=Math.floor(seg),f=seg-i;
+  var pts=o.ratePts,seg=p*(pts.length-1),i=Math.floor(seg),f=seg-i;
   if(i>=pts.length-1)return pts[pts.length-1];
   return pts[i]*(1-f)+pts[i+1]*f;
 }
@@ -397,7 +406,7 @@ function rcSet(e){
   ratePts[i]=Math.max(0,Math.min(1,1-(py*rcCv.height-3)/(rcCv.height-6)));
   if(!document.getElementById('rateCurveOn').checked){
     document.getElementById('rateCurveOn').checked=true;
-    if(emitters[emIdx])emitters[emIdx].s.rateCurveOn=true;
+    if(emitters[emIdx])emFor(emitters[emIdx],'emitter').s.rateCurveOn=true;
   }
   drawRateCurve();
 }
@@ -570,7 +579,7 @@ function tintedSprite(img,name,tc){
 }
 function doBurst(){
   emitters.forEach(function(em){
-    if(!em.on||em.s.mode!=='burst')return;
+    if(!em.on||ES(em,'mode')!=='burst')return;
     var n=Math.round(EV(em,'maxCount'));
     for(var i=0;i<n;i++)spawn(em);
   });
@@ -864,8 +873,8 @@ function rebuildSeqList(groups){
 function rebuildSpawnPool(groups){
   groups=groups||seqGroups();
   if(!emitters.length){spawnPool=[];return;}
-  // active emitter's selection follows the gallery
-  var emA=emitters[emIdx];
+  // the gallery edits the image owner's selection (active emitter, or the 🌐 owner)
+  var emA=emFor(emitters[emIdx],'image');
   emA.texSel={};
   textures.forEach(function(t){if(t.sel)emA.texSel[t.name]=true;});
   emitters.forEach(function(em){em.pool=emPoolFor(em,groups);});
@@ -955,7 +964,7 @@ EM_IDS.forEach(function(id){
   var evName=(el.tagName==='SELECT'||el.type==='checkbox')?'change':'input';
   el.addEventListener(evName,function(){
     var em=emitters[emIdx];
-    if(em)em.s[id]=el.type==='checkbox'?el.checked:el.value;
+    if(em)emOf(em,id).s[id]=el.type==='checkbox'?el.checked:el.value;
   });
 });
 addEmitter();   // create "Emitter 1" from the current sidebar values
@@ -1166,11 +1175,10 @@ function applyAttractor(p,dt){
 // ── Turbulence (deterministic flow field — depends only on particle
 //    position/age/seed, so live preview, loops and exports match exactly) ─
 function applyTurbulence(p,dt){
-  var s=p.em.s;
-  var amp=parseFloat(s.turbAmp);
+  var amp=EV(p.em,'turbAmp');
   if(amp<=0)return;
-  var sc=1/Math.max(1,parseFloat(s.turbScale));
-  var t=p.age*parseFloat(s.turbSpeed)+(p.seed||0)*97.13;
+  var sc=1/Math.max(1,EV(p.em,'turbScale'));
+  var t=p.age*EV(p.em,'turbSpeed')+(p.seed||0)*97.13;
   var x=p.x*sc,y=p.y*sc;
   var fx=Math.sin(y*1.3+t)+0.5*Math.sin(y*2.9-t*0.6+1.7)+0.25*Math.sin((x+y)*4.1+t*1.3);
   var fy=Math.cos(x*1.1-t)+0.5*Math.sin(x*2.3+t*0.8+4.2)+0.25*Math.sin((x-y)*3.7-t*1.1);
@@ -1182,23 +1190,29 @@ function applyTurbulence(p,dt){
 // displacement field; the local Jacobian of that field bends particle
 // velocities, so trajectories follow the sculpted surface. Deterministic
 // (pure function of position), so preview, loops and exports match exactly.
-var meshPts=null,meshRect=null,meshDrag=null;
+// Per-emitter by default (each emitter sculpts its own grid); the 🌐
+// checkbox on the panel makes one emitter's mesh warp every emitter.
+var meshDrag=null;
+function meshTarget(){return emitters.length?emFor(emitters[emIdx],'mesh'):null;}
 function onMeshToggle(){
-  if(document.getElementById('meshOn').checked&&!meshPts)meshReset();
+  var T=meshTarget();
+  if(T&&document.getElementById('meshOn').checked&&!T.meshPts)meshReset();
 }
 function meshReset(){
+  var T=meshTarget();
+  if(!T)return;
   var n=Math.round(V('meshN'));
   var w=cv.width*0.6,h=cv.height*0.6;
-  meshRect={x:(cv.width-w)/2,y:(cv.height-h)/2,w:w,h:h,n:n};
-  meshPts=[];
+  T.meshRect={x:(cv.width-w)/2,y:(cv.height-h)/2,w:w,h:h,n:n};
+  T.meshPts=[];
   for(var j=0;j<n;j++)for(var i=0;i<n;i++)
-    meshPts.push({x:meshRect.x+i/(n-1)*meshRect.w,y:meshRect.y+j/(n-1)*meshRect.h});
+    T.meshPts.push({x:T.meshRect.x+i/(n-1)*T.meshRect.w,y:T.meshRect.y+j/(n-1)*T.meshRect.h});
   if(!document.getElementById('meshOn').checked)document.getElementById('meshOn').checked=true;
 }
-function meshRebuild(){if(meshPts)meshReset();} // resolution change restarts flat
+function meshRebuild(){if(meshTarget().meshPts)meshReset();} // resolution change restarts flat
 // displacement of the warp at a world point (clamped bilinear over the grid)
-function meshDispC(px,py){
-  var R=meshRect,n=R.n;
+function meshDispC(pts,R,px,py){
+  var n=R.n;
   var u=Math.max(0,Math.min(n-1,(px-R.x)/R.w*(n-1)));
   var v=Math.max(0,Math.min(n-1,(py-R.y)/R.h*(n-1)));
   var i=Math.min(n-2,Math.floor(u)),j=Math.min(n-2,Math.floor(v));
@@ -1206,20 +1220,21 @@ function meshDispC(px,py){
   var k00=j*n+i,k10=k00+1,k01=k00+n,k11=k01+1;
   var rx0=R.x+i/(n-1)*R.w,rx1=R.x+(i+1)/(n-1)*R.w;
   var ry0=R.y+j/(n-1)*R.h,ry1=R.y+(j+1)/(n-1)*R.h;
-  var d00x=meshPts[k00].x-rx0,d00y=meshPts[k00].y-ry0;
-  var d10x=meshPts[k10].x-rx1,d10y=meshPts[k10].y-ry0;
-  var d01x=meshPts[k01].x-rx0,d01y=meshPts[k01].y-ry1;
-  var d11x=meshPts[k11].x-rx1,d11y=meshPts[k11].y-ry1;
+  var d00x=pts[k00].x-rx0,d00y=pts[k00].y-ry0;
+  var d10x=pts[k10].x-rx1,d10y=pts[k10].y-ry0;
+  var d01x=pts[k01].x-rx0,d01y=pts[k01].y-ry1;
+  var d11x=pts[k11].x-rx1,d11y=pts[k11].y-ry1;
   return {
     x:(d00x*(1-fu)+d10x*fu)*(1-fv)+(d01x*(1-fu)+d11x*fu)*fv,
     y:(d00y*(1-fu)+d10y*fu)*(1-fv)+(d01y*(1-fu)+d11y*fu)*fv
   };
 }
 function applyMeshWarp(p,dt){
-  if(!meshPts||!document.getElementById('meshOn').checked)return;
-  var wgt=V('meshWeight');
-  if(wgt<=0)return;
-  var R=meshRect,n=R.n;
+  var o=emFor(p.em,'mesh');
+  if(!o.s.meshOn)return;
+  var pts=o.meshPts,R=o.meshRect,wgt=parseFloat(o.s.meshWeight);
+  if(!pts||wgt<=0)return;
+  var n=R.n;
   var u=(p.x-R.x)/R.w*(n-1),v=(p.y-R.y)/R.h*(n-1);
   if(u<0||v<0||u>n-1||v>n-1)return;
   // influence fades in over the outer 20% so entry/exit is smooth
@@ -1227,8 +1242,8 @@ function applyMeshWarp(p,dt){
   if(edge>1)edge=1;
   // Jacobian of the displacement field by central differences (half a cell)
   var h=R.w/(n-1)*0.5;
-  var dxp=meshDispC(p.x+h,p.y),dxm=meshDispC(p.x-h,p.y);
-  var dyp=meshDispC(p.x,p.y+h),dym=meshDispC(p.x,p.y-h);
+  var dxp=meshDispC(pts,R,p.x+h,p.y),dxm=meshDispC(pts,R,p.x-h,p.y);
+  var dyp=meshDispC(pts,R,p.x,p.y+h),dym=meshDispC(pts,R,p.x,p.y-h);
   var a11=1+(dxp.x-dxm.x)/(2*h),a12=(dyp.x-dym.x)/(2*h);
   var a21=(dxp.y-dxm.y)/(2*h),a22=1+(dyp.y-dym.y)/(2*h);
   var nvx=p.vx*a11+p.vy*a12,nvy=p.vx*a21+p.vy*a22;
@@ -1240,12 +1255,13 @@ function applyMeshWarp(p,dt){
   p.vy+=(ty-p.vy)*k;
 }
 function meshHandleHit(e){
-  if(!document.getElementById('meshOn').checked||!meshPts)return null;
+  var T=meshTarget();
+  if(!document.getElementById('meshOn').checked||!T.meshPts)return null;
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top),g=10/camZ;
-  for(var k=0;k<meshPts.length;k++){
-    var dx=w.x-meshPts[k].x,dy=w.y-meshPts[k].y;
-    if(dx*dx+dy*dy<=g*g)return {pt:k};
+  for(var k=0;k<T.meshPts.length;k++){
+    var dx=w.x-T.meshPts[k].x,dy=w.y-T.meshPts[k].y;
+    if(dx*dx+dy*dy<=g*g)return {pt:k,T:T};
   }
   return null;
 }
@@ -1665,7 +1681,7 @@ cv.addEventListener('pointermove',function(e){
   if(defDrag){moveDef(e);return;}
   if(meshDrag){
     var rq=cv.getBoundingClientRect(),wq=toWorld(e.clientX-rq.left,e.clientY-rq.top);
-    meshPts[meshDrag.pt].x=wq.x;meshPts[meshDrag.pt].y=wq.y;
+    meshDrag.T.meshPts[meshDrag.pt].x=wq.x;meshDrag.T.meshPts[meshDrag.pt].y=wq.y;
     return;
   }
   if(bodyDrag){
@@ -1720,7 +1736,7 @@ function togglePause(){
 function spawn(em){
   em=em||emitters[emIdx];
   if(!em)return;
-  var sel=em.pool;
+  var sel=emFor(em,'image').pool;
   if(!sel.length)return;
   var to=sel[(rng()*sel.length)|0];
   var tex=to.img;
@@ -1735,7 +1751,7 @@ function spawn(em){
   var ox=0,oy=0,ew=EV(em,'emitW'),eh=EV(em,'emitH');
   var dBias=(EV(em,'emitDensity')||0)/100,dK=Math.pow(4,dBias);
   function bias1(u){return dBias?(u<0?-1:1)*Math.pow(Math.abs(u),dK):u;}   // u ∈ [-1,1]
-  switch(em.s.emitShape){
+  switch(ES(em,'emitShape')){
     case 'point': break;
     case 'box':    ox=bias1((rng()-0.5)*2)*ew/2; oy=bias1((rng()-0.5)*2)*eh/2; break;
     case 'circle': {var t2=rng()*Math.PI*2,r2=Math.pow(rng(),0.5*dK); ox=Math.cos(t2)*r2*ew/2; oy=Math.sin(t2)*r2*eh/2; break;}
@@ -1783,7 +1799,7 @@ function exportSpine(){
   var tracks=[],curF=0;
   function tagNew(prev){
     for(var k=prev;k<particles.length;k++){
-      var tr={born:curF,img:particles[k].tex,texName:particles[k].texName,em:particles[k].em,frames:[]};
+      var tr={born:curF,img:particles[k].tex,texName:particles[k].texName,em:particles[k].em,life:particles[k].life,frames:[]};
       particles[k]._trk=tr;tracks.push(tr);
     }
   }
@@ -1805,7 +1821,7 @@ function exportSpine(){
     if(curF<spawnEnd){
       var before=particles.length;
       emitters.forEach(function(em3){
-        if(!em3.on||em3.s.mode!=='cont')return;
+        if(!em3.on||ES(em3,'mode')!=='cont')return;
         em3.acc+=EV(em3,'rate')*emRateCurve(em3,(curF%totF)/totF)*dt;
         var cap3=Math.round(EV(em3,'maxCount')),live3=0;
         for(var li=0;li<particles.length;li++)if(particles[li].em===em3)live3++;
@@ -1818,14 +1834,14 @@ function exportSpine(){
       var acv=alphaCurve.sample(t),alpha;
       if(acv!==null){alpha=acv*Math.min(1,p.fadeMul||1);}
       else{
-        var fs=1-Math.min(1,parseFloat(p.em.s.fade)*(p.fadeMul||1));
+        var fs=1-Math.min(1,EV(p.em,'fade')*(p.fadeMul||1));
         alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
       }
       alpha*=(p.opacityMul==null?1:p.opacityMul);
       var scv=scaleCurve.sample(t),scl;
       if(scv!==null){scl=scv*(p.endScaleMul||1);}
       else{
-        var es=parseFloat(p.em.s.endScale)*(p.endScaleMul||1);
+        var es=EV(p.em,'endScale')*(p.endScaleMul||1);
         scl=1+(es-1)*t;
       }
       p._trk.frames.push({x:p.x-emX(p.em),y:-(p.y-emY(p.em)),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName,t:tintFor(p,t)});
@@ -1833,7 +1849,7 @@ function exportSpine(){
     for(var i2=particles.length-1;i2>=0;i2--){
       var q=particles[i2];q.age+=dt;
       if(q.age>=q.life){particles.splice(i2,1);continue;}
-      var qs=q.em.s,gx=parseFloat(qs.gravX),gy=parseFloat(qs.gravY),drag=parseFloat(qs.drag);
+      var qs=q.em.s,gx=EV(q.em,'gravX'),gy=EV(q.em,'gravY'),drag=EV(q.em,'drag');
       var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
       applyAttractor(q,dt);
       applyTurbulence(q,dt);
@@ -1942,26 +1958,26 @@ function exportSpine(){
         var crossesZero=len-1>-tr.born;
         var e0=crossesZero?-tr.born+1:len;       // include the frame at loop time 0
         if(e0<=s0)return;
-        units.push([{born:tr.born+s0+iF,frames:tr.frames.slice(s0,e0),img:tr.img,texName:tr.texName,reachEnd:crossesZero,ord:tr.born+s0,seq:seq}]);
+        units.push([{born:tr.born+s0+iF,frames:tr.frames.slice(s0,e0),img:tr.img,texName:tr.texName,life:tr.life,reachEnd:crossesZero,ord:tr.born+s0,seq:seq}]);
       }else if(kind==='loop'){
         if(tr.born<0)return;                     // intro survivors = the wrapped tails
         if(crosses){
           var wrapFrames=tr.frames.slice(cut);
           if(wrapFrames.length>totF)wrapFrames=wrapFrames.slice(0,totF); // one wrap max
           units.push([
-            {born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,reachEnd:true,ord:tr.born,seq:seq},
-            {born:0,frames:wrapFrames,img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}
+            {born:tr.born,frames:tr.frames.slice(0,cut+1),img:tr.img,texName:tr.texName,life:tr.life,reachEnd:true,ord:tr.born,seq:seq},
+            {born:0,frames:wrapFrames,img:tr.img,texName:tr.texName,life:tr.life,ord:tr.born-totF,seq:seq}
           ]);
-        }else units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
+        }else units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,life:tr.life,ord:tr.born,seq:seq}]);
       }else if(kind==='outro'){
         if(tr.born<0)return;
         if(crosses){
           var tail=tr.frames.slice(cut);
           if(tail.length>oF)tail=tail.slice(0,oF); // cut at outro end (hide key lands there)
-          units.push([{born:0,frames:tail,img:tr.img,texName:tr.texName,ord:tr.born-totF,seq:seq}]);
+          units.push([{born:0,frames:tail,img:tr.img,texName:tr.texName,life:tr.life,ord:tr.born-totF,seq:seq}]);
         }
       }else{ // single (loop off)
-        units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,ord:tr.born,seq:seq}]);
+        units.push([{born:tr.born,frames:tr.frames,img:tr.img,texName:tr.texName,life:tr.life,ord:tr.born,seq:seq}]);
       }
     });
     units.sort(function(a,b){return a[0].born-b[0].born||a[0].seq-b[0].seq;});
@@ -1999,6 +2015,28 @@ function exportSpine(){
   var attachMap={}; // bone name -> {texName:{width,height}}, union over animations
   var texDim={};
   textures.forEach(function(t){texDim[t.name]={w:t.img.naturalWidth||64,h:t.img.naturalHeight||64};});
+  // native Spine sequences (4.1+): a flipbook exports as ONE attachment with
+  // sequence metadata + a sequence timeline key (loop @ Seq FPS), instead of
+  // per-frame attachment keys.
+  var seqNative=document.getElementById('expSeqMode').value==='native';
+  var seqFit=document.getElementById('seqFitLife').checked;
+  var seqFpsV=Math.max(1,V('seqFps'));
+  var seqExp={},seqMetaByBase={};   // frameName -> {meta,idx} · attachName -> meta
+  if(seqNative){
+    var _sg=seqGroups();
+    for(var sb in _sg){
+      if(!seqEnabled[sb])continue;
+      var sfr=_sg[sb];
+      if(sfr.length<2)continue;
+      var m0=/^(.*?)(\d{1,5})$/.exec(sfr[0].name);
+      if(!m0)continue;
+      var sMeta={attach:sb,path:m0[1],count:sfr.length,start:parseInt(m0[2],10),digits:m0[2].length,
+        w:sfr[0].img.naturalWidth||64,h:sfr[0].img.naturalHeight||64,
+        frames:sfr.map(function(f){return f.name;})};
+      seqMetaByBase[sb]=sMeta;
+      sfr.forEach(function(f,fi){seqExp[f.name]={meta:sMeta,idx:fi};});
+    }
+  }
   function buildAnim(groupPooled,isLoop){
     var anim={bones:{},slots:{}};
     var allSegs=[];
@@ -2017,9 +2055,13 @@ function exportSpine(){
       var n=tr.frames.length,times=[],xs=[],ys=[],rots=[],sxs=[],sys=[],as=[],crs=[],cgs=[],cbs=[];
       for(var f=0;f<n;f++){
         var fr=tr.frames[f];
-        var nm=fr.tex||tr.texName;
-        var d0=texDim[nm]||{w:64,h:64};
-        attachMap[bn][nm]={width:d0.w,height:d0.h};
+        var raw=fr.tex||tr.texName;
+        var sqf=seqExp[raw];
+        var nm=sqf?sqf.meta.attach:raw;
+        var d0=sqf?{w:sqf.meta.w,h:sqf.meta.h}:(texDim[raw]||{w:64,h:64});
+        if(sqf)attachMap[bn][nm]={path:sqf.meta.path,width:sqf.meta.w,height:sqf.meta.h,
+          sequence:{count:sqf.meta.count,start:sqf.meta.start,digits:sqf.meta.digits}};
+        else attachMap[bn][nm]={width:d0.w,height:d0.h};
         times.push((tr.born+f)/30);
         xs.push(fr.x);ys.push(fr.y);rots.push(fr.rot);
         sxs.push(fr.s/d0.w);sys.push(fr.s/d0.h);as.push(fr.a);
@@ -2076,11 +2118,26 @@ function exportSpine(){
         }
       }
 
-        // attachment keys — re-key whenever the texture changes (deflector transform)
+        // attachment keys — re-key when the attachment changes. Sequence frames
+        // collapse into one native sequence attachment + a sequence timeline key
+        // (mode loop @ Seq FPS, or once over lifetime with Fit life).
         var curNm=null;
         for(var f5=0;f5<n;f5++){
-          var nm5=tr.frames[f5].tex||tr.texName;
-          if(nm5!==curNm){atK.push({time:r3((tr.born+f5)/30),name:nm5});curNm=nm5;}
+          var raw5=tr.frames[f5].tex||tr.texName;
+          var sq5=seqExp[raw5];
+          var nm5=sq5?sq5.meta.attach:raw5;
+          if(nm5!==curNm){
+            atK.push({time:r3((tr.born+f5)/30),name:nm5});
+            curNm=nm5;
+            if(sq5){
+              var sqDelay=seqFit?Math.max(0.001,(tr.life||1)/sq5.meta.count):1/seqFpsV;
+              if(!anim.attachments)anim.attachments={};
+              var sqSk=anim.attachments['default']||(anim.attachments['default']={});
+              var sqSl=sqSk[bn]||(sqSk[bn]={});
+              var sqAt=sqSl[nm5]||(sqSl[nm5]={sequence:[]});
+              sqAt.sequence.push({time:r3((tr.born+f5)/30),mode:seqFit?'once':'loop',index:sq5.idx,delay:r3(sqDelay)});
+            }
+          }
         }
         if(!tr.reachEnd)atK.push({time:r3((tr.born+n)/30),name:null});
       });
@@ -2187,9 +2244,12 @@ function exportSpine(){
     }
   });
 
-  // collect PNGs actually used in this export
+  // collect PNGs actually used in this export (sequences pull in all frames)
   var usedNames={};
-  for(var bk in attachMap)for(var tk in attachMap[bk])usedNames[tk]=true;
+  for(var bk in attachMap)for(var tk in attachMap[bk]){
+    if(seqMetaByBase[tk])seqMetaByBase[tk].frames.forEach(function(fn){usedNames[fn]=true;});
+    else usedNames[tk]=true;
+  }
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
   files.push({name:name+'.json',data:strBytes(JSON.stringify(json))});
@@ -2234,14 +2294,14 @@ function exportPNGSeq(){
       var acv=alphaCurve.sample(t),alpha;
       if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
       else{
-        var fs=1-Math.min(1,parseFloat(q.em.s.fade)*(q.fadeMul||1));
+        var fs=1-Math.min(1,EV(q.em,'fade')*(q.fadeMul||1));
         alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
       }
       alpha*=(q.opacityMul==null?1:q.opacityMul);
       var scv=scaleCurve.sample(t),scale;
       if(scv!==null){scale=scv*(q.endScaleMul||1);}
       else{
-        var es=parseFloat(q.em.s.endScale)*(q.endScaleMul||1);
+        var es=EV(q.em,'endScale')*(q.endScaleMul||1);
         scale=1+(es-1)*t;
       }
       var s=q.size*scale;
@@ -2273,7 +2333,7 @@ function exportPNGSeq(){
     }
     if(g<spawnEnd){
       emitters.forEach(function(em4){
-        if(!em4.on||em4.s.mode!=='cont')return;
+        if(!em4.on||ES(em4,'mode')!=='cont')return;
         em4.acc+=EV(em4,'rate')*emRateCurve(em4,(g%totF)/totF)*dt;
         var cap4=Math.round(EV(em4,'maxCount')),live4=0;
         for(var li=0;li<particles.length;li++)if(particles[li].em===em4)live4++;
@@ -2290,7 +2350,7 @@ function exportPNGSeq(){
     for(var i2=particles.length-1;i2>=0;i2--){
       var q2=particles[i2];q2.age+=dt;
       if(q2.age>=q2.life){particles.splice(i2,1);continue;}
-      var q2s=q2.em.s,gx=parseFloat(q2s.gravX),gy=parseFloat(q2s.gravY),drag=parseFloat(q2s.drag);
+      var q2s=q2.em.s,gx=EV(q2.em,'gravX'),gy=EV(q2.em,'gravY'),drag=EV(q2.em,'drag');
       var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
       applyAttractor(q2,dt);
       applyTurbulence(q2,dt);
@@ -2392,15 +2452,16 @@ function saveProject(){
     emitY:emitters.length?emY(emitters[emIdx]):null,
     emitters:emitters.map(function(em){
       return {name:em.name,on:em.on,x:em.x,y:em.y,s:em.s,
-              ratePts:em.ratePts.slice(),texSel:em.texSel};
+              ratePts:em.ratePts.slice(),texSel:em.texSel,
+              meshPts:em.meshPts?em.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
+              meshRect:em.meshRect?{x:em.meshRect.x,y:em.meshRect.y,w:em.meshRect.w,h:em.meshRect.h,n:em.meshRect.n}:null};
     }),
     emIdx:emIdx,
+    emGlobals:(function(){var o={};for(var g in emGlobals){o[g]=emGlobals[g]?emitters.indexOf(emGlobals[g]):null;}return o;})(),
     attX:attX,attY:attY,
     defPts:defPts?defPts.map(function(p){return {x:p.x,y:p.y};}):null,
     bg:bgData,
     seqEnabled:seqEnabled,
-    meshPts:meshPts?meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
-    meshRect:meshRect?{x:meshRect.x,y:meshRect.y,w:meshRect.w,h:meshRect.h,n:meshRect.n}:null,
     bodies:bodies.map(function(b){
       return {name:b.name,type:b.type,visible:b.visible,x:b.x0,y:b.y0,
               data:b.img.toDataURL?b.img.toDataURL('image/png'):b.img.src};
@@ -2451,11 +2512,19 @@ function loadProject(input){
                 x:rec.x==null?null:rec.x,y:rec.y==null?null:rec.y,
                 s:rec.s||emSnapshot(),
                 ratePts:(rec.ratePts&&rec.ratePts.slice())||ratePts.slice(),
-                texSel:rec.texSel||{},pool:[],acc:0};
+                texSel:rec.texSel||{},pool:[],acc:0,
+                meshPts:rec.meshPts?rec.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
+                meshRect:rec.meshRect?{x:rec.meshRect.x,y:rec.meshRect.y,w:rec.meshRect.w,h:rec.meshRect.h,n:rec.meshRect.n}:null};
       });
+      for(var gk in emGlobals)emGlobals[gk]=null;
+      if(proj.emGlobals)for(var gk2 in proj.emGlobals){
+        var gix=proj.emGlobals[gk2];
+        if(gix!=null&&emitters[gix]&&emGlobals.hasOwnProperty(gk2))emGlobals[gk2]=emitters[gix];
+      }
       emLoad(Math.min(proj.emIdx||0,emitters.length-1));
     }else{
       // legacy single-emitter project (DOM values already restored above)
+      for(var gk3 in emGlobals)emGlobals[gk3]=null;
       emitters=[];emIdx=0;addEmitter();
       if(typeof proj.emitX==='number'){emitters[0].x=proj.emitX;emitters[0].y=proj.emitY;}
     }
@@ -2463,10 +2532,11 @@ function loadProject(input){
     if(proj.defPts&&proj.defPts.length>=2)defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
     else if(typeof proj.defX1==='number')defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
     seqEnabled=proj.seqEnabled||{};
-    if(proj.meshPts&&proj.meshRect){
-      meshPts=proj.meshPts.map(function(p){return {x:p.x,y:p.y};});
-      meshRect={x:proj.meshRect.x,y:proj.meshRect.y,w:proj.meshRect.w,h:proj.meshRect.h,n:proj.meshRect.n};
-    }else{meshPts=null;meshRect=null;}
+    // legacy top-level mesh (pre per-emitter meshes): give it to the first emitter
+    if(proj.meshPts&&proj.meshRect&&!(proj.emitters&&proj.emitters.length)&&emitters.length){
+      emitters[0].meshPts=proj.meshPts.map(function(p){return {x:p.x,y:p.y};});
+      emitters[0].meshRect={x:proj.meshRect.x,y:proj.meshRect.y,w:proj.meshRect.w,h:proj.meshRect.h,n:proj.meshRect.n};
+    }
     if(proj.bg){
       var bimg=new Image();
       bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
@@ -2564,7 +2634,7 @@ function loop(now){
     if(document.getElementById('rateCurveOn').checked&&document.getElementById('mode').value==='cont')drawRateCurve(prog);
     // spawn (continuous emitters only, each capped at its own Max count)
     emitters.forEach(function(emL){
-      if(!emL.on||emL.s.mode!=='cont')return;
+      if(!emL.on||ES(emL,'mode')!=='cont')return;
       emL.acc+=EV(emL,'rate')*emRateCurve(emL,prog)*dt;
       var capL=Math.round(EV(emL,'maxCount')),liveL=0;
       for(var li=0;li<particles.length;li++)if(particles[li].em===emL)liveL++;
@@ -2576,7 +2646,7 @@ function loop(now){
       var p=particles[i];
       p.age+=dt;
       if(p.age>=p.life){particles.splice(i,1);continue;}
-      var ps=p.em.s,gx=parseFloat(ps.gravX),gy=parseFloat(ps.gravY),drag=parseFloat(ps.drag);
+      var ps=p.em.s,gx=EV(p.em,'gravX'),gy=EV(p.em,'gravY'),drag=EV(p.em,'drag');
       var gm=p.gravMul||1;
       p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
       applyAttractor(p,dt);
@@ -2676,7 +2746,7 @@ function loop(now){
     ctx.globalAlpha=me===emIdx?0.8:(mEm.on?0.3:0.15);
     ctx.strokeStyle=me===emIdx?'#f90':'#c80';
     var ew=Math.max(EV(mEm,'emitW'),6),eh=Math.max(EV(mEm,'emitH'),6);
-    var shp=mEm.s.emitShape;
+    var shp=ES(mEm,'emitShape');
     ctx.beginPath();
     if(shp==='circle'||shp==='ring'){
       ctx.ellipse(mx,my,ew/2,eh/2,0,0,Math.PI*2);
@@ -2719,23 +2789,24 @@ function loop(now){
     }
     ctx.globalAlpha=1;
   }
-  // mesh deformer grid
-  if(document.getElementById('meshOn').checked&&meshPts&&document.getElementById('meshShow').checked){
-    var mn=meshRect.n;
+  // mesh deformer grid (the one being edited: the active emitter's, or the 🌐 owner's)
+  var _mT=meshTarget();
+  if(document.getElementById('meshOn').checked&&_mT&&_mT.meshPts&&document.getElementById('meshShow').checked){
+    var _mPts=_mT.meshPts,mn=_mT.meshRect.n;
     ctx.strokeStyle='#c6f';ctx.fillStyle='#c6f';
     ctx.globalAlpha=0.4;
     ctx.lineWidth=1/camZ;
     ctx.beginPath();
     for(var mj=0;mj<mn;mj++)for(var mi=0;mi<mn;mi++){
-      var mp=meshPts[mj*mn+mi];
-      if(mi<mn-1){var mr=meshPts[mj*mn+mi+1];ctx.moveTo(mp.x,mp.y);ctx.lineTo(mr.x,mr.y);}
-      if(mj<mn-1){var mdn=meshPts[(mj+1)*mn+mi];ctx.moveTo(mp.x,mp.y);ctx.lineTo(mdn.x,mdn.y);}
+      var mp=_mPts[mj*mn+mi];
+      if(mi<mn-1){var mr=_mPts[mj*mn+mi+1];ctx.moveTo(mp.x,mp.y);ctx.lineTo(mr.x,mr.y);}
+      if(mj<mn-1){var mdn=_mPts[(mj+1)*mn+mi];ctx.moveTo(mp.x,mp.y);ctx.lineTo(mdn.x,mdn.y);}
     }
     ctx.stroke();
     ctx.globalAlpha=0.85;
     var mhs=4/camZ;
-    for(var mk=0;mk<meshPts.length;mk++)
-      ctx.fillRect(meshPts[mk].x-mhs,meshPts[mk].y-mhs,mhs*2,mhs*2);
+    for(var mk=0;mk<_mPts.length;mk++)
+      ctx.fillRect(_mPts[mk].x-mhs,_mPts[mk].y-mhs,mhs*2,mhs*2);
     ctx.globalAlpha=1;
   }
   // deflector polyline
@@ -2816,6 +2887,12 @@ var TIPS={
   emitW:'Emitter width in pixels (box/circle/ring/line).',
   emitH:'Emitter height in pixels (box/circle/ring).',
   emitDensity:'Spatial density gradient inside the emitter shape. 0 = even spread, positive = more particles near the centre, negative = more near the edges. Works with box, circle and line shapes.',
+  glob_image:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_emitter:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_motion:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_mesh:'🌐 Make this panel global: this emitter\u2019s mesh warps ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_appearance:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_random:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   life:'How long each particle lives, in seconds. Randomised by Life ±%.',
   speed:'Initial velocity of each particle, pixels per second.',
   speedVar:'Random speed variation: each particle gets Speed ± this amount.',
@@ -2878,6 +2955,7 @@ var TIPS={
   introFrames:'Intro length in frames (30 fps, trio only). The intro ends exactly at the loop start state. Make it at least Lifetime \u00d7 30 so it can build up from empty \u2014 shorter intros start already populated.',
   outroFrames:'Outro length in frames (30 fps, trio only). Surviving particles play out and die. Make it at least Lifetime \u00d7 30 to let everything die naturally \u2014 shorter outros cut particles off at the end.',
   spineVer:'Spine requires the JSON version to match your editor\u2019s major.minor version. Pick 4.2 for Spine 4.2.x, 4.1 for Spine 4.1.x. The data format is identical.',
+  expSeqMode:'How image sequences export. Spine sequence (native): one attachment with the Sequence checkbox set, playing via a sequence timeline (loop at Seq FPS \u2014 or once over lifetime with Fit life). Attachment keys: the old way, one attachment per frame keyed at every swap.',
   expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
 };
 var BTN_TIPS=[
