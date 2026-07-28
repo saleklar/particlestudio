@@ -58,6 +58,11 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   </select></div>
   <button class="btn" onclick="applyPreset()">Apply Preset</button>
 
+  <h2>Emitters</h2>
+  <div id="emList" style="margin-bottom:4px"></div>
+  <button class="btn" onclick="addEmitter()">+ Add Emitter</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Emitter, Motion, Appearance and Randomness settings plus its own images and position — the sidebar edits the highlighted one. Attractor, deflector, mesh, bodies, tint, curves, playback and export stay global. Click a name to edit it, double-click to rename, 👁 toggles it.</div>
+
   <h2>Particle Image</h2>
   <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
   <div id="tex-gallery"></div>
@@ -241,6 +246,13 @@ function resetDefaults(){
     alphaCurve.pts=alphaCurve.def.slice();alphaCurve.draw();
   }
   onModeChange();
+  if(emitters.length){
+    var emR=emitters[emIdx];
+    emR.s=emSnapshot();
+    emR.ratePts=ratePts;   // resetDefaults created a fresh array
+    emR.x=null;emR.y=null;
+    rebuildEmList();rebuildSpawnPool();
+  }
 }
 function onModeChange(){
   var burst=document.getElementById('mode').value==='burst';
@@ -248,6 +260,88 @@ function onModeChange(){
   document.getElementById('rateCurveRow').style.display=burst?'none':'flex';
   document.getElementById('rateCurve').style.display=burst?'none':'block';
   document.getElementById('burstBtn').style.display=burst?'block':'none';
+}
+
+// ── Multiple emitters ───────────────────────────────────────────
+// The sidebar always shows/edits the ACTIVE emitter; these ids are stored
+// per emitter. Everything else (attractor, deflector, mesh, bodies, tint,
+// curves, playback, export) is global.
+var EM_IDS=['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','life',
+ 'speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed',
+ 'size','sizeVar','endScale','spin','fade',
+ 'randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity'];
+var emitters=[],emIdx=0;
+function emSnapshot(){
+  var s={};
+  EM_IDS.forEach(function(id){
+    var el=document.getElementById(id);
+    s[id]=el.type==='checkbox'?el.checked:el.value;
+  });
+  return s;
+}
+function EV(em,id){return parseFloat(em.s[id]);}
+function emX(em){return em.x==null?cv.width/2:em.x;}
+function emY(em){return em.y==null?cv.height/2:em.y;}
+function addEmitter(){
+  var em={name:'Emitter '+(emitters.length+1),on:true,x:null,y:null,
+          s:emSnapshot(),ratePts:ratePts.slice(),texSel:{},pool:[],acc:0};
+  textures.forEach(function(t){if(t.sel)em.texSel[t.name]=true;});
+  emitters.push(em);
+  emIdx=emitters.length-1;
+  ratePts=em.ratePts;
+  rebuildEmList();rebuildSpawnPool();drawRateCurve();
+}
+function emLoad(i){
+  emIdx=i;
+  var em=emitters[i];
+  EM_IDS.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el.type==='checkbox')el.checked=!!em.s[id];
+    else{el.value=em.s[id];if(el.type==='range')sync(el);}
+  });
+  ratePts=em.ratePts;
+  textures.forEach(function(t){t.sel=!!(em.texSel&&em.texSel[t.name]);});
+  ensureOneSelected();
+  onModeChange();drawRateCurve();rebuildGallery();rebuildEmList();
+}
+function emActivate(i){if(i!==emIdx&&emitters[i])emLoad(i);}
+function emDelete(i){
+  if(emitters.length<=1)return;
+  emitters.splice(i,1);
+  if(i<emIdx)emIdx--;
+  emLoad(Math.min(emIdx,emitters.length-1));
+}
+function rebuildEmList(){
+  var box=document.getElementById('emList');
+  if(!box)return;
+  box.innerHTML='';
+  emitters.forEach(function(em,i){
+    var row=document.createElement('div');row.className='row';
+    var nm=document.createElement('span');
+    nm.textContent=(i===emIdx?'\u25cf ':'\u25cb ')+em.name;
+    nm.title='click to edit \u00b7 double-click to rename';
+    nm.style.cssText='flex:1;cursor:pointer;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+(i===emIdx?'#f90':(em.on?'#aaa':'#555'));
+    nm.onclick=function(){emActivate(i);};
+    nm.ondblclick=function(){var n2=prompt('Emitter name',em.name);if(n2){em.name=n2;rebuildEmList();}};
+    var eye=document.createElement('span');
+    eye.textContent=em.on?'\ud83d\udc41':'\u25ab';
+    eye.style.cssText='cursor:pointer;width:16px;text-align:center';
+    eye.onclick=function(){em.on=!em.on;rebuildEmList();};
+    var del=document.createElement('span');
+    del.textContent='\u2715';
+    del.style.cssText='cursor:pointer;color:#a55;width:14px;text-align:center';
+    del.onclick=function(){emDelete(i);};
+    row.appendChild(nm);row.appendChild(eye);row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+// per-emitter rate-over-time sampling
+function emRateCurve(em,p){
+  if(!em.s.rateCurveOn)return 1;
+  p=Math.max(0,Math.min(1,p));
+  var pts=em.ratePts,seg=p*(pts.length-1),i=Math.floor(seg),f=seg-i;
+  if(i>=pts.length-1)return pts[pts.length-1];
+  return pts[i]*(1-f)+pts[i+1]*f;
 }
 
 // ── Rate-over-time curve ─────────────────────────────
@@ -295,7 +389,10 @@ function rcSet(e){
   var i=Math.round(px*(ratePts.length-1));
   i=Math.max(0,Math.min(ratePts.length-1,i));
   ratePts[i]=Math.max(0,Math.min(1,1-(py*rcCv.height-3)/(rcCv.height-6)));
-  if(!document.getElementById('rateCurveOn').checked)document.getElementById('rateCurveOn').checked=true;
+  if(!document.getElementById('rateCurveOn').checked){
+    document.getElementById('rateCurveOn').checked=true;
+    if(emitters[emIdx])emitters[emIdx].s.rateCurveOn=true;
+  }
   drawRateCurve();
 }
 rcCv.addEventListener('pointerdown',function(e){rcDrag=true;rcCv.setPointerCapture(e.pointerId);rcSet(e);});
@@ -466,9 +563,11 @@ function tintedSprite(img,name,tc){
   return c;
 }
 function doBurst(){
-  if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
-  var n=Math.round(V('maxCount'));
-  for(var i=0;i<n;i++)spawn();
+  emitters.forEach(function(em){
+    if(!em.on||em.s.mode!=='burst')return;
+    var n=Math.round(EV(em,'maxCount'));
+    for(var i=0;i<n;i++)spawn(em);
+  });
 }
 
 // ── Textures ──────────────────────────────────────────────
@@ -758,18 +857,27 @@ function rebuildSeqList(groups){
 }
 function rebuildSpawnPool(groups){
   groups=groups||seqGroups();
-  spawnPool=[];
-  var used={};
+  if(!emitters.length){spawnPool=[];return;}
+  // active emitter's selection follows the gallery
+  var emA=emitters[emIdx];
+  emA.texSel={};
+  textures.forEach(function(t){if(t.sel)emA.texSel[t.name]=true;});
+  emitters.forEach(function(em){em.pool=emPoolFor(em,groups);});
+  spawnPool=emA.pool;
+}
+function emPoolFor(em,groups){
+  var pool=[],used={};
   textures.forEach(function(t){
-    if(!t.sel)return;
+    if(!(em.texSel&&em.texSel[t.name]))return;
     var b=seqBaseOf(t.name);
     if(b&&seqEnabled[b.base]&&groups[b.base]){
       if(used[b.base])return;
       used[b.base]=true;
       var fr=groups[b.base];
-      spawnPool.push({seq:fr,img:fr[0].img,name:fr[0].name});
-    }else spawnPool.push(t);
+      pool.push({seq:fr,img:fr[0].img,name:fr[0].name});
+    }else pool.push(t);
   });
+  return pool;
 }
 // advance a flipbook particle to the frame matching its age
 function seqFrameFor(p){
@@ -834,6 +942,17 @@ function pickImages(e){
 }
 builtinTextures().forEach(function(t){textures.push(t);});
 rebuildGallery();
+// mirror per-emitter controls into the active emitter's settings
+EM_IDS.forEach(function(id){
+  var el=document.getElementById(id);
+  if(!el)return;
+  var evName=(el.tagName==='SELECT'||el.type==='checkbox')?'change':'input';
+  el.addEventListener(evName,function(){
+    var em=emitters[emIdx];
+    if(em)em.s[id]=el.type==='checkbox'?el.checked:el.value;
+  });
+});
+addEmitter();   // create "Emitter 1" from the current sidebar values
 
 // ── Persistent image library (IndexedDB) ─────────────────
 var _db=null;
@@ -971,10 +1090,14 @@ function applyPreset(){
   if(p.attractOn&&p.attRel){attX=p.attRel[0]*cv.width;attY=p.attRel[1]*cv.height;}
   if(p.defOn&&p.defRel)defPts=p.defRel.map(function(q){return {x:q[0]*cv.width,y:q[1]*cv.height};});
   onModeChange();
-  // rain/snow: put emitter at top of canvas
-  if(p.emitTop){emitX=cv.width/2;emitY=-10;}
-  else if(p.mode==='cont'){emitX=cv.width/2;emitY=cv.height*0.65;}
-  else{emitX=cv.width/2;emitY=cv.height/2;}
+  // rain/snow: put emitter at top of canvas (applies to the active emitter)
+  var emP=emitters[emIdx];
+  if(emP){
+    if(p.emitTop){emP.x=cv.width/2;emP.y=-10;}
+    else if(p.mode==='cont'){emP.x=cv.width/2;emP.y=cv.height*0.65;}
+    else{emP.x=cv.width/2;emP.y=cv.height/2;}
+    emP.s=emSnapshot();   // preset changed the sidebar → refresh emitter settings
+  }
   restartLoop();
   if(p.mode==='burst'&&!document.getElementById('loopOn').checked)doBurst();
 }
@@ -1037,10 +1160,11 @@ function applyAttractor(p,dt){
 // ── Turbulence (deterministic flow field — depends only on particle
 //    position/age/seed, so live preview, loops and exports match exactly) ─
 function applyTurbulence(p,dt){
-  var amp=V('turbAmp');
+  var s=p.em.s;
+  var amp=parseFloat(s.turbAmp);
   if(amp<=0)return;
-  var sc=1/Math.max(1,V('turbScale'));
-  var t=p.age*V('turbSpeed')+(p.seed||0)*97.13;
+  var sc=1/Math.max(1,parseFloat(s.turbScale));
+  var t=p.age*parseFloat(s.turbSpeed)+(p.seed||0)*97.13;
   var x=p.x*sc,y=p.y*sc;
   var fx=Math.sin(y*1.3+t)+0.5*Math.sin(y*2.9-t*0.6+1.7)+0.25*Math.sin((x+y)*4.1+t*1.3);
   var fy=Math.cos(x*1.1-t)+0.5*Math.sin(x*2.3+t*0.8+4.2)+0.25*Math.sin((x-y)*3.7-t*1.1);
@@ -1493,7 +1617,7 @@ function rebuildBodyList(){
 rebuildBodyList();
 
 // ── Emitter position (click / drag) ───────────────────────
-var emitX=null,emitY=null,dragging=false;
+var emitX=null,emitY=null;var dragging=false; // emitX/emitY kept only for legacy references
 cv.addEventListener('pointerdown',function(e){
   var isPan=e.button===1||e.button===2||spaceHeld;
   if(isPan){
@@ -1518,6 +1642,13 @@ cv.addEventListener('pointerdown',function(e){
     bodyPX=wb.x;bodyPY=wb.y;bodyPT=performance.now();bodyVX=0;bodyVY=0;
     bh.b.vx=0;bh.b.vy=0;
     cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;
+  }
+  // clicking near another emitter's marker makes it active
+  var rE=cv.getBoundingClientRect(),wE=toWorld(e.clientX-rE.left,e.clientY-rE.top),gE=16/camZ;
+  for(var ei=0;ei<emitters.length;ei++){
+    if(ei===emIdx)continue;
+    var dxE=wE.x-emX(emitters[ei]),dyE=wE.y-emY(emitters[ei]);
+    if(dxE*dxE+dyE*dyE<=gE*gE){emActivate(ei);break;}
   }
   dragging=true;setEmit(e);
   if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}
@@ -1559,7 +1690,8 @@ cv.addEventListener('dblclick',function(e){
 function setEmit(e){
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top);
-  emitX=w.x;emitY=w.y;
+  var em=emitters[emIdx];
+  if(em){em.x=w.x;em.y=w.y;}
 }
 
 // ── Particles ─────────────────────────────────────────────
@@ -1572,26 +1704,29 @@ function restartLoop(soft){
   if(!soft)particles.length=0;
   if(!soft)for(var bi=0;bi<bodies.length;bi++){var b2=bodies[bi];b2.x=b2.x0;b2.y=b2.y0;b2.vx=0;b2.vy=0;}
   spawnAcc=0;loopTime=0;simTime=0;_seed=1;
-  if(document.getElementById('loopOn').checked&&document.getElementById('mode').value==='burst')doBurst();
+  emitters.forEach(function(em){em.acc=0;});
+  if(document.getElementById('loopOn').checked)doBurst();
 }
 function togglePause(){
   paused=!paused;
   document.getElementById('pauseBtn').textContent=paused?'▶ Play':'⏸ Pause';
 }
-function spawn(){
-  var sel=spawnPool;
+function spawn(em){
+  em=em||emitters[emIdx];
+  if(!em)return;
+  var sel=em.pool;
   if(!sel.length)return;
   var to=sel[(rng()*sel.length)|0];
   var tex=to.img;
   // jitter helper: ±pct% variation, boosted by Master randomness
-  var master=V('randAll')/100;
+  var master=EV(em,'randAll')/100;
   function jit(val,pct){var p=Math.min(1,pct/100+master);return val*(1+(rng()-0.5)*2*p);}
-  var a=(V('angle')+ (rng()-0.5)*(V('spread')+master*180))*Math.PI/180;
-  var sp=jit(V('speed'),0)+(rng()-0.5)*2*V('speedVar');
-  var sz=Math.max(1,jit(V('size'),0)+(rng()-0.5)*2*V('sizeVar'));
+  var a=(EV(em,'angle')+ (rng()-0.5)*(EV(em,'spread')+master*180))*Math.PI/180;
+  var sp=jit(EV(em,'speed'),0)+(rng()-0.5)*2*EV(em,'speedVar');
+  var sz=Math.max(1,jit(EV(em,'size'),0)+(rng()-0.5)*2*EV(em,'sizeVar'));
   // emitter shape offset
-  var ox=0,oy=0,ew=V('emitW'),eh=V('emitH');
-  switch(document.getElementById('emitShape').value){
+  var ox=0,oy=0,ew=EV(em,'emitW'),eh=EV(em,'emitH');
+  switch(em.s.emitShape){
     case 'point': break;
     case 'box':    ox=(rng()-0.5)*ew; oy=(rng()-0.5)*eh; break;
     case 'circle': {var t2=rng()*Math.PI*2,r2=Math.sqrt(rng()); ox=Math.cos(t2)*r2*ew/2; oy=Math.sin(t2)*r2*eh/2; break;}
@@ -1602,18 +1737,19 @@ function spawn(){
   if(tm==='const')tintArr=hexToRgbArr(document.getElementById('tintColor').value);
   else if(tm==='rand')tintArr=sampleTintGrad(rng());
   particles.push({
-    x:emitX+ox, y:emitY+oy,
+    x:emX(em)+ox, y:emY(em)+oy,
     vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
-    rot:rng()*360, spin:jit(V('spin'),V('randSpin'))*(rng()<0.5?-1:1),
-    size:sz, age:0, life:Math.max(0.05,jit(V('life'),V('randLife'))),
-    gravMul:Math.max(0,jit(1,V('randGrav'))),
-    endScaleMul:Math.max(0,jit(1,V('randScale'))),
-    fadeMul:Math.max(0.01,jit(1,V('randFade'))),
-    opacityMul:Math.max(0,Math.min(1,jit(1,V('randOpacity')))),
+    rot:rng()*360, spin:jit(EV(em,'spin'),EV(em,'randSpin'))*(rng()<0.5?-1:1),
+    size:sz, age:0, life:Math.max(0.05,jit(EV(em,'life'),EV(em,'randLife'))),
+    gravMul:Math.max(0,jit(1,EV(em,'randGrav'))),
+    endScaleMul:Math.max(0,jit(1,EV(em,'randScale'))),
+    fadeMul:Math.max(0.01,jit(1,EV(em,'randFade'))),
+    opacityMul:Math.max(0,Math.min(1,jit(1,EV(em,'randOpacity')))),
     tint:tintArr,
     defBounceMul:Math.max(0,1+(rng()-0.5)*2*(V('defRandBounce')/100)),
     defFricMul:Math.max(0,1+(rng()-0.5)*2*(V('defRandFriction')/100)),
     seed:rng(),
+    em:em,
     tex:tex, texName:to.name||'particle',
     seq:to.seq||null
   });
@@ -1622,16 +1758,19 @@ function spawn(){
 
 // ── Spine JSON export ───────────────────────────────
 function exportSpine(){
-  if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
+  // Spine origin: single emitter → its position; multiple → canvas centre
+  var ox=emitters.length===1?emX(emitters[0]):cv.width/2;
+  var oy=emitters.length===1?emY(emitters[0]):cv.height/2;
   var totF=Math.round(V('totFrames'));
   var expFps=30;
   var step=1;
-  var mode=document.getElementById('mode').value;
   var blendAdd=document.getElementById('blend').value==='lighter';
   var looping=document.getElementById('loopOn').checked;
   // save live state, run a deterministic headless re-sim
-  var _p=particles,_sa=spawnAcc,_ss=_seed,_lt=loopTime;
-  particles=[];spawnAcc=0;_seed=1;
+  var _p=particles,_ss=_seed,_lt=loopTime;
+  var _accs=emitters.map(function(e){return e.acc;});
+  particles=[];_seed=1;
+  emitters.forEach(function(e){e.acc=0;});
   var tracks=[],curF=0;
   function tagNew(prev){
     for(var k=prev;k<particles.length;k++){
@@ -1639,8 +1778,7 @@ function exportSpine(){
       particles[k]._trk=tr;tracks.push(tr);
     }
   }
-  var dt=1/30,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
-  var fadeVal=V('fade'),endScale=V('endScale');
+  var dt=1/30;
   // trio mode: pre-roll whole cycles so the intro window [L-iF, L] exists and
   // the sim is at steady state when the recorded loop cycle [L, L+totF] begins
   var introOutro=looping&&document.getElementById('animMode').value==='trio';
@@ -1652,13 +1790,18 @@ function exportSpine(){
   for(curF=0;curF<=endF;curF++){
     // cycle restart — same soft reset the live preview does on loop wrap
     if(curF<spawnEnd&&curF%totF===0){
-      _seed=1;spawnAcc=0;
-      if(mode==='burst'){var b0=particles.length;doBurst();tagNew(b0);}
+      _seed=1;emitters.forEach(function(e){e.acc=0;});
+      var b0=particles.length;doBurst();tagNew(b0);
     }
-    if(mode==='cont'&&curF<spawnEnd){
-      spawnAcc+=V('rate')*sampleRateCurve((curF%totF)/totF)*dt;
-      var cap=Math.round(V('maxCount')),before=particles.length;
-      while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
+    if(curF<spawnEnd){
+      var before=particles.length;
+      emitters.forEach(function(em3){
+        if(!em3.on||em3.s.mode!=='cont')return;
+        em3.acc+=EV(em3,'rate')*emRateCurve(em3,(curF%totF)/totF)*dt;
+        var cap3=Math.round(EV(em3,'maxCount')),live3=0;
+        for(var li=0;li<particles.length;li++)if(particles[li].em===em3)live3++;
+        while(em3.acc>=1){em3.acc--;if(live3<cap3){spawn(em3);live3++;}}
+      });
       tagNew(before);
     }
     for(var i=0;i<particles.length;i++){
@@ -1666,21 +1809,22 @@ function exportSpine(){
       var acv=alphaCurve.sample(t),alpha;
       if(acv!==null){alpha=acv*Math.min(1,p.fadeMul||1);}
       else{
-        var fs=1-Math.min(1,fadeVal*(p.fadeMul||1));
+        var fs=1-Math.min(1,parseFloat(p.em.s.fade)*(p.fadeMul||1));
         alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
       }
       alpha*=(p.opacityMul==null?1:p.opacityMul);
       var scv=scaleCurve.sample(t),scl;
       if(scv!==null){scl=scv*(p.endScaleMul||1);}
       else{
-        var es=endScale*(p.endScaleMul||1);
+        var es=parseFloat(p.em.s.endScale)*(p.endScaleMul||1);
         scl=1+(es-1)*t;
       }
-      p._trk.frames.push({x:p.x-emitX,y:-(p.y-emitY),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName,t:tintFor(p,t)});
+      p._trk.frames.push({x:p.x-ox,y:-(p.y-oy),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName,t:tintFor(p,t)});
     }
     for(var i2=particles.length-1;i2>=0;i2--){
       var q=particles[i2];q.age+=dt;
       if(q.age>=q.life){particles.splice(i2,1);continue;}
+      var qs=q.em.s,gx=parseFloat(qs.gravX),gy=parseFloat(qs.gravY),drag=parseFloat(qs.drag);
       var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
       applyAttractor(q,dt);
       applyTurbulence(q,dt);
@@ -1695,7 +1839,8 @@ function exportSpine(){
     if(curF>=spawnEnd&&!particles.length)break;
   }
   // restore live state
-  particles=_p;spawnAcc=_sa;_seed=_ss;loopTime=_lt;
+  particles=_p;_seed=_ss;loopTime=_lt;
+  emitters.forEach(function(e,ei2){e.acc=_accs[ei2]||0;});
   // re-express births relative to the recorded loop cycle start
   tracks.forEach(function(tr){tr.born-=L;});
 
@@ -2022,18 +2167,17 @@ function exportSpine(){
 
 // ── PNG sequence export ───────────────────────────
 function exportPNGSeq(){
-  if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   var totF=Math.round(V('totFrames'));
-  var mode=document.getElementById('mode').value;
   var blend=document.getElementById('blend').value;
   var looping=document.getElementById('loopOn').checked;
   // save live state, run a deterministic headless re-sim (same seed as Spine export)
-  var _p=particles,_sa=spawnAcc,_ss=_seed,_lt=loopTime;
-  particles=[];spawnAcc=0;_seed=1;
+  var _p=particles,_ss=_seed,_lt=loopTime;
+  var _accs=emitters.map(function(e){return e.acc;});
+  particles=[];_seed=1;
+  emitters.forEach(function(e){e.acc=0;});
   var oc=document.createElement('canvas');oc.width=cv.width;oc.height=cv.height;
   var og=oc.getContext('2d');
-  var dt=1/30,gx=V('gravX'),gy=V('gravY'),drag=V('drag');
-  var fadeVal=V('fade'),endScale=V('endScale');
+  var dt=1/30;
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
   function pad(n){return ('0000'+n).slice(-4);}
@@ -2047,14 +2191,14 @@ function exportPNGSeq(){
       var acv=alphaCurve.sample(t),alpha;
       if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
       else{
-        var fs=1-Math.min(1,fadeVal*(q.fadeMul||1));
+        var fs=1-Math.min(1,parseFloat(q.em.s.fade)*(q.fadeMul||1));
         alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
       }
       alpha*=(q.opacityMul==null?1:q.opacityMul);
       var scv=scaleCurve.sample(t),scale;
       if(scv!==null){scale=scv*(q.endScaleMul||1);}
       else{
-        var es=endScale*(q.endScaleMul||1);
+        var es=parseFloat(q.em.s.endScale)*(q.endScaleMul||1);
         scale=1+(es-1)*t;
       }
       var s=q.size*scale;
@@ -2081,13 +2225,17 @@ function exportPNGSeq(){
   var endF=introOutro?L+totF+oF-1:(looping?L+totF-1:totF);
   for(var g=0;g<=endF;g++){
     if(g<spawnEnd&&g%totF===0){
-      _seed=1;spawnAcc=0;
-      if(mode==='burst')doBurst();
+      _seed=1;emitters.forEach(function(e){e.acc=0;});
+      doBurst();
     }
-    if(mode==='cont'&&g<spawnEnd){
-      spawnAcc+=V('rate')*sampleRateCurve((g%totF)/totF)*dt;
-      var cap=Math.round(V('maxCount'));
-      while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
+    if(g<spawnEnd){
+      emitters.forEach(function(em4){
+        if(!em4.on||em4.s.mode!=='cont')return;
+        em4.acc+=EV(em4,'rate')*emRateCurve(em4,(g%totF)/totF)*dt;
+        var cap4=Math.round(EV(em4,'maxCount')),live4=0;
+        for(var li=0;li<particles.length;li++)if(particles[li].em===em4)live4++;
+        while(em4.acc>=1){em4.acc--;if(live4<cap4){spawn(em4);live4++;}}
+      });
     }
     if(introOutro){
       if(g>=L-iF&&g<L)renderFrame('intro',g-(L-iF));
@@ -2099,6 +2247,7 @@ function exportPNGSeq(){
     for(var i2=particles.length-1;i2>=0;i2--){
       var q2=particles[i2];q2.age+=dt;
       if(q2.age>=q2.life){particles.splice(i2,1);continue;}
+      var q2s=q2.em.s,gx=parseFloat(q2s.gravX),gy=parseFloat(q2s.gravY),drag=parseFloat(q2s.drag);
       var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
       applyAttractor(q2,dt);
       applyTurbulence(q2,dt);
@@ -2112,7 +2261,8 @@ function exportPNGSeq(){
     }
   }
   // restore live state
-  particles=_p;spawnAcc=_sa;_seed=_ss;loopTime=_lt;
+  particles=_p;_seed=_ss;loopTime=_lt;
+  emitters.forEach(function(e,ei3){e.acc=_accs[ei3]||0;});
   downloadZip(name+'_png.zip',files);
   var hintEl=document.getElementById('hint');
   if(!window._hintDefault)window._hintDefault=hintEl.textContent;
@@ -2195,7 +2345,13 @@ function saveProject(){
     scalePts:scaleCurve.pts.slice(),
     alphaPts:alphaCurve.pts.slice(),
     tintStops:tintStops.map(function(s){return {p:s.p,c:s.c};}),
-    emitX:emitX,emitY:emitY,
+    emitX:emitters.length?emX(emitters[emIdx]):null,
+    emitY:emitters.length?emY(emitters[emIdx]):null,
+    emitters:emitters.map(function(em){
+      return {name:em.name,on:em.on,x:em.x,y:em.y,s:em.s,
+              ratePts:em.ratePts.slice(),texSel:em.texSel};
+    }),
+    emIdx:emIdx,
     attX:attX,attY:attY,
     defPts:defPts?defPts.map(function(p){return {x:p.x,y:p.y};}):null,
     bg:bgData,
@@ -2246,7 +2402,20 @@ function loadProject(input){
       document.getElementById('tintStopColor').value=tintStops[tintSel].c;
     }
     drawRateCurve();scaleCurve.draw();alphaCurve.draw();drawTintGrad();
-    if(typeof proj.emitX==='number'){emitX=proj.emitX;emitY=proj.emitY;}
+    if(proj.emitters&&proj.emitters.length){
+      emitters=proj.emitters.map(function(rec){
+        return {name:rec.name||'Emitter',on:rec.on!==false,
+                x:rec.x==null?null:rec.x,y:rec.y==null?null:rec.y,
+                s:rec.s||emSnapshot(),
+                ratePts:(rec.ratePts&&rec.ratePts.slice())||ratePts.slice(),
+                texSel:rec.texSel||{},pool:[],acc:0};
+      });
+      emLoad(Math.min(proj.emIdx||0,emitters.length-1));
+    }else{
+      // legacy single-emitter project (DOM values already restored above)
+      emitters=[];emIdx=0;addEmitter();
+      if(typeof proj.emitX==='number'){emitters[0].x=proj.emitX;emitters[0].y=proj.emitY;}
+    }
     if(typeof proj.attX==='number'){attX=proj.attX;attY=proj.attY;}
     if(proj.defPts&&proj.defPts.length>=2)defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
     else if(typeof proj.defX1==='number')defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
@@ -2334,7 +2503,6 @@ function loop(now){
   if(spawnCountTime>=1){spawnedThisSec=spawnCount;spawnCount=0;spawnCountTime=0;}
   if(fpsTime>=0.5){updateStats(Math.round(frames/fpsTime));frames=0;fpsTime=0;}
   if(!cv.width)resize();
-  if(emitX===null){emitX=cv.width/2;emitY=cv.height/2;}
   if(!paused){
     simTime+=dt;
     var totF=Math.round(V('totFrames'));
@@ -2351,19 +2519,21 @@ function loop(now){
     // progress through animation for the rate curve
     var prog=looping?loopTime/animLen:(simTime%animLen)/animLen;
     if(document.getElementById('rateCurveOn').checked&&document.getElementById('mode').value==='cont')drawRateCurve(prog);
-    // spawn (continuous mode only, capped at Max count live particles)
-    if(document.getElementById('mode').value==='cont'){
-      spawnAcc+=V('rate')*sampleRateCurve(prog)*dt;
-      var cap=Math.round(V('maxCount'));
-      while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
-    }
+    // spawn (continuous emitters only, each capped at its own Max count)
+    emitters.forEach(function(emL){
+      if(!emL.on||emL.s.mode!=='cont')return;
+      emL.acc+=EV(emL,'rate')*emRateCurve(emL,prog)*dt;
+      var capL=Math.round(EV(emL,'maxCount')),liveL=0;
+      for(var li=0;li<particles.length;li++)if(particles[li].em===emL)liveL++;
+      while(emL.acc>=1){emL.acc--;if(liveL<capL){spawn(emL);liveL++;}}
+    });
     // update
     updateBodies(dt);
-    var gx=V('gravX'),gy=V('gravY'),drag=V('drag');
     for(var i=particles.length-1;i>=0;i--){
       var p=particles[i];
       p.age+=dt;
       if(p.age>=p.life){particles.splice(i,1);continue;}
+      var ps=p.em.s,gx=parseFloat(ps.gravX),gy=parseFloat(ps.gravY),drag=parseFloat(ps.drag);
       var gm=p.gravMul||1;
       p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
       applyAttractor(p,dt);
@@ -2427,21 +2597,20 @@ function loop(now){
     }
   }
   ctx.globalCompositeOperation=document.getElementById('blend').value;
-  var fadeStart=1-V('fade'),endScale=V('endScale');
   drawnP=0;
   for(var j=0;j<particles.length;j++){
     var q=particles[j],t=q.age/q.life;
     var acv=alphaCurve.sample(t),alpha;
     if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
     else{
-      var fs=1-Math.min(1,(1-fadeStart)*(q.fadeMul||1));
+      var fs=1-Math.min(1,parseFloat(q.em.s.fade)*(q.fadeMul||1));
       alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
     }
     alpha*=(q.opacityMul==null?1:q.opacityMul);
     var scv=scaleCurve.sample(t),scale;
     if(scv!==null){scale=scv*(q.endScaleMul||1);}
     else{
-      var es=endScale*(q.endScaleMul||1);
+      var es=parseFloat(q.em.s.endScale)*(q.endScaleMul||1);
       scale=1+(es-1)*t;
     }
     var s=q.size*scale;
@@ -2456,25 +2625,29 @@ function loop(now){
     ctx.drawImage(timg,-s/2,-s/2,s,s);
     ctx.restore();
   }
-  // emitter marker
+  // emitter markers (active = bright orange, others dimmed)
   ctx.globalCompositeOperation='source-over';
-  ctx.globalAlpha=0.6;
-  ctx.strokeStyle='#f90';
   ctx.lineWidth=1/camZ;
-  var ew=Math.max(V('emitW'),6),eh=Math.max(V('emitH'),6);
-  var shp=document.getElementById('emitShape').value;
-  ctx.beginPath();
-  if(shp==='circle'||shp==='ring'){
-    ctx.ellipse(emitX,emitY,ew/2,eh/2,0,0,Math.PI*2);
-  }else if(shp==='line'){
-    ctx.moveTo(emitX-ew/2,emitY);ctx.lineTo(emitX+ew/2,emitY);
-  }else if(shp==='point'){
-    ctx.moveTo(emitX-5,emitY);ctx.lineTo(emitX+5,emitY);
-    ctx.moveTo(emitX,emitY-5);ctx.lineTo(emitX,emitY+5);
-  }else{
-    ctx.rect(emitX-ew/2,emitY-eh/2,ew,eh);
+  for(var me=0;me<emitters.length;me++){
+    var mEm=emitters[me],mx=emX(mEm),my=emY(mEm);
+    ctx.globalAlpha=me===emIdx?0.8:(mEm.on?0.3:0.15);
+    ctx.strokeStyle=me===emIdx?'#f90':'#c80';
+    var ew=Math.max(EV(mEm,'emitW'),6),eh=Math.max(EV(mEm,'emitH'),6);
+    var shp=mEm.s.emitShape;
+    ctx.beginPath();
+    if(shp==='circle'||shp==='ring'){
+      ctx.ellipse(mx,my,ew/2,eh/2,0,0,Math.PI*2);
+    }else if(shp==='line'){
+      ctx.moveTo(mx-ew/2,my);ctx.lineTo(mx+ew/2,my);
+    }else if(shp==='point'){
+      ctx.moveTo(mx-5,my);ctx.lineTo(mx+5,my);
+      ctx.moveTo(mx,my-5);ctx.lineTo(mx,my+5);
+    }else{
+      ctx.rect(mx-ew/2,my-eh/2,ew,eh);
+    }
+    ctx.stroke();
   }
-  ctx.stroke();
+  ctx.globalAlpha=0.6;
   // attractor marker
   if(document.getElementById('attractOn').checked&&attX!==null){
     var attract=V('attractForce')>=0;
