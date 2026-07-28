@@ -2716,14 +2716,14 @@ function loop(now){
     var acv=alphaCurve.sample(t),alpha;
     if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
     else{
-      var fs=1-Math.min(1,parseFloat(q.em.s.fade)*(q.fadeMul||1));
+      var fs=1-Math.min(1,EV(q.em,'fade')*(q.fadeMul||1));
       alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
     }
     alpha*=(q.opacityMul==null?1:q.opacityMul);
     var scv=scaleCurve.sample(t),scale;
     if(scv!==null){scale=scv*(q.endScaleMul||1);}
     else{
-      var es=parseFloat(q.em.s.endScale)*(q.endScaleMul||1);
+      var es=EV(q.em,'endScale')*(q.endScaleMul||1);
       scale=1+(es-1)*t;
     }
     var s=q.size*scale;
