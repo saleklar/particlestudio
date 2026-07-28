@@ -81,6 +81,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Shape</label><select id="emitShape"><option value="point">Point</option><option value="box" selected>Box</option><option value="circle">Circle (filled)</option><option value="ring">Ring (edge)</option><option value="line">Line</option></select></div>
   <div class="row"><label>Emitter W</label><input type="range" id="emitW" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Emitter H</label><input type="range" id="emitH" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
+  <div class="row"><label>Density</label><input type="range" id="emitDensity" min="-100" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Lifetime s</label><input type="range" id="life" min="0.2" max="10" step="0.1" value="2.5" oninput="sync(this)"><span class="val">2.5</span></div>
 
   <h2>Motion</h2>
@@ -266,7 +267,7 @@ function onModeChange(){
 // The sidebar always shows/edits the ACTIVE emitter; these ids are stored
 // per emitter. Everything else (attractor, deflector, mesh, bodies, tint,
 // curves, playback, export) is global.
-var EM_IDS=['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','life',
+var EM_IDS=['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','life',
  'speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed',
  'size','sizeVar','endScale','spin','fade',
  'randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity'];
@@ -1063,7 +1064,7 @@ var PRESETS={
 var PRESET_NEUTRAL={gravX:0,drag:0,turbAmp:0,turbScale:120,turbSpeed:1,
   attractOn:false,attractForce:600,attractRadius:0,attractFalloff:'linear',
   defOn:false,defAction:'bounce',defBounce:0.6,defFriction:0.1,defRandBounce:0,defRandFriction:0,defScatter:0,defXformLife:0.6,
-  tintMode:'off',randOpacity:0};
+  tintMode:'off',randOpacity:0,emitDensity:0};
 function applyPreset(){
   var key=document.getElementById('presetSel').value;
   var p=PRESETS[key];
@@ -1724,14 +1725,17 @@ function spawn(em){
   var a=(EV(em,'angle')+ (rng()-0.5)*(EV(em,'spread')+master*180))*Math.PI/180;
   var sp=jit(EV(em,'speed'),0)+(rng()-0.5)*2*EV(em,'speedVar');
   var sz=Math.max(1,jit(EV(em,'size'),0)+(rng()-0.5)*2*EV(em,'sizeVar'));
-  // emitter shape offset
+  // emitter shape offset (Density biases where inside the shape:
+  // + → concentrated at centre, − → pushed to the edges, 0 → uniform)
   var ox=0,oy=0,ew=EV(em,'emitW'),eh=EV(em,'emitH');
+  var dBias=(EV(em,'emitDensity')||0)/100,dK=Math.pow(4,dBias);
+  function bias1(u){return dBias?(u<0?-1:1)*Math.pow(Math.abs(u),dK):u;}   // u ∈ [-1,1]
   switch(em.s.emitShape){
     case 'point': break;
-    case 'box':    ox=(rng()-0.5)*ew; oy=(rng()-0.5)*eh; break;
-    case 'circle': {var t2=rng()*Math.PI*2,r2=Math.sqrt(rng()); ox=Math.cos(t2)*r2*ew/2; oy=Math.sin(t2)*r2*eh/2; break;}
+    case 'box':    ox=bias1((rng()-0.5)*2)*ew/2; oy=bias1((rng()-0.5)*2)*eh/2; break;
+    case 'circle': {var t2=rng()*Math.PI*2,r2=Math.pow(rng(),0.5*dK); ox=Math.cos(t2)*r2*ew/2; oy=Math.sin(t2)*r2*eh/2; break;}
     case 'ring':   {var t3=rng()*Math.PI*2; ox=Math.cos(t3)*ew/2; oy=Math.sin(t3)*eh/2; break;}
-    case 'line':   ox=(rng()-0.5)*ew; oy=0; break;
+    case 'line':   ox=bias1((rng()-0.5)*2)*ew/2; oy=0; break;
   }
   var tm=document.getElementById('tintMode').value,tintArr=null;
   if(tm==='const')tintArr=hexToRgbArr(document.getElementById('tintColor').value);
@@ -2768,6 +2772,7 @@ var TIPS={
   emitShape:'Where inside the emitter new particles appear: single point, filled box/circle, circle edge (ring), or horizontal line.',
   emitW:'Emitter width in pixels (box/circle/ring/line).',
   emitH:'Emitter height in pixels (box/circle/ring).',
+  emitDensity:'Spatial density gradient inside the emitter shape. 0 = even spread, positive = more particles near the centre, negative = more near the edges. Works with box, circle and line shapes.',
   life:'How long each particle lives, in seconds. Randomised by Life ±%.',
   speed:'Initial velocity of each particle, pixels per second.',
   speedVar:'Random speed variation: each particle gets Speed ± this amount.',
