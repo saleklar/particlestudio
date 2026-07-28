@@ -266,14 +266,26 @@ function onModeChange(){
 
 // ── Multiple emitters ───────────────────────────────────────────
 // The sidebar always shows/edits the ACTIVE emitter; these ids are stored
-// per emitter. Everything else (attractor, deflector, mesh, bodies, tint,
+// per emitter. Everything else (attractor, deflector, bodies, tint,
 // curves, playback, export) is global.
-var EM_IDS=['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','life',
- 'speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed',
- 'size','sizeVar','endScale','spin','fade',
- 'randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity',
- 'meshOn','meshN','meshWeight'];
+// Each per-emitter panel has a 🌐 checkbox: when checked, that emitter
+// OWNS the panel globally — its values drive every emitter. Only one
+// owner per panel; checking it on another emitter takes ownership over.
+var EM_GROUPS={
+  image:[],
+  emitter:['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','life'],
+  motion:['speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed'],
+  mesh:['meshOn','meshN','meshWeight'],
+  appearance:['size','sizeVar','endScale','spin','fade'],
+  random:['randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity']
+};
+var EM_IDS=[],EM_GRP={};
+for(var _g in EM_GROUPS)EM_GROUPS[_g].forEach(function(id){EM_IDS.push(id);EM_GRP[id]=_g;});
+var emGlobals={image:null,emitter:null,motion:null,mesh:null,appearance:null,random:null};
 var emitters=[],emIdx=0;
+function emFor(em,group){return emGlobals[group]||em;}   // owner of a panel for this emitter
+function emOf(em,id){return emGlobals[EM_GRP[id]]||em;}  // owner of a single setting
+function ES(em,id){return emOf(em,id).s[id];}
 function emSnapshot(){
   var s={};
   EM_IDS.forEach(function(id){
@@ -282,7 +294,21 @@ function emSnapshot(){
   });
   return s;
 }
-function EV(em,id){return parseFloat(em.s[id]);}
+function EV(em,id){return parseFloat(ES(em,id));}
+function onGlobToggle(g,on){
+  emGlobals[g]=on?emitters[emIdx]:null;
+  emLoad(emIdx);   // refresh sidebar (values may switch owner) + hints
+}
+function updateGlobUI(em){
+  for(var g in emGlobals){
+    var cb=document.getElementById('glob_'+g);
+    if(!cb)continue;
+    var o=emGlobals[g];
+    cb.checked=o===em;
+    var h=document.getElementById('globhint_'+g);
+    if(h){h.textContent=o?'\ud83c\udf10 '+o.name:'\ud83c\udf10 all';h.style.color=o?'#f90':'#888';}
+  }
+}
 function emX(em){return em.x==null?cv.width/2:em.x;}
 function emY(em){return em.y==null?cv.height/2:em.y;}
 function addEmitter(){
