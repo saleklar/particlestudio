@@ -64,7 +64,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div id="seq-list"></div>
   <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
   <div class="row" id="seqFitRow" style="display:none"><label>Fit life</label><input type="checkbox" id="seqFitLife" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">play once over lifetime instead of looping</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. Numbered files (name_01, name_02…) are detected as sequences — tick the checkbox to play them as a flipbook (exports to Spine as attachment keys).</div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox and the remaining frames are loaded from its folder automatically, playing as a flipbook (exports to Spine as attachment keys).</div>
 
   <h2>Emitter</h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
@@ -622,7 +622,9 @@ function seqBaseOf(name){
   var m=name.match(/^(.*?)[ _\-.]?(\d{1,5})$/);
   return m&&m[1]?{base:m[1],num:parseInt(m[2],10)}:null;
 }
-// numbered, non-builtin images grouped by base name (≥2 frames), sorted by number
+// numbered, non-builtin images grouped by base name, sorted by number.
+// A SINGLE numbered image also forms a group — checking its box auto-loads
+// the remaining frames from the folder.
 function seqGroups(){
   var g={};
   textures.forEach(function(t){
@@ -632,11 +634,55 @@ function seqGroups(){
     (g[b.base]=g[b.base]||[]).push({t:t,num:b.num});
   });
   var out={};
-  for(var k in g)if(g[k].length>=2){
+  for(var k in g){
     g[k].sort(function(a,b){return a.num-b.num;});
     out[k]=g[k].map(function(e){return e.t;});
   }
   return out;
+}
+// Auto-load missing frames of a sequence from a user-picked folder
+// (File System Access API — Chrome/Edge). Remembers the folder for later sequences.
+var _seqDir=null;
+function autoLoadSeqFrames(base,selState,done){
+  if(!window.showDirectoryPicker){
+    alert('This browser cannot scan folders — load all frames via "Load PNG(s)…" instead.');
+    done(0);return;
+  }
+  var esc=base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  var re=new RegExp('^'+esc+'[ _\\-.]?\\d{1,5}\\.(png|webp|gif)$','i');
+  (async function(){
+    try{
+      var dir=_seqDir;
+      if(dir&&await dir.queryPermission({mode:'read'})!=='granted')dir=null;
+      if(!dir){dir=await window.showDirectoryPicker();_seqDir=dir;}
+      var jobs=[];
+      for await(var entry of dir.values()){
+        if(entry.kind!=='file'||!re.test(entry.name))continue;
+        var nm=entry.name.replace(/\.[^.]+$/,'');
+        if(textures.some(function(t){return t.name===nm;}))continue;
+        jobs.push({entry:entry,nm:nm});
+      }
+      if(!jobs.length){done(0);return;}
+      var left=jobs.length,added=0;
+      jobs.forEach(function(job){
+        job.entry.getFile().then(function(f){
+          var r=new FileReader();
+          r.onload=function(){
+            var img=new Image();
+            img.onload=function(){
+              textures.push({img:img,sel:selState,name:job.nm});
+              libSave(job.nm,r.result);
+              added++;
+              if(--left===0)done(added);
+            };
+            img.onerror=function(){if(--left===0)done(added);};
+            img.src=r.result;
+          };
+          r.readAsDataURL(f);
+        }).catch(function(){if(--left===0)done(added);});
+      });
+    }catch(e){done(0);} // user cancelled the picker
+  })();
 }
 function rebuildSeqList(groups){
   var box=document.getElementById('seq-list');
@@ -654,13 +700,19 @@ function rebuildSeqList(groups){
       var v=groups[k].some(function(m){return m.sel;});
       groups[k].forEach(function(m){m.sel=v;});
       ensureOneSelected();rebuildGallery();restartLoop();
+      // fetch any frames not loaded yet from the folder
+      if(cb.checked)autoLoadSeqFrames(k,v||!groups[k].length,function(added){
+        if(added){ensureOneSelected();rebuildGallery();restartLoop();}
+      });
     };
     var lb=document.createElement('label');lb.textContent='▶ '+k;lb.title=k;lb.style.cursor='pointer';
     lb.onclick=function(){cb.checked=!cb.checked;cb.onchange();};
     row.appendChild(lb);row.appendChild(cb);
     var sp=document.createElement('span');
     sp.style.cssText='color:#888;font-size:10px';
-    sp.textContent=groups[k].length+' frames — use as sequence';
+    sp.textContent=groups[k].length===1
+      ?'1 frame — check to load the rest from its folder'
+      :groups[k].length+' frames — use as sequence';
     row.appendChild(sp);
     box.appendChild(row);
   });
