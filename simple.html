@@ -59,7 +59,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="applyPreset()">Apply Preset</button>
 
   <h2>Particle Image</h2>
-  <label class="btn">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
+  <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
   <div id="tex-gallery"></div>
   <div id="seq-list"></div>
   <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
@@ -697,8 +697,14 @@ function autoLoadSeqFrames(base,selState,done){
           if(jobs){loadJobs(jobs);return;}
         }catch(e2){}
       }
-      // 2. unknown folder — ask once, then remember it forever
-      var dir=await window.showDirectoryPicker();
+      // 2. unknown folder — one-click confirm: dialog opens directly in the
+      //    image's own folder when we have its file handle (startIn)
+      var opts={id:'seqframes'};
+      for(var tn in texHandles){
+        var tb=seqBaseOf(tn);
+        if(tb&&tb.base===base){opts.startIn=texHandles[tn];break;}
+      }
+      var dir=await window.showDirectoryPicker(opts);
       _seqDirs.unshift(dir);
       if(_seqDirs.length>8)_seqDirs.length=8;
       seqDirSave();
@@ -783,6 +789,40 @@ function loadImages(input){
     r.readAsDataURL(f);
   });
   input.value='';
+}
+// Modern path: load via showOpenFilePicker so we keep each file's HANDLE.
+// The handle lets the sequence folder dialog open directly in the image's
+// own folder (startIn) — confirming is a single click, no navigation.
+var texHandles={}; // texture name -> FileSystemFileHandle
+function pickImages(e){
+  if(!window.showOpenFilePicker)return true; // old browsers: fall through to <input>
+  e.preventDefault();
+  (async function(){
+    var handles;
+    try{
+      handles=await window.showOpenFilePicker({multiple:true,id:'texload',
+        types:[{description:'Images',accept:{'image/*':['.png','.webp','.gif']}}]});
+    }catch(err){return;} // cancelled
+    handles.forEach(function(h){
+      var nm=h.name.replace(/\.[^.]+$/,'');
+      texHandles[nm]=h;
+      h.getFile().then(function(f){
+        var r=new FileReader();
+        r.onload=function(){
+          var img=new Image();
+          img.onload=function(){
+            if(!textures.some(function(t){return t.name===nm;}))
+              textures.push({img:img,sel:true,name:nm});
+            rebuildGallery();
+            libSave(nm,r.result);
+          };
+          img.src=r.result;
+        };
+        r.readAsDataURL(f);
+      });
+    });
+  })();
+  return false;
 }
 builtinTextures().forEach(function(t){textures.push(t);});
 rebuildGallery();
