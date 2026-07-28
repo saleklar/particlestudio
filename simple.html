@@ -61,7 +61,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Emitters</h2>
   <div id="emList" style="margin-bottom:4px"></div>
   <button class="btn" onclick="addEmitter()">+ Add Emitter</button>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Emitter, Motion, Appearance and Randomness settings plus its own images and position — the sidebar edits the highlighted one. Attractor, deflector, mesh, bodies, tint, curves, playback and export stay global. Click a name to edit it, double-click to rename, 👁 toggles it.</div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Emitter, Motion, Appearance and Randomness settings plus its own images and position — the sidebar edits the highlighted one. Attractor, deflector, mesh, bodies, tint, curves, playback and export stay global. Click a name to edit it, ✎ or double-click to rename, 👁 toggles it. In the Spine export each emitter becomes a parent bone (using its name) with its particles as child bones.</div>
 
   <h2>Particle Image</h2>
   <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
@@ -324,6 +324,11 @@ function rebuildEmList(){
     nm.style.cssText='flex:1;cursor:pointer;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:'+(i===emIdx?'#f90':(em.on?'#aaa':'#555'));
     nm.onclick=function(){emActivate(i);};
     nm.ondblclick=function(){var n2=prompt('Emitter name',em.name);if(n2){em.name=n2;rebuildEmList();}};
+    var ren=document.createElement('span');
+    ren.textContent='\u270e';
+    ren.title='rename — the name becomes the parent bone in the Spine export';
+    ren.style.cssText='cursor:pointer;color:#888;width:14px;text-align:center';
+    ren.onclick=function(){var n2=prompt('Emitter name',em.name);if(n2){em.name=n2;rebuildEmList();}};
     var eye=document.createElement('span');
     eye.textContent=em.on?'\ud83d\udc41':'\u25ab';
     eye.style.cssText='cursor:pointer;width:16px;text-align:center';
@@ -332,7 +337,7 @@ function rebuildEmList(){
     del.textContent='\u2715';
     del.style.cssText='cursor:pointer;color:#a55;width:14px;text-align:center';
     del.onclick=function(){emDelete(i);};
-    row.appendChild(nm);row.appendChild(eye);row.appendChild(del);
+    row.appendChild(nm);row.appendChild(ren);row.appendChild(eye);row.appendChild(del);
     box.appendChild(row);
   });
 }
@@ -1778,7 +1783,7 @@ function exportSpine(){
   var tracks=[],curF=0;
   function tagNew(prev){
     for(var k=prev;k<particles.length;k++){
-      var tr={born:curF,img:particles[k].tex,texName:particles[k].texName,frames:[]};
+      var tr={born:curF,img:particles[k].tex,texName:particles[k].texName,em:particles[k].em,frames:[]};
       particles[k]._trk=tr;tracks.push(tr);
     }
   }
@@ -1823,7 +1828,7 @@ function exportSpine(){
         var es=parseFloat(p.em.s.endScale)*(p.endScaleMul||1);
         scl=1+(es-1)*t;
       }
-      p._trk.frames.push({x:p.x-ox,y:-(p.y-oy),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName,t:tintFor(p,t)});
+      p._trk.frames.push({x:p.x-emX(p.em),y:-(p.y-emY(p.em)),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName,t:tintFor(p,t)});
     }
     for(var i2=particles.length-1;i2>=0;i2--){
       var q=particles[i2];q.age+=dt;
@@ -1923,9 +1928,9 @@ function exportSpine(){
   //   loop  = births in [0, totF): main parts + tails wrapped to the start
   //   outro = loop survivors' remaining frames, cut at oF, no new spawns
   var budget=Math.round(V('boneBudget')); // 0 = unlimited (auto = peak concurrent)
-  function trackUnits(kind){
+  function trackUnits(trkList,kind){
     var units=[],seq=0;
-    tracks.forEach(function(tr){
+    trkList.forEach(function(tr){
       seq++;
       if(!tr.frames.length)return;
       var len=tr.frames.length;
@@ -1994,11 +1999,14 @@ function exportSpine(){
   var attachMap={}; // bone name -> {texName:{width,height}}, union over animations
   var texDim={};
   textures.forEach(function(t){texDim[t.name]={w:t.img.naturalWidth||64,h:t.img.naturalHeight||64};});
-  function buildAnim(pooled,isLoop,nSlots){
+  function buildAnim(groupPooled,isLoop){
     var anim={bones:{},slots:{}};
+    var allSegs=[];
+    expGroups.forEach(function(g,gi){
+    var pooled=groupPooled[gi];
     pooled.bonesArr.forEach(function(bone,i){
       var list=bone.segs.slice().sort(function(a,b){return a.born-b.born;});
-      var bn='p'+i;
+      var bn=g.bone+'_p'+i;
       if(!attachMap[bn])attachMap[bn]={};
       var tK=[],rK=[],sK=[],aK=[],atK=[];
 
@@ -2084,13 +2092,14 @@ function exportSpine(){
       anim.slots[bn]={attachment:atK};
       if(tintActive)anim.slots[bn].rgba=aK;else anim.slots[bn].alpha=aK;
     });
+    pooled.bonesArr.forEach(function(b){b.segs.forEach(function(s){s.gslot=g.base+s.slot;allSegs.push(s);});});
+    });
 
     // ── Draw order: pooling breaks slot ordering, so key drawOrder at every
     //    spawn event — active particles sorted oldest→newest (newest on top).
     //    Wrapped tails use ord = born - totF, so they stay below fresh spawns
     //    and layering is continuous across the loop boundary. ──
-    var allSegs=[];
-    pooled.bonesArr.forEach(function(b){b.segs.forEach(function(s){allSegs.push(s);});});
+    var nSlots=expSlotNames.length;
     if(allSegs.length){
       var evSet={};
       allSegs.forEach(function(s){evSet[s.born]=true;});
@@ -2099,16 +2108,16 @@ function exportSpine(){
       events.forEach(function(f){
         var act=allSegs.filter(function(s){return f>=s.born&&f<s.born+s.frames.length;});
         act.sort(function(a,b){return a.ord-b.ord||a.seq-b.seq;});
-        var used={};act.forEach(function(s){used[s.slot]=true;});
+        var used={};act.forEach(function(s){used[s.gslot]=true;});
         var desired=[];
         for(var si=0;si<nSlots;si++)if(!used[si])desired.push(si); // hidden slots at bottom
-        act.forEach(function(s){desired.push(s.slot);});
+        act.forEach(function(s){desired.push(s.gslot);});
         var offsets=[];
         for(var di=0;di<desired.length;di++)
           if(desired[di]!==di)offsets.push({idx:desired[di],offset:di-desired[di]});
         // Spine's JSON reader requires offsets ordered by setup slot index
         offsets.sort(function(a,b){return a.idx-b.idx;});
-        offsets=offsets.map(function(o){return {slot:'p'+o.idx,offset:o.offset};});
+        offsets=offsets.map(function(o){return {slot:expSlotNames[o.idx],offset:o.offset};});
         var sig=JSON.stringify(offsets);
         if(sig===prevSig)return;
         prevSig=sig;
@@ -2122,6 +2131,21 @@ function exportSpine(){
   }
 
   // ── Assemble animations (intro/loop/outro share one skeleton) ──
+  // Each emitter becomes a parent bone (named after the emitter, positioned at
+  // its location); its particles pool into child bones named <emitter>_pN.
+  function safeBoneName(nm,i){
+    nm=(nm||'emitter'+(i+1)).replace(/[^\w\- ]/g,'').trim().replace(/[\s\-]+/g,'_');
+    return nm||('emitter'+(i+1));
+  }
+  var expGroups=[],_usedNm={};
+  emitters.forEach(function(em,ei){
+    var gt=tracks.filter(function(tr){return tr.em===em;});
+    if(!gt.length)return;
+    var gbn=safeBoneName(em.name,ei);
+    while(_usedNm[gbn])gbn+='_';
+    _usedNm[gbn]=true;
+    expGroups.push({em:em,tracks:gt,bone:gbn,maxBones:0,base:0});
+  });
   var animDefs;
   if(introOutro)animDefs=[
     {name:'intro',kind:'intro',isLoop:false},
@@ -2129,24 +2153,39 @@ function exportSpine(){
     {name:'outro',kind:'outro',isLoop:false}];
   else if(looping)animDefs=[{name:'particles',kind:'loop',isLoop:true}];
   else animDefs=[{name:'particles',kind:'single',isLoop:false}];
-  var droppedN=0,keptN=0,maxBones=0;
+  var droppedN=0,keptN=0;
   animDefs.forEach(function(d){
-    d.pooled=poolUnits(trackUnits(d.kind),d.kind==='intro'?iF:totF);
-    maxBones=Math.max(maxBones,d.pooled.bonesArr.length);
-    if(d.kind!=='outro'&&d.kind!=='intro'){droppedN=d.pooled.dropped;keptN=d.pooled.kept;}
+    d.groupPooled=expGroups.map(function(g){return poolUnits(trackUnits(g.tracks,d.kind),d.kind==='intro'?iF:totF);});
+    expGroups.forEach(function(g,gi){g.maxBones=Math.max(g.maxBones,d.groupPooled[gi].bonesArr.length);});
+    if(d.kind!=='outro'&&d.kind!=='intro'){
+      droppedN=d.groupPooled.reduce(function(s,pp){return s+pp.dropped;},0);
+      keptN=d.groupPooled.reduce(function(s,pp){return s+pp.kept;},0);
+    }
   });
+  // global slot layout: emitter groups in order, each group's slots contiguous
+  var expSlotNames=[];
+  expGroups.forEach(function(g){
+    g.base=expSlotNames.length;
+    for(var si2=0;si2<g.maxBones;si2++)expSlotNames.push(g.bone+'_p'+si2);
+  });
+  var maxBones=expSlotNames.length;
   animDefs.forEach(function(d){
-    json.animations[d.name]=buildAnim(d.pooled,d.isLoop,maxBones);
+    json.animations[d.name]=buildAnim(d.groupPooled,d.isLoop);
   });
   // shared bones/slots/skins covering every animation
-  for(var bi2=0;bi2<maxBones;bi2++){
-    var bn2='p'+bi2;
-    json.bones.push({name:bn2,parent:'root'});
-    var slot2={name:bn2,bone:bn2};
-    if(blendAdd)slot2.blend='additive';
-    json.slots.push(slot2);
-    json.skins[0].attachments[bn2]=attachMap[bn2]||{};
-  }
+  expGroups.forEach(function(g){
+    json.bones.push({name:g.bone,parent:'root',x:r2(emX(g.em)-ox),y:r2(-(emY(g.em)-oy))});
+  });
+  expGroups.forEach(function(g){
+    for(var bi2=0;bi2<g.maxBones;bi2++){
+      var bn2=g.bone+'_p'+bi2;
+      json.bones.push({name:bn2,parent:g.bone});
+      var slot2={name:bn2,bone:bn2};
+      if(blendAdd)slot2.blend='additive';
+      json.slots.push(slot2);
+      json.skins[0].attachments[bn2]=attachMap[bn2]||{};
+    }
+  });
 
   // collect PNGs actually used in this export
   var usedNames={};
@@ -2650,6 +2689,10 @@ function loop(now){
       ctx.rect(mx-ew/2,my-eh/2,ew,eh);
     }
     ctx.stroke();
+    // name label
+    ctx.fillStyle=me===emIdx?'#f90':'#986';
+    ctx.font=(10/camZ)+'px sans-serif';
+    ctx.fillText(mEm.name,mx+8/camZ,my-8/camZ);
   }
   ctx.globalAlpha=0.6;
   // attractor marker
