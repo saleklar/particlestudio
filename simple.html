@@ -211,6 +211,10 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
   <button class="btn" onclick="exportPNGSeq()">🏞 Export PNG Sequence</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Renders every frame (30 fps, transparent background) into a .zip of numbered PNGs. With Loop on, the sequence is pre-rolled one cycle so it tiles seamlessly.</div>
+  <div class="row" style="margin-top:6px"><label>Crop frame</label><input type="checkbox" id="cropOn" onchange="onCropToggle()" style="accent-color:#fd6;cursor:pointer"><span style="color:#888;font-size:10px">drag edges/corners on canvas</span></div>
+  <button class="btn" onclick="centerCrop()">▣ Center Crop</button>
+  <button class="btn accent" onclick="exportSpineSeq()">🎞 Export Spine Sequence ZIP</button>
+  <div style="font-size:10px;color:#666;margin-top:2px">Bakes the whole animation into a PNG sequence cropped to the crop frame and wraps it as a Spine skeleton: one slot whose attachment plays the frames as a native sequence (loop if Loop is on). Heaviest to lightest: Spine ZIP (bones) → this → raw PNGs.</div>
 
   <h2>Project</h2>
   <button class="btn" onclick="saveProject()">💾 Save Project…</button>
@@ -1867,6 +1871,8 @@ cv.addEventListener('pointerdown',function(e){
   }
   var mh=meshHandleHit(e);
   if(mh){meshDrag=mh;cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;}
+  var crh=cropHandleHit(e);
+  if(crh){cropDrag=crh;cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;}
   var bh=bodyHit(e);
   if(bh){
     bodyDrag=bh;
@@ -1902,6 +1908,7 @@ cv.addEventListener('pointermove',function(e){
     meshDrag.T.meshPts[meshDrag.pt].x=wq.x;meshDrag.T.meshPts[meshDrag.pt].y=wq.y;
     return;
   }
+  if(cropDrag){moveCrop(e);return;}
   if(bodyDrag){
     var rm=cv.getBoundingClientRect(),wm=toWorld(e.clientX-rm.left,e.clientY-rm.top);
     var nowT=performance.now(),dtm=Math.max(0.001,(nowT-bodyPT)/1000);
@@ -1912,7 +1919,7 @@ cv.addEventListener('pointermove',function(e){
   }
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(camODrag)camODrag=null;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(meshDrag){meshDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(camODrag)camODrag=null;if(cropDrag){cropDrag=null;cv.style.cursor='crosshair';}if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(meshDrag){meshDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 cv.addEventListener('dblclick',function(e){
   // deflector editing: dbl-click a point removes it, dbl-click the line inserts a point
@@ -2499,6 +2506,176 @@ function exportSpine(){
   window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
 }
 
+// ── Crop frame (export region for the baked Spine sequence) ──────────
+var cropRect=null,cropDrag=null;
+function onCropToggle(){
+  if(document.getElementById('cropOn').checked&&!cropRect)centerCrop();
+}
+function centerCrop(){
+  var w=Math.min(512,cv.width*0.6),h=Math.min(512,cv.height*0.6);
+  cropRect={x:(cv.width-w)/2,y:(cv.height-h)/2,w:w,h:h};
+  document.getElementById('cropOn').checked=true;
+}
+function cropHandleHit(e){
+  if(!document.getElementById('cropOn').checked||!cropRect)return null;
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top),g=12/camZ;
+  var C=cropRect;
+  var cs=[[C.x,C.y],[C.x+C.w,C.y],[C.x+C.w,C.y+C.h],[C.x,C.y+C.h]];
+  for(var i=0;i<4;i++){
+    var dx=w.x-cs[i][0],dy=w.y-cs[i][1];
+    if(dx*dx+dy*dy<=g*g)return {corner:i};
+  }
+  // edges → move the whole frame
+  var nearX=Math.abs(w.x-C.x)<=g||Math.abs(w.x-C.x-C.w)<=g;
+  var nearY=Math.abs(w.y-C.y)<=g||Math.abs(w.y-C.y-C.h)<=g;
+  var inX=w.x>=C.x-g&&w.x<=C.x+C.w+g,inY=w.y>=C.y-g&&w.y<=C.y+C.h+g;
+  if((nearX&&inY)||(nearY&&inX))return {move:true,ox:w.x-C.x,oy:w.y-C.y};
+  return null;
+}
+function moveCrop(e){
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top),C=cropRect;
+  if(cropDrag.move){C.x=w.x-cropDrag.ox;C.y=w.y-cropDrag.oy;return;}
+  var x2=C.x+C.w,y2=C.y+C.h;
+  switch(cropDrag.corner){
+    case 0: C.x=Math.min(w.x,x2-16);C.y=Math.min(w.y,y2-16);C.w=x2-C.x;C.h=y2-C.y;break;
+    case 1: C.y=Math.min(w.y,y2-16);C.w=Math.max(16,w.x-C.x);C.h=y2-C.y;break;
+    case 2: C.w=Math.max(16,w.x-C.x);C.h=Math.max(16,w.y-C.y);break;
+    case 3: C.x=Math.min(w.x,x2-16);C.w=x2-C.x;C.h=Math.max(16,w.y-C.y);break;
+  }
+}
+
+// ── Spine sequence export: bake the whole animation to cropped PNG frames
+//    played by ONE native-sequence attachment ───────────────────────────
+function exportSpineSeq(){
+  if(!cropRect)centerCrop();
+  var cr={x:Math.round(cropRect.x),y:Math.round(cropRect.y),w:Math.round(cropRect.w),h:Math.round(cropRect.h)};
+  var totF=Math.round(V('totFrames'));
+  var blend=document.getElementById('blend').value;
+  var looping=document.getElementById('loopOn').checked;
+  var name=(document.getElementById('expName').value||'particles').trim();
+  // save live state, deterministic re-sim (same seed as the other exports)
+  var _p=particles,_ss=_seed,_lt=loopTime;
+  var _accs=emitters.map(function(e){return e.acc;});
+  particles=[];_seed=1;
+  emitters.forEach(function(e){e.acc=0;});
+  var oc=document.createElement('canvas');oc.width=cr.w;oc.height=cr.h;
+  var og=oc.getContext('2d');
+  var dt=1/30;
+  var files=[];
+  function pad(n){return ('0000'+n).slice(-4);}
+  function renderFrame(idx,tCam){
+    og.setTransform(1,0,0,1,-cr.x,-cr.y);
+    og.globalCompositeOperation='source-over';og.globalAlpha=1;
+    og.clearRect(cr.x,cr.y,cr.w,cr.h);
+    og.globalCompositeOperation=blend;
+    var camP=cam3Params(tCam||0),prA=null,ordA=null;
+    if(camP){
+      prA=new Array(particles.length);ordA=new Array(particles.length);
+      for(var o1=0;o1<particles.length;o1++){var qo1=particles[o1];prA[o1]=proj3(camP,qo1.x,qo1.y,qo1.z);ordA[o1]=o1;}
+      ordA.sort(function(a,b){return prA[b].d-prA[a].d;});
+    }
+    for(var j0=0;j0<particles.length;j0++){
+      var j=ordA?ordA[j0]:j0;
+      var q=particles[j],t=q.age/q.life;
+      var acv=alphaCurve.sample(t),alpha;
+      if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
+      else{
+        var fs=1-Math.min(1,EV(q.em,'fade')*(q.fadeMul||1));
+        alpha=t<fs?1:(fs>=1?1:1-(t-fs)/(1-fs));
+      }
+      alpha*=(q.opacityMul==null?1:q.opacityMul);
+      var scv=scaleCurve.sample(t),scale;
+      if(scv!==null){scale=scv*(q.endScaleMul||1);}
+      else{
+        var es=EV(q.em,'endScale')*(q.endScaleMul||1);
+        scale=1+(es-1)*t;
+      }
+      var s=q.size*scale,qpx=q.x,qpy=q.y;
+      if(camP){var prq=prA[j];if(prq.s<=0)continue;qpx=prq.x;qpy=prq.y;s*=prq.s;}
+      if(s<0.5||alpha<=0)continue;
+      if(qpx+s/2<cr.x||qpx-s/2>cr.x+cr.w||qpy+s/2<cr.y||qpy-s/2>cr.y+cr.h)continue;
+      og.globalAlpha=Math.max(0,Math.min(1,alpha));
+      og.save();
+      og.translate(qpx,qpy);
+      og.rotate(q.rot*Math.PI/180);
+      var timg2=q.tex,tc2=tintFor(q,t);
+      if(tc2&&(tc2[0]<248||tc2[1]<248||tc2[2]<248))timg2=tintedSprite(q.tex,q.texName,tc2);
+      og.drawImage(timg2,-s/2,-s/2,s,s);
+      og.restore();
+    }
+    var b=dataURLBytes(oc.toDataURL('image/png'));
+    if(b)files.push({name:'images/'+name+'_'+pad(idx)+'.png',data:b});
+  }
+  // same timeline as the PNG export: with Loop on, pre-roll one cycle so
+  // frame 0 already contains wrapped particles
+  var L=looping?totF:0;
+  var endF=looping?L+totF-1:totF;
+  for(var g=0;g<=endF;g++){
+    if(g<L+totF&&g%totF===0){
+      _seed=1;emitters.forEach(function(e){e.acc=0;});
+      doBurst();
+    }
+    if(g<L+totF){
+      emitters.forEach(function(em4){
+        if(!em4.on||ES(em4,'mode')!=='cont')return;
+        em4.acc+=EV(em4,'rate')*emRateCurve(em4,(g%totF)/totF)*dt;
+        var cap4=Math.round(EV(em4,'maxCount')),live4=0;
+        for(var li=0;li<particles.length;li++)if(particles[li].em===em4)live4++;
+        while(em4.acc>=1){em4.acc--;if(live4<cap4){spawn(em4);live4++;}}
+      });
+    }
+    if(g>=L)renderFrame(g-L,(g-L)/30);
+    for(var i2=particles.length-1;i2>=0;i2--){
+      var q2=particles[i2];q2.age+=dt;
+      if(q2.age>=q2.life){particles.splice(i2,1);continue;}
+      var gx=EV(q2.em,'gravX'),gy=EV(q2.em,'gravY'),drag=EV(q2.em,'drag');
+      var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
+      applyAttractor(q2,dt);
+      applyTurbulence(q2,dt);
+      applyMeshWarp(q2,dt);
+      if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;q2.vz=(q2.vz||0)*f2;}
+      var _ox2=q2.x,_oy2=q2.y;
+      q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.z=(q2.z||0)+(q2.vz||0)*dt;
+      applyDeflector(q2,_ox2,_oy2);
+      q2.rot+=q2.spin*dt;
+      seqFrameFor(q2);
+    }
+  }
+  // restore live state
+  particles=_p;_seed=_ss;loopTime=_lt;
+  emitters.forEach(function(e,ei3){e.acc=_accs[ei3]||0;});
+  var nFrames=files.length;
+  if(!nFrames){alert('Nothing to export — no frames rendered.');return;}
+  // skeleton: one bone + one slot, attachment = native sequence
+  var spineVer=document.getElementById('spineVer').value==='4.1'?'4.1.17':'4.2.43';
+  var attName=name;
+  var json={
+    skeleton:{spine:spineVer,images:'./images/',fps:30,hash:'simpleparticles',width:cr.w,height:cr.h},
+    bones:[{name:'root'}],
+    slots:[{name:'fx',bone:'root',attachment:attName}],
+    skins:[{name:'default',attachments:{fx:{}}}],
+    animations:{animation:{
+      attachments:{'default':{fx:{}}},
+      slots:{fx:{attachment:[{time:0,name:attName},{time:Math.round(nFrames)/30,name:looping?attName:null}]}}
+    }}
+  };
+  var att={path:name+'_',width:cr.w,height:cr.h,
+    sequence:{count:nFrames,start:0,digits:4}};
+  if(blend==='lighter')json.slots[0].blend='additive';
+  json.skins[0].attachments.fx[attName]=att;
+  json.animations.animation.attachments['default'].fx[attName]={
+    sequence:[{time:0,mode:looping?'loop':'once',index:0,delay:Math.round(1000/30)/1000}]};
+  files.unshift({name:name+'.json',data:strBytes(JSON.stringify(json))});
+  downloadZip(name+'_seq.zip',files);
+  var hintEl=document.getElementById('hint');
+  if(!window._hintDefault)window._hintDefault=hintEl.textContent;
+  hintEl.textContent='Exported Spine sequence: '+nFrames+' frames @ '+cr.w+'×'+cr.h+(looping?' · seamless loop':'');
+  clearTimeout(window._hintTimer);
+  window._hintTimer=setTimeout(function(){hintEl.textContent=window._hintDefault;},8000);
+}
+
 // ── PNG sequence export ───────────────────────────
 function exportPNGSeq(){
   var totF=Math.round(V('totFrames'));
@@ -2700,6 +2877,7 @@ function buildProject(){
     emIdx:emIdx,
     emGlobals:(function(){var o={};for(var g in emGlobals){o[g]=emGlobals[g]?emitters.indexOf(emGlobals[g]):null;}return o;})(),
     bg:bgData,
+    cropRect:cropRect?{x:cropRect.x,y:cropRect.y,w:cropRect.w,h:cropRect.h}:null,
     seqEnabled:seqEnabled,
     bodies:bodies.map(function(b){
       return {name:b.name,type:b.type,visible:b.visible,x:b.x0,y:b.y0,
@@ -2786,6 +2964,7 @@ function applyProject(proj){
       else if(typeof proj.defX1==='number')emitters[0].defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
     }
     seqEnabled=proj.seqEnabled||{};
+    if(proj.cropRect)cropRect={x:proj.cropRect.x,y:proj.cropRect.y,w:proj.cropRect.w,h:proj.cropRect.h};
     // legacy top-level mesh (pre per-emitter meshes): give it to the first emitter
     if(proj.meshPts&&proj.meshRect&&!(proj.emitters&&proj.emitters.length)&&emitters.length){
       emitters[0].meshPts=proj.meshPts.map(function(p){return {x:p.x,y:p.y};});
@@ -3128,6 +3307,31 @@ function loop(now){
     }
     ctx.globalAlpha=1;
   });
+  // crop frame (export region)
+  if(document.getElementById('cropOn').checked&&cropRect){
+    var CC=cropRect;
+    ctx.strokeStyle='#fd6';ctx.fillStyle='#fd6';
+    ctx.globalAlpha=0.9;
+    ctx.lineWidth=1.5/camZ;
+    ctx.setLineDash([7/camZ,5/camZ]);
+    ctx.strokeRect(CC.x,CC.y,CC.w,CC.h);
+    ctx.setLineDash([]);
+    // darken outside the crop
+    ctx.globalAlpha=0.22;ctx.fillStyle='#000';
+    ctx.fillRect(-1e5,-1e5,2e5,1e5+CC.y);
+    ctx.fillRect(-1e5,CC.y+CC.h,2e5,1e5);
+    ctx.fillRect(-1e5,CC.y,1e5+CC.x,CC.h);
+    ctx.fillRect(CC.x+CC.w,CC.y,1e5,CC.h);
+    // corner handles + size label
+    ctx.globalAlpha=0.95;ctx.fillStyle='#fd6';
+    var chs=5/camZ;
+    [[CC.x,CC.y],[CC.x+CC.w,CC.y],[CC.x+CC.w,CC.y+CC.h],[CC.x,CC.y+CC.h]].forEach(function(c){
+      ctx.fillRect(c[0]-chs,c[1]-chs,chs*2,chs*2);
+    });
+    ctx.font=(10/camZ)+'px monospace';
+    ctx.fillText(Math.round(CC.w)+'×'+Math.round(CC.h),CC.x+4/camZ,CC.y-5/camZ);
+    ctx.globalAlpha=1;
+  }
   // zoom badge (screen space)
   ctx.setTransform(1,0,0,1,0,0);
   if(Math.abs(camZ-1)>0.001||camX!==0||camY!==0){
@@ -3253,6 +3457,7 @@ var TIPS={
   outroFrames:'Outro length in frames (30 fps, trio only). Surviving particles play out and die. Make it at least Lifetime \u00d7 30 to let everything die naturally \u2014 shorter outros cut particles off at the end.',
   spineVer:'Spine requires the JSON version to match your editor\u2019s major.minor version. Pick 4.2 for Spine 4.2.x, 4.1 for Spine 4.1.x. The data format is identical.',
   expSeqMode:'How image sequences export. Spine sequence (native): one attachment with the Sequence checkbox set, playing via a sequence timeline (loop at Seq FPS \u2014 or once over lifetime with Fit life). Attachment keys: the old way, one attachment per frame keyed at every swap.',
+  cropOn:'A crop rectangle for the Spine Sequence export — only what\u2019s inside is rendered. Drag its edges to move it, its corners to resize.',
   expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
 };
 var BTN_TIPS=[
