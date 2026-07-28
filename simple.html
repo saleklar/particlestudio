@@ -61,7 +61,10 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Particle Image</h2>
   <label class="btn">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
   <div id="tex-gallery"></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too.</div>
+  <div id="seq-list"></div>
+  <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
+  <div class="row" id="seqFitRow" style="display:none"><label>Fit life</label><input type="checkbox" id="seqFitLife" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">play once over lifetime instead of looping</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. Numbered files (name_01, name_02…) are detected as sequences — tick the checkbox to play them as a flipbook (exports to Spine as attachment keys).</div>
 
   <h2>Emitter</h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
@@ -107,6 +110,17 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Scatter °</label><input type="range" id="defScatter" min="0" max="90" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <button class="btn" onclick="centerDeflector()">─ Reset Deflector</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">A shapeable surface particles collide with. Double-click the line to add points, double-click a point to remove it. Bounce reflects particles, Die removes them, Transform swaps the image for a short second life.</div>
+
+  <h2>PSD Bodies</h2>
+  <div class="row"><label>Physics</label><input type="checkbox" id="bodiesOn" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">drag bodies on canvas</span></div>
+  <label class="btn">🗂 Import PSD…<input type="file" accept=".psd" style="display:none" onchange="importPSD(this)"></label>
+  <div id="bodyList" style="margin-bottom:5px"></div>
+  <div class="row"><label>Bounce</label><input type="range" id="bodyBounce" min="0" max="1" step="0.05" value="0.4" oninput="sync(this)"><span class="val">0.4</span></div>
+  <div class="row"><label>Friction</label><input type="range" id="bodyFriction" min="0" max="1" step="0.05" value="0.2" oninput="sync(this)"><span class="val">0.2</span></div>
+  <div class="row"><label>Gravity</label><input type="range" id="bodyGravity" min="0" max="3000" step="10" value="800" oninput="sync(this)"><span class="val">800</span></div>
+  <div class="row"><label>Outlines</label><input type="checkbox" id="bodyOutlines" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">green static · orange dynamic</span></div>
+  <button class="btn" onclick="bodies.length=0;rebuildBodyList()">✕ Clear Bodies</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Photoshop layers become pixel-accurate colliders. Static bodies block particles; dynamic bodies fall with gravity, bounce off statics and stage edges, and can be thrown with the mouse. Preview only — not exported.</div>
 
   <h2>Appearance</h2>
   <div class="row"><label>Size</label><input type="range" id="size" min="2" max="300" value="40" oninput="sync(this)"><span class="val">40</span></div>
@@ -540,15 +554,45 @@ function builtinTextures(){
 }
 function rebuildGallery(){
   var gal=document.getElementById('tex-gallery');gal.innerHTML='';
-  textures.forEach(function(t,i){
+  var groups=seqGroups();
+  // members of ENABLED sequences collapse into one thumbnail (the first frame)
+  var memberBase={},firstName={};
+  for(var gk in groups)if(seqEnabled[gk]){
+    firstName[groups[gk][0].name]=gk;
+    groups[gk].forEach(function(t){memberBase[t.name]=gk;});
+  }
+  textures.forEach(function(t){
+    var base=memberBase[t.name];
+    if(base&&firstName[t.name]!==base)return; // hidden member of an enabled sequence
     var d=document.createElement('div');
     d.className='tex-thumb'+(t.sel?' sel':'');
-    d.title=t.name;
-    d.onclick=function(){t.sel=!t.sel;ensureOneSelected();rebuildGallery();};
+    d.title=base?base+' — sequence, '+groups[base].length+' frames':t.name;
+    d.onclick=function(){
+      var v=!t.sel;
+      if(base)groups[base].forEach(function(m){m.sel=v;});
+      else t.sel=v;
+      ensureOneSelected();rebuildGallery();
+    };
     var im=document.createElement('img');im.src=t.img.src;d.appendChild(im);
+    if(base){
+      var badge=document.createElement('div');
+      badge.textContent='▶'+groups[base].length;
+      badge.style.cssText='position:absolute;left:0;bottom:0;background:rgba(0,0,0,0.7);color:#f90;font-size:9px;line-height:12px;padding:0 3px;border-radius:0 3px 0 0;pointer-events:none';
+      d.appendChild(badge);
+    }
     if(!t.builtin){
       var x=document.createElement('div');x.className='x';x.textContent='✕';
-      x.onclick=function(e){e.stopPropagation();libDelete(t.name);textures.splice(i,1);ensureOneSelected();rebuildGallery();};
+      x.onclick=function(e){
+        e.stopPropagation();
+        var victims=base?groups[base].slice():[t];
+        victims.forEach(function(v2){
+          libDelete(v2.name);
+          var ix=textures.indexOf(v2);
+          if(ix>=0)textures.splice(ix,1);
+        });
+        if(base)delete seqEnabled[base];
+        ensureOneSelected();rebuildGallery();
+      };
       d.appendChild(x);
     }
     gal.appendChild(d);
@@ -564,9 +608,88 @@ function rebuildGallery(){
     });
     if(textures.some(function(t){return t.name===cur;}))xf.value=cur;
   }
+  rebuildSeqList(groups);
+  rebuildSpawnPool(groups);
 }
 function ensureOneSelected(){
   if(textures.length&&!textures.some(function(t){return t.sel;}))textures[0].sel=true;
+}
+
+// ── Image sequences (numbered files → flipbook) ──────────
+var seqEnabled={};   // base name -> true when used as a sequence
+var spawnPool=[];    // selection units: plain textures or {seq:[...]} groups
+function seqBaseOf(name){
+  var m=name.match(/^(.*?)[ _\-.]?(\d{1,5})$/);
+  return m&&m[1]?{base:m[1],num:parseInt(m[2],10)}:null;
+}
+// numbered, non-builtin images grouped by base name (≥2 frames), sorted by number
+function seqGroups(){
+  var g={};
+  textures.forEach(function(t){
+    if(t.builtin)return;
+    var b=seqBaseOf(t.name);
+    if(!b)return;
+    (g[b.base]=g[b.base]||[]).push({t:t,num:b.num});
+  });
+  var out={};
+  for(var k in g)if(g[k].length>=2){
+    g[k].sort(function(a,b){return a.num-b.num;});
+    out[k]=g[k].map(function(e){return e.t;});
+  }
+  return out;
+}
+function rebuildSeqList(groups){
+  var box=document.getElementById('seq-list');
+  if(!box)return;
+  box.innerHTML='';
+  var anyOn=false;
+  Object.keys(groups).sort().forEach(function(k){
+    if(seqEnabled[k])anyOn=true;
+    var row=document.createElement('div');row.className='row';
+    var cb=document.createElement('input');cb.type='checkbox';cb.checked=!!seqEnabled[k];
+    cb.style.cssText='accent-color:#f90;cursor:pointer';
+    cb.onchange=function(){
+      seqEnabled[k]=cb.checked;
+      // group acts as one unit: align member selection
+      var v=groups[k].some(function(m){return m.sel;});
+      groups[k].forEach(function(m){m.sel=v;});
+      ensureOneSelected();rebuildGallery();restartLoop();
+    };
+    var lb=document.createElement('label');lb.textContent='▶ '+k;lb.title=k;lb.style.cursor='pointer';
+    lb.onclick=function(){cb.checked=!cb.checked;cb.onchange();};
+    row.appendChild(lb);row.appendChild(cb);
+    var sp=document.createElement('span');
+    sp.style.cssText='color:#888;font-size:10px';
+    sp.textContent=groups[k].length+' frames — use as sequence';
+    row.appendChild(sp);
+    box.appendChild(row);
+  });
+  document.getElementById('seqFpsRow').style.display=anyOn?'':'none';
+  document.getElementById('seqFitRow').style.display=anyOn?'':'none';
+}
+function rebuildSpawnPool(groups){
+  groups=groups||seqGroups();
+  spawnPool=[];
+  var used={};
+  textures.forEach(function(t){
+    if(!t.sel)return;
+    var b=seqBaseOf(t.name);
+    if(b&&seqEnabled[b.base]&&groups[b.base]){
+      if(used[b.base])return;
+      used[b.base]=true;
+      var fr=groups[b.base];
+      spawnPool.push({seq:fr,img:fr[0].img,name:fr[0].name});
+    }else spawnPool.push(t);
+  });
+}
+// advance a flipbook particle to the frame matching its age
+function seqFrameFor(p){
+  if(!p.seq)return;
+  var n=p.seq.length,idx;
+  if(document.getElementById('seqFitLife').checked)idx=Math.min(n-1,Math.floor(p.age/p.life*n));
+  else idx=Math.floor(p.age*V('seqFps'))%n;
+  var f=p.seq[idx];
+  p.tex=f.img;p.texName=f.name;
 }
 function loadImages(input){
   var files=Array.from(input.files);
@@ -875,8 +998,290 @@ function applyDeflector(p,ox,oy){
     }
     p.age=0;p.life=Math.max(0.05,V('defXformLife'));
     p.xformed=true;
+    p.seq=null; // transform overrides any flipbook
   }
 }
+
+// ── PSD Bodies (import Photoshop layers as physics colliders) ────────────
+var bodies=[];                       // {name,img,x,y,w,h,type,visible,x0,y0,vx,vy,mask,contacts}
+var bodyDrag=null,bodyPX=0,bodyPY=0,bodyVX=0,bodyVY=0,bodyPT=0;
+
+function importPSD(input){
+  var f=input.files[0];
+  if(!f)return;
+  var r=new FileReader();
+  r.onload=function(){
+    var psd;
+    try{psd=parsePSD(r.result);}
+    catch(e){alert('Could not read PSD: '+e.message);return;}
+    var added=0;
+    // records arrive bottom-to-top; iterate top-down so the list matches the PS panel
+    for(var i=psd.layers.length-1;i>=0;i--){
+      var L=psd.layers[i];
+      if(L.isGroup||L.hidden||!L.canvas||L.w<2||L.h<2)continue;
+      addBody(L.name,L.canvas,L.left,L.top);
+      added++;
+    }
+    if(!added)alert('No usable raster layers found (groups, hidden and empty layers are skipped).');
+    rebuildBodyList();
+  };
+  r.readAsArrayBuffer(f);
+  input.value='';
+}
+
+// Minimal PSD parser: 8-bit RGB(A), RAW + RLE channels, layer names (incl. unicode),
+// group/hidden detection. Throws on PSB, 16/32-bit and non-RGB documents.
+function parsePSD(buf){
+  var dv=new DataView(buf),o=0;
+  function u8(){return dv.getUint8(o++);}
+  function u16(){var v=dv.getUint16(o);o+=2;return v;}
+  function i16(){var v=dv.getInt16(o);o+=2;return v;}
+  function u32(){var v=dv.getUint32(o);o+=4;return v;}
+  function i32(){var v=dv.getInt32(o);o+=4;return v;}
+  function sig4(){var s=String.fromCharCode(dv.getUint8(o),dv.getUint8(o+1),dv.getUint8(o+2),dv.getUint8(o+3));o+=4;return s;}
+  if(sig4()!=='8BPS')throw new Error('not a PSD file');
+  if(u16()!==1)throw new Error('PSB (large document format) is not supported');
+  o+=6;
+  u16();                            // channels
+  var H=u32(),W=u32(),depth=u16(),mode=u16();
+  if(depth!==8)throw new Error(depth+'-bit depth not supported — re-save as 8-bit');
+  if(mode!==3)throw new Error('only RGB color mode is supported');
+  var skipN=u32();o+=skipN;         // color mode data
+  skipN=u32();o+=skipN;             // image resources
+  u32();                            // layer & mask info total length
+  var liLen=u32(),liEnd=o+liLen;    // layer info
+  var count=i16();if(count<0)count=-count;
+  var layers=[];
+  for(var li=0;li<count;li++){
+    var top=i32(),left=i32(),bottom=i32(),right=i32();
+    var chn=u16(),chans=[];
+    for(var c=0;c<chn;c++)chans.push({id:i16(),len:u32()});
+    sig4();sig4();                  // '8BIM' + blend key
+    u8();u8();                      // opacity, clipping
+    var flags=u8();u8();            // flags, filler
+    var exLen=u32();                // extra data length
+    var extraEnd=o+exLen;
+    var mskLen=u32();o+=mskLen;     // layer mask data
+    var brLen=u32();o+=brLen;       // blending ranges
+    var nl=u8(),name='';
+    for(var ni=0;ni<nl;ni++)name+=String.fromCharCode(u8());
+    o+=(4-((1+nl)%4))%4;            // pascal string pad to multiple of 4
+    var isGroup=false;
+    while(o+12<=extraEnd){
+      var s=sig4();
+      if(s!=='8BIM'&&s!=='8B64')break;
+      var key=sig4(),len=u32(),next=o+len+(len&1);
+      if(key==='luni'&&len>=4){
+        var n2=u32(),un='';
+        for(var ui=0;ui<n2;ui++)un+=String.fromCharCode(u16());
+        if(un)name=un;
+      }else if(key==='lsct'&&len>=4){
+        if(u32()>0)isGroup=true;
+      }
+      o=next;
+    }
+    o=extraEnd;
+    layers.push({name:name||('layer '+li),left:left,top:top,w:right-left,h:bottom-top,
+                 hidden:(flags&2)!==0,isGroup:isGroup,chans:chans});
+  }
+  // channel image data, in the same layer order
+  for(var li2=0;li2<count;li2++){
+    var L=layers[li2],w2=L.w,h2=L.h;
+    var px=(!L.isGroup&&w2>0&&h2>0)?new Uint8ClampedArray(w2*h2*4):null;
+    if(px)for(var ai=3;ai<px.length;ai+=4)px[ai]=255;
+    for(var c2=0;c2<L.chans.length;c2++){
+      var ch=L.chans[c2],start=o;
+      var tgt=ch.id===0?0:ch.id===1?1:ch.id===2?2:ch.id===-1?3:-1;
+      if(px&&tgt>=0&&ch.len>=2){
+        var comp=u16(),plane=new Uint8Array(w2*h2);
+        if(comp===0){
+          for(var b0=0;b0<w2*h2;b0++)plane[b0]=u8();
+        }else if(comp===1){          // PackBits RLE
+          var rows=[],rc;
+          for(rc=0;rc<h2;rc++)rows.push(u16());
+          var pp=0;
+          for(rc=0;rc<h2;rc++){
+            var rend=o+rows[rc];
+            while(o<rend&&pp<plane.length){
+              var nb=dv.getInt8(o);o++;
+              if(nb>=0){for(var k0=0;k0<=nb&&pp<plane.length;k0++)plane[pp++]=u8();}
+              else if(nb>-128){var vv=u8();for(var k1=0;k1<1-nb&&pp<plane.length;k1++)plane[pp++]=vv;}
+            }
+            o=rend;
+          }
+        }                            // zip compression: plane stays empty
+        for(var q0=0;q0<w2*h2;q0++)px[q0*4+tgt]=plane[q0];
+      }
+      o=start+ch.len;
+    }
+    if(px){
+      var lcv=document.createElement('canvas');lcv.width=w2;lcv.height=h2;
+      lcv.getContext('2d').putImageData(new ImageData(px,w2,h2),0,0);
+      L.canvas=lcv;
+    }
+    delete L.chans;
+  }
+  o=liEnd;
+  return {width:W,height:H,layers:layers};
+}
+
+function addBody(name,imgOrCanvas,x,y){
+  var w=imgOrCanvas.naturalWidth||imgOrCanvas.width,h=imgOrCanvas.naturalHeight||imgOrCanvas.height;
+  var b={name:name,img:imgOrCanvas,x:x,y:y,w:w,h:h,
+         type:'static',visible:true,x0:x,y0:y,vx:0,vy:0};
+  buildBodyMask(b);
+  bodies.push(b);
+  return b;
+}
+
+// Downsampled alpha bitmap for pixel collision + silhouette contact points
+function buildBodyMask(b){
+  var MR=160,s=Math.min(1,MR/Math.max(b.w,b.h));
+  var mw=Math.max(1,Math.round(b.w*s)),mh=Math.max(1,Math.round(b.h*s));
+  var mc=document.createElement('canvas');mc.width=mw;mc.height=mh;
+  var mx=mc.getContext('2d');
+  mx.drawImage(b.img,0,0,mw,mh);
+  var d=mx.getImageData(0,0,mw,mh).data;
+  var m=new Uint8Array(mw*mh);
+  for(var i=0;i<mw*mh;i++)m[i]=d[i*4+3]>96?1:0;
+  b.mask={m:m,w:mw,h:mh,inv:b.w/mw};        // inv = world px per mask px
+  var pts=[];
+  for(var yy=0;yy<mh;yy++)for(var xx=0;xx<mw;xx++){
+    if(!m[yy*mw+xx])continue;
+    if(xx===0||yy===0||xx===mw-1||yy===mh-1||
+       !m[yy*mw+xx-1]||!m[yy*mw+xx+1]||!m[(yy-1)*mw+xx]||!m[(yy+1)*mw+xx])
+      pts.push({x:(xx+0.5)*b.mask.inv,y:(yy+0.5)*b.mask.inv});
+  }
+  var step=Math.max(1,Math.floor(pts.length/24)),cp=[];
+  for(var pi=0;pi<pts.length;pi+=step)cp.push(pts[pi]);
+  b.contacts=cp.length?cp:[{x:b.w/2,y:b.h/2}];
+}
+
+function bodySolidAt(b,wx,wy){
+  var mx=(wx-b.x)/b.mask.inv|0,my=(wy-b.y)/b.mask.inv|0;
+  if(mx<0||my<0||mx>=b.mask.w||my>=b.mask.h)return false;
+  return !!b.mask.m[my*b.mask.w+mx];
+}
+
+// Outward normal from the alpha-bitmap gradient in a 5×5 neighbourhood
+function bodyNormalAt(b,wx,wy){
+  var inv=b.mask.inv,mw=b.mask.w,mh=b.mask.h,m=b.mask.m;
+  var cx=(wx-b.x)/inv,cy=(wy-b.y)/inv,gx=0,gy=0;
+  for(var dy=-2;dy<=2;dy++)for(var dx=-2;dx<=2;dx++){
+    var sx=(cx+dx)|0,sy=(cy+dy)|0;
+    if(sx>=0&&sy>=0&&sx<mw&&sy<mh&&m[sy*mw+sx]){gx-=dx;gy-=dy;}
+  }
+  var L=Math.sqrt(gx*gx+gy*gy);
+  return L<0.001?null:{x:gx/L,y:gy/L};
+}
+
+// Particle vs body pixels (both static and dynamic bodies deflect particles)
+function collideBodiesParticle(p){
+  if(!bodies.length||!document.getElementById('bodiesOn').checked)return;
+  for(var i=0;i<bodies.length;i++){
+    var b=bodies[i];
+    if(!b.visible||!bodySolidAt(b,p.x,p.y))continue;
+    var n=bodyNormalAt(b,p.x,p.y)||{x:0,y:-1};
+    var tries=0;
+    while(bodySolidAt(b,p.x,p.y)&&tries++<30){p.x+=n.x*b.mask.inv;p.y+=n.y*b.mask.inv;}
+    var bvx=b.type==='dynamic'?b.vx:0,bvy=b.type==='dynamic'?b.vy:0;
+    var rvx=p.vx-bvx,rvy=p.vy-bvy,vn=rvx*n.x+rvy*n.y;
+    if(vn<0){
+      var e2=V('bodyBounce')*(p.defBounceMul==null?1:p.defBounceMul);
+      var fr=1-Math.min(1,V('bodyFriction'));
+      var tx=rvx-vn*n.x,ty=rvy-vn*n.y;
+      p.vx=bvx+tx*fr-vn*e2*n.x;
+      p.vy=bvy+ty*fr-vn*e2*n.y;
+    }
+    return;
+  }
+}
+
+// Dynamic body physics: gravity, stage walls/floor, static-body collision
+function updateBodies(dt){
+  if(!bodies.length||!document.getElementById('bodiesOn').checked)return;
+  var g=V('bodyGravity'),e2=V('bodyBounce'),fr=V('bodyFriction');
+  var floor=cv.height,wallL=0,wallR=cv.width;
+  for(var i=0;i<bodies.length;i++){
+    var b=bodies[i];
+    if(b.type!=='dynamic'||!b.visible||(bodyDrag&&bodyDrag.b===b))continue;
+    b.vy+=g*dt;
+    b.x+=b.vx*dt;b.y+=b.vy*dt;
+    var nx=0,ny=0,hits=0,push=0;
+    for(var c=0;c<b.contacts.length;c++){
+      var wx=b.x+b.contacts[c].x,wy=b.y+b.contacts[c].y;
+      if(wy>floor){ny-=1;hits++;push=Math.max(push,wy-floor);}
+      if(wx<wallL){nx+=1;hits++;push=Math.max(push,wallL-wx);}
+      if(wx>wallR){nx-=1;hits++;push=Math.max(push,wx-wallR);}
+      for(var s=0;s<bodies.length;s++){
+        var sb=bodies[s];
+        if(sb===b||sb.type!=='static'||!sb.visible)continue;
+        if(bodySolidAt(sb,wx,wy)){
+          var n=bodyNormalAt(sb,wx,wy);
+          if(n){nx+=n.x;ny+=n.y;hits++;push=Math.max(push,sb.mask.inv);}
+        }
+      }
+    }
+    if(hits){
+      var L=Math.sqrt(nx*nx+ny*ny);
+      if(L>0.001){
+        nx/=L;ny/=L;
+        b.x+=nx*(push+0.5);b.y+=ny*(push+0.5);
+        var vn=b.vx*nx+b.vy*ny;
+        if(vn<0){
+          var f2=1-Math.min(1,fr),tvx=b.vx-vn*nx,tvy=b.vy-vn*ny;
+          b.vx=tvx*f2-vn*e2*nx;
+          b.vy=tvy*f2-vn*e2*ny;
+        }
+        // sleep when resting on an upward-facing surface
+        if(ny<-0.5&&b.vx*b.vx+b.vy*b.vy<900){b.vx=0;b.vy=0;}
+      }
+    }
+  }
+}
+
+function bodyHit(e){
+  if(!bodies.length)return null;
+  var r=cv.getBoundingClientRect(),w=toWorld(e.clientX-r.left,e.clientY-r.top);
+  for(var i=0;i<bodies.length;i++){
+    var b=bodies[i];
+    if(b.visible&&bodySolidAt(b,w.x,w.y))return {b:b,ox:w.x-b.x,oy:w.y-b.y};
+  }
+  return null;
+}
+
+function rebuildBodyList(){
+  var box=document.getElementById('bodyList');
+  box.innerHTML='';
+  if(!bodies.length){
+    box.innerHTML='<div style="font-size:10px;color:#555">No bodies — import a PSD.</div>';
+    return;
+  }
+  bodies.forEach(function(b){
+    var row=document.createElement('div');
+    row.className='row';
+    var nm=document.createElement('span');
+    nm.textContent=b.name;
+    nm.title=b.name+' ('+b.w+'\u00d7'+b.h+')';
+    nm.style.cssText='flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:'+(b.type==='dynamic'?'#f0a040':'#8c8');
+    var sel=document.createElement('select');
+    sel.style.cssText='width:76px;flex:none';
+    sel.innerHTML='<option value="static">static</option><option value="dynamic">dynamic</option>';
+    sel.value=b.type;
+    sel.onchange=function(){b.type=sel.value;b.vx=0;b.vy=0;nm.style.color=b.type==='dynamic'?'#f0a040':'#8c8';};
+    var eye=document.createElement('span');
+    eye.textContent=b.visible?'\ud83d\udc41':'\u25ab';
+    eye.style.cssText='cursor:pointer;width:16px;text-align:center';
+    eye.onclick=function(){b.visible=!b.visible;eye.textContent=b.visible?'\ud83d\udc41':'\u25ab';};
+    var del=document.createElement('span');
+    del.textContent='\u2715';
+    del.style.cssText='cursor:pointer;color:#a55;width:14px;text-align:center';
+    del.onclick=function(){bodies.splice(bodies.indexOf(b),1);rebuildBodyList();};
+    row.appendChild(nm);row.appendChild(sel);row.appendChild(eye);row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+rebuildBodyList();
 
 // ── Emitter position (click / drag) ───────────────────────
 var emitX=null,emitY=null,dragging=false;
@@ -895,6 +1300,14 @@ cv.addEventListener('pointerdown',function(e){
     defLX=w0.x;defLY=w0.y;
     cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;
   }
+  var bh=bodyHit(e);
+  if(bh){
+    bodyDrag=bh;
+    var rb=cv.getBoundingClientRect(),wb=toWorld(e.clientX-rb.left,e.clientY-rb.top);
+    bodyPX=wb.x;bodyPY=wb.y;bodyPT=performance.now();bodyVX=0;bodyVY=0;
+    bh.b.vx=0;bh.b.vy=0;
+    cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;
+  }
   dragging=true;setEmit(e);
   if(document.getElementById('mode').value==='burst'){if(document.getElementById('loopOn').checked)restartLoop();else doBurst();}
 });
@@ -902,9 +1315,17 @@ cv.addEventListener('pointermove',function(e){
   if(panning){camX=panCX+(e.clientX-panSX);camY=panCY+(e.clientY-panSY);return;}
   if(attDragging){setAtt(e);return;}
   if(defDrag){moveDef(e);return;}
+  if(bodyDrag){
+    var rm=cv.getBoundingClientRect(),wm=toWorld(e.clientX-rm.left,e.clientY-rm.top);
+    var nowT=performance.now(),dtm=Math.max(0.001,(nowT-bodyPT)/1000);
+    bodyVX=(wm.x-bodyPX)/dtm;bodyVY=(wm.y-bodyPY)/dtm;
+    bodyPX=wm.x;bodyPY=wm.y;bodyPT=nowT;
+    bodyDrag.b.x=wm.x-bodyDrag.ox;bodyDrag.b.y=wm.y-bodyDrag.oy;
+    return;
+  }
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 cv.addEventListener('dblclick',function(e){
   // deflector editing: dbl-click a point removes it, dbl-click the line inserts a point
@@ -933,6 +1354,7 @@ var particles=[],spawnAcc=0,paused=false,loopTime=0,simTime=0;
 function restartLoop(soft){
   // soft restart (loop wrap): keep alive particles so the loop is seamless
   if(!soft)particles.length=0;
+  if(!soft)for(var bi=0;bi<bodies.length;bi++){var b2=bodies[bi];b2.x=b2.x0;b2.y=b2.y0;b2.vx=0;b2.vy=0;}
   spawnAcc=0;loopTime=0;simTime=0;_seed=1;
   if(document.getElementById('loopOn').checked&&document.getElementById('mode').value==='burst')doBurst();
 }
@@ -941,7 +1363,7 @@ function togglePause(){
   document.getElementById('pauseBtn').textContent=paused?'▶ Play':'⏸ Pause';
 }
 function spawn(){
-  var sel=textures.filter(function(t){return t.sel;});
+  var sel=spawnPool;
   if(!sel.length)return;
   var to=sel[(rng()*sel.length)|0];
   var tex=to.img;
@@ -976,7 +1398,8 @@ function spawn(){
     defBounceMul:Math.max(0,1+(rng()-0.5)*2*(V('defRandBounce')/100)),
     defFricMul:Math.max(0,1+(rng()-0.5)*2*(V('defRandFriction')/100)),
     seed:rng(),
-    tex:tex, texName:to.name||'particle'
+    tex:tex, texName:to.name||'particle',
+    seq:to.seq||null
   });
   spawnCount++;
 }
@@ -1050,6 +1473,7 @@ function exportSpine(){
       q.x+=q.vx*dt;q.y+=q.vy*dt;
       applyDeflector(q,_ox,_oy);
       q.rot+=q.spin*dt;
+      seqFrameFor(q);
     }
     if(curF>=spawnEnd&&!particles.length)break;
   }
@@ -1466,6 +1890,7 @@ function exportPNGSeq(){
       q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;
       applyDeflector(q2,_ox2,_oy2);
       q2.rot+=q2.spin*dt;
+      seqFrameFor(q2);
     }
   }
   // restore live state
@@ -1556,6 +1981,11 @@ function saveProject(){
     attX:attX,attY:attY,
     defPts:defPts?defPts.map(function(p){return {x:p.x,y:p.y};}):null,
     bg:bgData,
+    seqEnabled:seqEnabled,
+    bodies:bodies.map(function(b){
+      return {name:b.name,type:b.type,visible:b.visible,x:b.x0,y:b.y0,
+              data:b.img.toDataURL?b.img.toDataURL('image/png'):b.img.src};
+    }),
     images:[]};
   document.querySelectorAll('input[type=range]').forEach(function(el){proj.sliders[el.id]=el.value;});
   document.querySelectorAll('select').forEach(function(el){if(el.id)proj.selects[el.id]=el.value;});
@@ -1600,11 +2030,26 @@ function loadProject(input){
     if(typeof proj.attX==='number'){attX=proj.attX;attY=proj.attY;}
     if(proj.defPts&&proj.defPts.length>=2)defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
     else if(typeof proj.defX1==='number')defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
+    seqEnabled=proj.seqEnabled||{};
     if(proj.bg){
       var bimg=new Image();
       bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
       bimg.src=proj.bg;
     }else{bgImg=null;bgData=null;}
+    bodies.length=0;
+    if(proj.bodies&&proj.bodies.length){
+      proj.bodies.forEach(function(rec){
+        var bimg2=new Image();
+        bimg2.onload=function(){
+          var nb=addBody(rec.name,bimg2,rec.x,rec.y);
+          nb.type=rec.type||'static';
+          nb.visible=rec.visible!==false;
+          rebuildBodyList();
+        };
+        bimg2.src=rec.data;
+      });
+    }
+    rebuildBodyList();
     if(proj.images&&proj.images.length){
       textures.length=0;
       builtinTextures().forEach(function(t){t.sel=false;textures.push(t);});
@@ -1689,6 +2134,7 @@ function loop(now){
       while(spawnAcc>=1){spawnAcc--;if(particles.length<cap)spawn();}
     }
     // update
+    updateBodies(dt);
     var gx=V('gravX'),gy=V('gravY'),drag=V('drag');
     for(var i=particles.length-1;i>=0;i--){
       var p=particles[i];
@@ -1702,7 +2148,9 @@ function loop(now){
       var _ox=p.x,_oy=p.y;
       p.x+=p.vx*dt;p.y+=p.vy*dt;
       applyDeflector(p,_ox,_oy);
+      collideBodiesParticle(p);
       p.rot+=p.spin*dt;
+      seqFrameFor(p);
     }
   }
   // draw
@@ -1734,6 +2182,24 @@ function loop(now){
       ctx.fillRect(bx,by,bdw,bdh);
     }
     ctx.globalAlpha=1;
+  }
+  // PSD bodies (drawn below particles, list order = PS panel order)
+  if(bodies.length){
+    ctx.globalCompositeOperation='source-over';
+    var showOutline=document.getElementById('bodyOutlines').checked;
+    for(var bi3=bodies.length-1;bi3>=0;bi3--){
+      var B=bodies[bi3];
+      if(!B.visible)continue;
+      ctx.globalAlpha=1;
+      ctx.drawImage(B.img,B.x,B.y);
+      if(showOutline){
+        ctx.globalAlpha=0.45;
+        ctx.strokeStyle=B.type==='dynamic'?'#f90':'#6d6';
+        ctx.lineWidth=1/camZ;
+        ctx.strokeRect(B.x,B.y,B.w,B.h);
+        ctx.globalAlpha=1;
+      }
+    }
   }
   ctx.globalCompositeOperation=document.getElementById('blend').value;
   var fadeStart=1-V('fade'),endScale=V('endScale');
