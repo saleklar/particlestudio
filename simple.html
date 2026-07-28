@@ -64,7 +64,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div id="seq-list"></div>
   <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
   <div class="row" id="seqFitRow" style="display:none"><label>Fit life</label><input type="checkbox" id="seqFitLife" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">play once over lifetime instead of looping</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox and the remaining frames are loaded from its folder automatically, playing as a flipbook (exports to Spine as attachment keys).</div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox to load the remaining frames from its folder (the folder is granted once, then remembered — later sequences load silently). Plays as a flipbook, exports to Spine as attachment keys.</div>
 
   <h2>Emitter</h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
@@ -640,9 +640,11 @@ function seqGroups(){
   }
   return out;
 }
-// Auto-load missing frames of a sequence from a user-picked folder
-// (File System Access API — Chrome/Edge). Remembers the folder for later sequences.
-var _seqDir=null;
+// Auto-load missing frames of a sequence from the frames' folder.
+// Browsers never reveal a picked file's location, so the folder must be
+// granted ONCE (File System Access API); the handle is stored in IndexedDB
+// and reused silently for every later sequence — no dialog after first time.
+var _seqDirs=[]; // remembered folder handles, most recent first
 function autoLoadSeqFrames(base,selState,done){
   if(!window.showDirectoryPicker){
     alert('This browser cannot scan folders — load all frames via "Load PNG(s)…" instead.');
@@ -650,37 +652,58 @@ function autoLoadSeqFrames(base,selState,done){
   }
   var esc=base.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   var re=new RegExp('^'+esc+'[ _\\-.]?\\d{1,5}\\.(png|webp|gif)$','i');
+  async function scan(dir){ // -> jobs[] or null if folder has no matching frames
+    var jobs=[],any=false;
+    for await(var entry of dir.values()){
+      if(entry.kind!=='file'||!re.test(entry.name))continue;
+      any=true;
+      var nm=entry.name.replace(/\.[^.]+$/,'');
+      if(textures.some(function(t){return t.name===nm;}))continue;
+      jobs.push({entry:entry,nm:nm});
+    }
+    return any?jobs:null;
+  }
+  function loadJobs(jobs){
+    if(!jobs.length){done(0);return;}
+    var left=jobs.length,added=0;
+    jobs.forEach(function(job){
+      job.entry.getFile().then(function(f){
+        var r=new FileReader();
+        r.onload=function(){
+          var img=new Image();
+          img.onload=function(){
+            textures.push({img:img,sel:selState,name:job.nm});
+            libSave(job.nm,r.result);
+            added++;
+            if(--left===0)done(added);
+          };
+          img.onerror=function(){if(--left===0)done(added);};
+          img.src=r.result;
+        };
+        r.readAsDataURL(f);
+      }).catch(function(){if(--left===0)done(added);});
+    });
+  }
   (async function(){
     try{
-      var dir=_seqDir;
-      if(dir&&await dir.queryPermission({mode:'read'})!=='granted')dir=null;
-      if(!dir){dir=await window.showDirectoryPicker();_seqDir=dir;}
-      var jobs=[];
-      for await(var entry of dir.values()){
-        if(entry.kind!=='file'||!re.test(entry.name))continue;
-        var nm=entry.name.replace(/\.[^.]+$/,'');
-        if(textures.some(function(t){return t.name===nm;}))continue;
-        jobs.push({entry:entry,nm:nm});
+      // 1. try every remembered folder silently
+      for(var i=0;i<_seqDirs.length;i++){
+        var d=_seqDirs[i];
+        try{
+          var perm=await d.queryPermission({mode:'read'});
+          if(perm==='prompt')perm=await d.requestPermission({mode:'read'});
+          if(perm!=='granted')continue;
+          var jobs=await scan(d);
+          if(jobs){loadJobs(jobs);return;}
+        }catch(e2){}
       }
-      if(!jobs.length){done(0);return;}
-      var left=jobs.length,added=0;
-      jobs.forEach(function(job){
-        job.entry.getFile().then(function(f){
-          var r=new FileReader();
-          r.onload=function(){
-            var img=new Image();
-            img.onload=function(){
-              textures.push({img:img,sel:selState,name:job.nm});
-              libSave(job.nm,r.result);
-              added++;
-              if(--left===0)done(added);
-            };
-            img.onerror=function(){if(--left===0)done(added);};
-            img.src=r.result;
-          };
-          r.readAsDataURL(f);
-        }).catch(function(){if(--left===0)done(added);});
-      });
+      // 2. unknown folder — ask once, then remember it forever
+      var dir=await window.showDirectoryPicker();
+      _seqDirs.unshift(dir);
+      if(_seqDirs.length>8)_seqDirs.length=8;
+      seqDirSave();
+      var jobs2=await scan(dir);
+      loadJobs(jobs2||[]);
     }catch(e){done(0);} // user cancelled the picker
   })();
 }
@@ -767,8 +790,12 @@ rebuildGallery();
 // ── Persistent image library (IndexedDB) ─────────────────
 var _db=null;
 (function(){
-  var req=indexedDB.open('particleSimpleLib',1);
-  req.onupgradeneeded=function(e){e.target.result.createObjectStore('images',{keyPath:'name'});};
+  var req=indexedDB.open('particleSimpleLib',2);
+  req.onupgradeneeded=function(e){
+    var db=e.target.result;
+    if(!db.objectStoreNames.contains('images'))db.createObjectStore('images',{keyPath:'name'});
+    if(!db.objectStoreNames.contains('handles'))db.createObjectStore('handles',{keyPath:'id'});
+  };
   req.onsuccess=function(e){
     _db=e.target.result;
     var tx=_db.transaction('images','readonly').objectStore('images').getAll();
@@ -780,8 +807,17 @@ var _db=null;
         img.src=rec.data;
       });
     };
+    // restore remembered sequence folders (permission re-checked on use)
+    try{
+      var htx=_db.transaction('handles','readonly').objectStore('handles').get('seqDirs');
+      htx.onsuccess=function(){if(htx.result&&htx.result.dirs)_seqDirs=htx.result.dirs;};
+    }catch(e2){}
   };
 })();
+function seqDirSave(){
+  if(!_db)return;
+  try{_db.transaction('handles','readwrite').objectStore('handles').put({id:'seqDirs',dirs:_seqDirs});}catch(e){}
+}
 function libSave(name,dataURL){
   if(!_db)return;
   try{_db.transaction('images','readwrite').objectStore('images').put({name:name,data:dataURL});}catch(e){}
