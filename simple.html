@@ -61,7 +61,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <h2>Emitters</h2>
   <div id="emList" style="margin-bottom:4px"></div>
   <button class="btn" onclick="addEmitter()">+ Add Emitter</button>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Particle Image, Emitter, Motion, Appearance, Randomness and Mesh Deformer settings plus its own position — the sidebar edits the highlighted one. The 🌐 checkbox on a panel makes it global: that emitter’s values drive all emitters (only one owner per panel). Attractor, deflector, bodies, tint, curves, playback and export are always global. Click a name to edit it, ✎ or double-click to rename, 👁 toggles it. In the Spine export each emitter becomes a parent bone (using its name) with its particles as child bones.</div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Particle Image, Emitter, Motion, Attractor, Deflector, Appearance, Randomness and Mesh Deformer settings plus its own position — the sidebar edits the highlighted one. The 🌐 checkbox on a panel makes it global: that emitter’s values drive all emitters (only one owner per panel). Bodies, tint, curves, playback and export are always global. Click a name to edit it, ✎ or double-click to rename, 👁 toggles it, ⧉ duplicates it. In the Spine export each emitter becomes a parent bone (using its name) with its particles as child bones.</div>
 
   <h2>Particle Image<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_image">🌐 all</span> <input type="checkbox" id="glob_image" onchange="onGlobToggle('image',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
@@ -96,7 +96,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Turb scale</label><input type="range" id="turbScale" min="10" max="600" step="5" value="120" oninput="sync(this)"><span class="val">120</span></div>
   <div class="row"><label>Turb speed</label><input type="range" id="turbSpeed" min="0" max="10" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
 
-  <h2>Attractor</h2>
+  <h2>Attractor<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_attractor">🌐 all</span> <input type="checkbox" id="glob_attractor" onchange="onGlobToggle('attractor',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="attractOn" onchange="onAttractToggle()" style="accent-color:#3cf;cursor:pointer"><span style="color:#888;font-size:10px">drag the ◎ marker on canvas</span></div>
   <div class="row"><label>Force</label><input type="range" id="attractForce" min="-3000" max="3000" step="10" value="600" oninput="sync(this)"><span class="val">600</span></div>
   <div class="row"><label>Radius</label><input type="range" id="attractRadius" min="0" max="2000" step="10" value="0" oninput="sync(this)"><span class="val">0</span></div>
@@ -104,7 +104,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="centerAttractor()">◎ Center Attractor</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Positive force pulls particles in, negative pushes them away. Radius 0 = infinite range.</div>
 
-  <h2>Deflector</h2>
+  <h2>Deflector<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_deflector">🌐 all</span> <input type="checkbox" id="glob_deflector" onchange="onGlobToggle('deflector',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="defOn" onchange="onDefToggle()" style="accent-color:#6d6;cursor:pointer"><span style="color:#888;font-size:10px">dbl-click line: add point</span></div>
   <div class="row"><label>On hit</label><select id="defAction"><option value="bounce" selected>Bounce</option><option value="die">Die</option><option value="xform">Transform</option></select></div>
   <div class="row"><label>Bounce</label><input type="range" id="defBounce" min="0" max="1" step="0.05" value="0.6" oninput="sync(this)"><span class="val">0.6</span></div>
@@ -266,7 +266,7 @@ function onModeChange(){
 
 // ── Multiple emitters ───────────────────────────────────────────
 // The sidebar always shows/edits the ACTIVE emitter; these ids are stored
-// per emitter. Everything else (attractor, deflector, bodies, tint,
+// per emitter. Everything else (bodies, tint,
 // curves, playback, export) is global.
 // Each per-emitter panel has a 🌐 checkbox: when checked, that emitter
 // OWNS the panel globally — its values drive every emitter. Only one
@@ -275,13 +275,15 @@ var EM_GROUPS={
   image:[],
   emitter:['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','life'],
   motion:['speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed'],
+  attractor:['attractOn','attractForce','attractRadius','attractFalloff'],
+  deflector:['defOn','defAction','defBounce','defFriction','defXformTex','defXformLife','defRandBounce','defRandFriction','defScatter'],
   mesh:['meshOn','meshN','meshWeight'],
   appearance:['size','sizeVar','endScale','spin','fade'],
   random:['randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity']
 };
 var EM_IDS=[],EM_GRP={};
 for(var _g in EM_GROUPS)EM_GROUPS[_g].forEach(function(id){EM_IDS.push(id);EM_GRP[id]=_g;});
-var emGlobals={image:null,emitter:null,motion:null,mesh:null,appearance:null,random:null};
+var emGlobals={image:null,emitter:null,motion:null,attractor:null,deflector:null,mesh:null,appearance:null,random:null};
 var emitters=[],emIdx=0;
 function emFor(em,group){return emGlobals[group]||em;}   // owner of a panel for this emitter
 function emOf(em,id){return emGlobals[EM_GRP[id]]||em;}  // owner of a single setting
@@ -314,7 +316,7 @@ function emY(em){return em.y==null?cv.height/2:em.y;}
 function addEmitter(){
   var em={name:'Emitter '+(emitters.length+1),on:true,x:null,y:null,
           s:emSnapshot(),ratePts:ratePts.slice(),texSel:{},pool:[],acc:0,
-          meshPts:null,meshRect:null};
+          meshPts:null,meshRect:null,attX:null,attY:null,defPts:null};
   textures.forEach(function(t){if(t.sel)em.texSel[t.name]=true;});
   emitters.push(em);
   emIdx=emitters.length-1;
@@ -338,6 +340,23 @@ function emLoad(i){
   onModeChange();drawRateCurve();rebuildGallery();rebuildEmList();
 }
 function emActivate(i){if(i!==emIdx&&emitters[i])emLoad(i);}
+function emDuplicate(i){
+  var src=emitters[i];
+  if(!src)return;
+  var em={name:src.name+' copy',on:src.on,x:src.x,y:src.y,
+          s:JSON.parse(JSON.stringify(src.s)),
+          ratePts:src.ratePts.slice(),
+          texSel:JSON.parse(JSON.stringify(src.texSel||{})),pool:[],acc:0,
+          meshPts:src.meshPts?src.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
+          meshRect:src.meshRect?{x:src.meshRect.x,y:src.meshRect.y,w:src.meshRect.w,h:src.meshRect.h,n:src.meshRect.n}:null,
+          attX:src.attX,attY:src.attY,
+          defPts:src.defPts?src.defPts.map(function(p){return {x:p.x,y:p.y};}):null};
+  // offset the copy a little so the two markers don't sit on top of each other
+  em.x=emX(src)+30;em.y=emY(src)+30;
+  emitters.splice(i+1,0,em);
+  emLoad(i+1);
+  rebuildSpawnPool();
+}
 function emDelete(i){
   if(emitters.length<=1)return;
   var dead=emitters[i];
@@ -367,11 +386,16 @@ function rebuildEmList(){
     eye.textContent=em.on?'\ud83d\udc41':'\u25ab';
     eye.style.cssText='cursor:pointer;width:16px;text-align:center';
     eye.onclick=function(){em.on=!em.on;rebuildEmList();};
+    var dup=document.createElement('span');
+    dup.textContent='\u29c9';
+    dup.title='duplicate this emitter (settings, mesh, attractor, deflector and images are copied)';
+    dup.style.cssText='cursor:pointer;color:#888;width:14px;text-align:center';
+    dup.onclick=function(){emDuplicate(i);};
     var del=document.createElement('span');
     del.textContent='\u2715';
     del.style.cssText='cursor:pointer;color:#a55;width:14px;text-align:center';
     del.onclick=function(){emDelete(i);};
-    row.appendChild(nm);row.appendChild(ren);row.appendChild(eye);row.appendChild(del);
+    row.appendChild(nm);row.appendChild(ren);row.appendChild(eye);row.appendChild(dup);row.appendChild(del);
     box.appendChild(row);
   });
 }
@@ -1127,9 +1151,10 @@ function applyPreset(){
     document.getElementById('tintStopColor').value=tintStops[tintSel].c;
   }
   drawTintGrad();
-  // attractor / deflector placement (relative to canvas)
-  if(p.attractOn&&p.attRel){attX=p.attRel[0]*cv.width;attY=p.attRel[1]*cv.height;}
-  if(p.defOn&&p.defRel)defPts=p.defRel.map(function(q){return {x:q[0]*cv.width,y:q[1]*cv.height};});
+  // attractor / deflector placement (relative to canvas, on the panel owners)
+  var _paT=attTarget(),_pdT=defTarget();
+  if(p.attractOn&&p.attRel&&_paT){_paT.attX=p.attRel[0]*cv.width;_paT.attY=p.attRel[1]*cv.height;}
+  if(p.defOn&&p.defRel&&_pdT)_pdT.defPts=p.defRel.map(function(q){return {x:q[0]*cv.width,y:q[1]*cv.height};});
   onModeChange();
   // rain/snow: put emitter at top of canvas (applies to the active emitter)
   var emP=emitters[emIdx];
@@ -1137,7 +1162,8 @@ function applyPreset(){
     if(p.emitTop){emP.x=cv.width/2;emP.y=-10;}
     else if(p.mode==='cont'){emP.x=cv.width/2;emP.y=cv.height*0.65;}
     else{emP.x=cv.width/2;emP.y=cv.height/2;}
-    emP.s=emSnapshot();   // preset changed the sidebar → refresh emitter settings
+    // preset changed the sidebar → push the values into each panel's owner
+    EM_IDS.forEach(function(id){var el=document.getElementById(id);if(el)emOf(emP,id).s[id]=el.type==='checkbox'?el.checked:el.value;});
   }
   restartLoop();
   if(p.mode==='burst'&&!document.getElementById('loopOn').checked)doBurst();
@@ -1161,36 +1187,47 @@ cv.addEventListener('wheel',function(e){
 },{passive:false});
 function resetView(){camX=0;camY=0;camZ=1;}
 
-// ── Attractor ─────────────────────────────────────────────
-var attX=null,attY=null,attDragging=false;
+// ── Attractor (per emitter; 🌐 on the panel makes one act on all) ────────
+var attDragging=false;
+function attTarget(){return emitters.length?emFor(emitters[emIdx],'attractor'):null;}
 function onAttractToggle(){
-  if(document.getElementById('attractOn').checked&&attX===null)centerAttractor();
+  var T=attTarget();
+  if(!T)return;
+  T.s.attractOn=document.getElementById('attractOn').checked;
+  if(T.s.attractOn&&T.attX==null)centerAttractor();
 }
 function centerAttractor(){
+  var T=attTarget();
+  if(!T)return;
   var w=toWorld(cv.width/2,cv.height/2);
-  attX=w.x;attY=w.y;
-  if(!document.getElementById('attractOn').checked)document.getElementById('attractOn').checked=true;
+  T.attX=w.x;T.attY=w.y;
+  document.getElementById('attractOn').checked=true;
+  T.s.attractOn=true;   // physics reads the snapshot, not the DOM
 }
 function attractorHit(e){
-  if(!document.getElementById('attractOn').checked||attX===null)return false;
+  var T=attTarget();
+  if(!T||!document.getElementById('attractOn').checked||T.attX==null)return false;
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top);
   var grab=14/camZ;
-  return (w.x-attX)*(w.x-attX)+(w.y-attY)*(w.y-attY)<=grab*grab;
+  return (w.x-T.attX)*(w.x-T.attX)+(w.y-T.attY)*(w.y-T.attY)<=grab*grab;
 }
 function setAtt(e){
+  var T=attTarget();
+  if(!T)return;
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top);
-  attX=w.x;attY=w.y;
+  T.attX=w.x;T.attY=w.y;
 }
 function applyAttractor(p,dt){
-  if(attX===null||!document.getElementById('attractOn').checked)return;
-  var dx=attX-p.x,dy=attY-p.y;
+  var o=emFor(p.em,'attractor');
+  if(!o.s.attractOn||o.attX==null)return;
+  var dx=o.attX-p.x,dy=o.attY-p.y;
   var d=Math.sqrt(dx*dx+dy*dy);
   if(d<1)d=1;
-  var f=V('attractForce'),R=V('attractRadius');
+  var f=parseFloat(o.s.attractForce),R=parseFloat(o.s.attractRadius);
   if(R>0&&d>R)return;
-  switch(document.getElementById('attractFalloff').value){
+  switch(o.s.attractFalloff){
     case 'linear': if(R>0)f*=1-d/R; break;
     case 'inv':    f*=100/d; break;
     case 'inv2':   f*=10000/(d*d); break;
@@ -1294,15 +1331,22 @@ function meshHandleHit(e){
 }
 
 // ── Deflector (polyline particles bounce off / die on / transform at) ───
-var defPts=null;                       // [{x,y},...] — 2+ points
-var defDrag=null,defLX=0,defLY=0;      // {pt:i} or {line:true}
+// Per emitter; the 🌐 checkbox on the panel makes one act on all.
+var defDrag=null,defLX=0,defLY=0;      // {pt:i,T:em} or {line:true,T:em}
+function defTarget(){return emitters.length?emFor(emitters[emIdx],'deflector'):null;}
 function onDefToggle(){
-  if(document.getElementById('defOn').checked&&!defPts)centerDeflector();
+  var T=defTarget();
+  if(!T)return;
+  T.s.defOn=document.getElementById('defOn').checked;
+  if(T.s.defOn&&!T.defPts)centerDeflector();
 }
 function centerDeflector(){
+  var T=defTarget();
+  if(!T)return;
   var a=toWorld(cv.width*0.25,cv.height*0.75),b=toWorld(cv.width*0.75,cv.height*0.75);
-  defPts=[{x:a.x,y:a.y},{x:b.x,y:b.y}];
-  if(!document.getElementById('defOn').checked)document.getElementById('defOn').checked=true;
+  T.defPts=[{x:a.x,y:a.y},{x:b.x,y:b.y}];
+  document.getElementById('defOn').checked=true;
+  T.s.defOn=true;   // physics reads the snapshot, not the DOM
 }
 function ptSegDist(px,py,x1,y1,x2,y2){
   var dx=x2-x1,dy=y2-y1,L2=dx*dx+dy*dy;
@@ -1311,37 +1355,42 @@ function ptSegDist(px,py,x1,y1,x2,y2){
   return Math.sqrt((px-cx)*(px-cx)+(py-cy)*(py-cy));
 }
 function defHandleHit(e){
-  if(!document.getElementById('defOn').checked||!defPts)return null;
+  var T=defTarget();
+  if(!T||!document.getElementById('defOn').checked||!T.defPts)return null;
+  var pts=T.defPts;
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top),g=12/camZ;
-  for(var i=0;i<defPts.length;i++){
-    var dx=w.x-defPts[i].x,dy=w.y-defPts[i].y;
-    if(dx*dx+dy*dy<=g*g)return {pt:i};
+  for(var i=0;i<pts.length;i++){
+    var dx=w.x-pts[i].x,dy=w.y-pts[i].y;
+    if(dx*dx+dy*dy<=g*g)return {pt:i,T:T};
   }
-  for(var s=0;s<defPts.length-1;s++){
-    if(ptSegDist(w.x,w.y,defPts[s].x,defPts[s].y,defPts[s+1].x,defPts[s+1].y)<=g*0.7)
-      return {line:true,seg:s,x:w.x,y:w.y};
+  for(var s=0;s<pts.length-1;s++){
+    if(ptSegDist(w.x,w.y,pts[s].x,pts[s].y,pts[s+1].x,pts[s+1].y)<=g*0.7)
+      return {line:true,seg:s,x:w.x,y:w.y,T:T};
   }
   return null;
 }
 function moveDef(e){
+  var pts=defDrag.T.defPts;
   var r=cv.getBoundingClientRect();
   var w=toWorld(e.clientX-r.left,e.clientY-r.top);
-  if(defDrag.pt!==undefined){defPts[defDrag.pt].x=w.x;defPts[defDrag.pt].y=w.y;}
+  if(defDrag.pt!==undefined){pts[defDrag.pt].x=w.x;pts[defDrag.pt].y=w.y;}
   else if(defDrag.line){
     var dx=w.x-defLX,dy=w.y-defLY;
-    for(var i=0;i<defPts.length;i++){defPts[i].x+=dx;defPts[i].y+=dy;}
+    for(var i=0;i<pts.length;i++){pts[i].x+=dx;pts[i].y+=dy;}
     defLX=w.x;defLY=w.y;
   }
 }
 function applyDeflector(p,ox,oy){
-  if(!defPts||!document.getElementById('defOn').checked)return;
+  var o=emFor(p.em,'deflector');
+  var pts=o.defPts;
+  if(!pts||!o.s.defOn)return;
   var mx=p.x-ox,my=p.y-oy;                 // motion this step
   // find the earliest segment crossed along the motion
   var bestT=Infinity,bDx=0,bDy=0;
-  for(var si=0;si<defPts.length-1;si++){
-    var x1=defPts[si].x,y1=defPts[si].y;
-    var dx=defPts[si+1].x-x1,dy=defPts[si+1].y-y1;
+  for(var si=0;si<pts.length-1;si++){
+    var x1=pts[si].x,y1=pts[si].y;
+    var dx=pts[si+1].x-x1,dy=pts[si+1].y-y1;
     var den=mx*dy-my*dx;
     if(!den)continue;
     var t=((x1-ox)*dy-(y1-oy)*dx)/den;     // along motion
@@ -1351,18 +1400,18 @@ function applyDeflector(p,ox,oy){
   }
   if(bestT===Infinity)return;
   var hx=ox+mx*bestT,hy=oy+my*bestT;       // hit point
-  var act=document.getElementById('defAction').value;
+  var act=o.s.defAction;
   if(act==='die'){p.x=hx;p.y=hy;p.age=p.life;return;}
   // reflect velocity about the segment normal
   var L=Math.sqrt(bDx*bDx+bDy*bDy)||1,nx=-bDy/L,ny=bDx/L;
   var vn=p.vx*nx+p.vy*ny;
-  var e2=Math.max(0,V('defBounce')*(p.defBounceMul==null?1:p.defBounceMul));
-  var fr=1-Math.max(0,Math.min(1,V('defFriction')*(p.defFricMul==null?1:p.defFricMul)));
+  var e2=Math.max(0,parseFloat(o.s.defBounce)*(p.defBounceMul==null?1:p.defBounceMul));
+  var fr=1-Math.max(0,Math.min(1,parseFloat(o.s.defFriction)*(p.defFricMul==null?1:p.defFricMul)));
   var tvx=p.vx-vn*nx,tvy=p.vy-vn*ny;       // tangential part
   p.vx=tvx*fr-vn*e2*nx;
   p.vy=tvy*fr-vn*e2*ny;
   // random scatter of the bounce direction (deterministic per particle+hit)
-  var sc=V('defScatter');
+  var sc=parseFloat(o.s.defScatter);
   if(sc>0){
     p._hits=(p._hits||0)+1;
     var rn=Math.sin((p.seed||0.5)*12345.678+p._hits*127.1)*43758.5453;rn-=Math.floor(rn);
@@ -1374,11 +1423,11 @@ function applyDeflector(p,ox,oy){
   var side=vn>0?-1:1;
   p.x=hx+nx*side*0.5;p.y=hy+ny*side*0.5;
   if(act==='xform'&&!p.xformed){
-    var nm=document.getElementById('defXformTex').value;
+    var nm=o.s.defXformTex;
     for(var i=0;i<textures.length;i++){
       if(textures[i].name===nm){p.tex=textures[i].img;p.texName=nm;break;}
     }
-    p.age=0;p.life=Math.max(0.05,V('defXformLife'));
+    p.age=0;p.life=Math.max(0.05,parseFloat(o.s.defXformLife));
     p.xformed=true;
     p.seq=null; // transform overrides any flipbook
   }
@@ -1728,9 +1777,9 @@ cv.addEventListener('dblclick',function(e){
   var h=defHandleHit(e);
   if(h){
     if(h.pt!==undefined){
-      if(defPts.length>2)defPts.splice(h.pt,1);
+      if(h.T.defPts.length>2)h.T.defPts.splice(h.pt,1);
     }else if(h.line){
-      defPts.splice(h.seg+1,0,{x:h.x,y:h.y});
+      h.T.defPts.splice(h.seg+1,0,{x:h.x,y:h.y});
     }
     return;
   }
@@ -1798,8 +1847,8 @@ function spawn(em){
     fadeMul:Math.max(0.01,jit(1,EV(em,'randFade'))),
     opacityMul:Math.max(0,Math.min(1,jit(1,EV(em,'randOpacity')))),
     tint:tintArr,
-    defBounceMul:Math.max(0,1+(rng()-0.5)*2*(V('defRandBounce')/100)),
-    defFricMul:Math.max(0,1+(rng()-0.5)*2*(V('defRandFriction')/100)),
+    defBounceMul:Math.max(0,1+(rng()-0.5)*2*(EV(em,'defRandBounce')/100)),
+    defFricMul:Math.max(0,1+(rng()-0.5)*2*(EV(em,'defRandFriction')/100)),
     seed:rng(),
     em:em,
     tex:tex, texName:to.name||'particle',
@@ -2481,12 +2530,12 @@ function saveProject(){
       return {name:em.name,on:em.on,x:em.x,y:em.y,s:em.s,
               ratePts:em.ratePts.slice(),texSel:em.texSel,
               meshPts:em.meshPts?em.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
-              meshRect:em.meshRect?{x:em.meshRect.x,y:em.meshRect.y,w:em.meshRect.w,h:em.meshRect.h,n:em.meshRect.n}:null};
+              meshRect:em.meshRect?{x:em.meshRect.x,y:em.meshRect.y,w:em.meshRect.w,h:em.meshRect.h,n:em.meshRect.n}:null,
+              attX:em.attX,attY:em.attY,
+              defPts:em.defPts?em.defPts.map(function(p){return {x:p.x,y:p.y};}):null};
     }),
     emIdx:emIdx,
     emGlobals:(function(){var o={};for(var g in emGlobals){o[g]=emGlobals[g]?emitters.indexOf(emGlobals[g]):null;}return o;})(),
-    attX:attX,attY:attY,
-    defPts:defPts?defPts.map(function(p){return {x:p.x,y:p.y};}):null,
     bg:bgData,
     seqEnabled:seqEnabled,
     bodies:bodies.map(function(b){
@@ -2541,7 +2590,9 @@ function loadProject(input){
                 ratePts:(rec.ratePts&&rec.ratePts.slice())||ratePts.slice(),
                 texSel:rec.texSel||{},pool:[],acc:0,
                 meshPts:rec.meshPts?rec.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
-                meshRect:rec.meshRect?{x:rec.meshRect.x,y:rec.meshRect.y,w:rec.meshRect.w,h:rec.meshRect.h,n:rec.meshRect.n}:null};
+                meshRect:rec.meshRect?{x:rec.meshRect.x,y:rec.meshRect.y,w:rec.meshRect.w,h:rec.meshRect.h,n:rec.meshRect.n}:null,
+                attX:rec.attX==null?null:rec.attX,attY:rec.attY==null?null:rec.attY,
+                defPts:rec.defPts?rec.defPts.map(function(p){return {x:p.x,y:p.y};}):null};
       });
       for(var gk in emGlobals)emGlobals[gk]=null;
       if(proj.emGlobals)for(var gk2 in proj.emGlobals){
@@ -2555,9 +2606,12 @@ function loadProject(input){
       emitters=[];emIdx=0;addEmitter();
       if(typeof proj.emitX==='number'){emitters[0].x=proj.emitX;emitters[0].y=proj.emitY;}
     }
-    if(typeof proj.attX==='number'){attX=proj.attX;attY=proj.attY;}
-    if(proj.defPts&&proj.defPts.length>=2)defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
-    else if(typeof proj.defX1==='number')defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
+    // legacy global attractor/deflector → first emitter (if it has none of its own)
+    if(typeof proj.attX==='number'&&emitters.length&&emitters[0].attX==null){emitters[0].attX=proj.attX;emitters[0].attY=proj.attY;}
+    if(emitters.length&&!emitters[0].defPts){
+      if(proj.defPts&&proj.defPts.length>=2)emitters[0].defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
+      else if(typeof proj.defX1==='number')emitters[0].defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
+    }
     seqEnabled=proj.seqEnabled||{};
     // legacy top-level mesh (pre per-emitter meshes): give it to the first emitter
     if(proj.meshPts&&proj.meshRect&&!(proj.emitters&&proj.emitters.length)&&emitters.length){
@@ -2792,30 +2846,34 @@ function loop(now){
     ctx.fillText(mEm.name,mx+8/camZ,my-8/camZ);
   }
   ctx.globalAlpha=0.6;
-  // attractor marker
-  if(document.getElementById('attractOn').checked&&attX!==null){
-    var attract=V('attractForce')>=0;
+  // attractor markers (every active owner; the edited one is brightest)
+  var _aT=attTarget(),_aSeen=[];
+  emitters.forEach(function(_ae){var _ao=emFor(_ae,'attractor');if(_aSeen.indexOf(_ao)<0)_aSeen.push(_ao);});
+  _aSeen.forEach(function(o){
+    if(!o.s.attractOn||o.attX==null)return;
+    var ax=o.attX,ay=o.attY,dim=o===_aT?1:0.4;
+    var attract=parseFloat(o.s.attractForce)>=0;
     ctx.strokeStyle=attract?'#3cf':'#f55';
-    ctx.globalAlpha=0.8;
+    ctx.globalAlpha=0.8*dim;
     ctx.lineWidth=1.5/camZ;
     var mr=8/camZ;
-    ctx.beginPath();ctx.arc(attX,attY,mr,0,Math.PI*2);ctx.stroke();
-    ctx.beginPath();ctx.arc(attX,attY,mr*0.35,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(ax,ay,mr,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.arc(ax,ay,mr*0.35,0,Math.PI*2);ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(attX-mr*1.8,attY);ctx.lineTo(attX-mr*1.1,attY);
-    ctx.moveTo(attX+mr*1.1,attY);ctx.lineTo(attX+mr*1.8,attY);
-    ctx.moveTo(attX,attY-mr*1.8);ctx.lineTo(attX,attY-mr*1.1);
-    ctx.moveTo(attX,attY+mr*1.1);ctx.lineTo(attX,attY+mr*1.8);
+    ctx.moveTo(ax-mr*1.8,ay);ctx.lineTo(ax-mr*1.1,ay);
+    ctx.moveTo(ax+mr*1.1,ay);ctx.lineTo(ax+mr*1.8,ay);
+    ctx.moveTo(ax,ay-mr*1.8);ctx.lineTo(ax,ay-mr*1.1);
+    ctx.moveTo(ax,ay+mr*1.1);ctx.lineTo(ax,ay+mr*1.8);
     ctx.stroke();
-    var R2=V('attractRadius');
+    var R2=parseFloat(o.s.attractRadius);
     if(R2>0){
-      ctx.globalAlpha=0.25;
+      ctx.globalAlpha=0.25*dim;
       ctx.setLineDash([6/camZ,6/camZ]);
-      ctx.beginPath();ctx.arc(attX,attY,R2,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.arc(ax,ay,R2,0,Math.PI*2);ctx.stroke();
       ctx.setLineDash([]);
     }
     ctx.globalAlpha=1;
-  }
+  });
   // mesh deformer grid (the one being edited: the active emitter's, or the 🌐 owner's)
   var _mT=meshTarget();
   if(document.getElementById('meshOn').checked&&_mT&&_mT.meshPts&&document.getElementById('meshShow').checked){
@@ -2836,36 +2894,42 @@ function loop(now){
       ctx.fillRect(_mPts[mk].x-mhs,_mPts[mk].y-mhs,mhs*2,mhs*2);
     ctx.globalAlpha=1;
   }
-  // deflector polyline
-  if(document.getElementById('defOn').checked&&defPts){
+  // deflector polylines (every active owner; only the edited one shows handles)
+  var _dT=defTarget(),_dSeen=[];
+  emitters.forEach(function(_de){var _do=emFor(_de,'deflector');if(_dSeen.indexOf(_do)<0)_dSeen.push(_do);});
+  _dSeen.forEach(function(o){
+    if(!o.s.defOn||!o.defPts)return;
+    var dp=o.defPts,ddim=o===_dT?1:0.4;
     ctx.strokeStyle='#6d6';ctx.fillStyle='#6d6';
-    ctx.globalAlpha=0.85;
+    ctx.globalAlpha=0.85*ddim;
     ctx.lineWidth=2/camZ;
     ctx.beginPath();
-    ctx.moveTo(defPts[0].x,defPts[0].y);
-    for(var pi2=1;pi2<defPts.length;pi2++)ctx.lineTo(defPts[pi2].x,defPts[pi2].y);
+    ctx.moveTo(dp[0].x,dp[0].y);
+    for(var pi2=1;pi2<dp.length;pi2++)ctx.lineTo(dp[pi2].x,dp[pi2].y);
     ctx.stroke();
     // hatching on the underside of each segment to suggest a surface
-    ctx.globalAlpha=0.35;ctx.lineWidth=1/camZ;
+    ctx.globalAlpha=0.35*ddim;ctx.lineWidth=1/camZ;
     ctx.beginPath();
-    for(var sg=0;sg<defPts.length-1;sg++){
-      var ddx=defPts[sg+1].x-defPts[sg].x,ddy=defPts[sg+1].y-defPts[sg].y;
+    for(var sg=0;sg<dp.length-1;sg++){
+      var ddx=dp[sg+1].x-dp[sg].x,ddy=dp[sg+1].y-dp[sg].y;
       var dL=Math.sqrt(ddx*ddx+ddy*ddy)||1;
       var hnx=-ddy/dL,hny=ddx/dL,hlen=7/camZ;
       var hn=Math.max(2,Math.floor(dL/(18/camZ)));
       for(var hi2=0;hi2<=hn;hi2++){
-        var hx2=defPts[sg].x+ddx*hi2/hn,hy2=defPts[sg].y+ddy*hi2/hn;
+        var hx2=dp[sg].x+ddx*hi2/hn,hy2=dp[sg].y+ddy*hi2/hn;
         ctx.moveTo(hx2,hy2);ctx.lineTo(hx2+(hnx-ddx/dL*0.5)*hlen,hy2+(hny-ddy/dL*0.5)*hlen);
       }
     }
     ctx.stroke();
-    // point handles
-    ctx.globalAlpha=0.9;
-    var hs=5/camZ;
-    for(var ph=0;ph<defPts.length;ph++)
-      ctx.fillRect(defPts[ph].x-hs,defPts[ph].y-hs,hs*2,hs*2);
+    // point handles (edited deflector only)
+    if(o===_dT){
+      ctx.globalAlpha=0.9;
+      var hs=5/camZ;
+      for(var ph=0;ph<dp.length;ph++)
+        ctx.fillRect(dp[ph].x-hs,dp[ph].y-hs,hs*2,hs*2);
+    }
     ctx.globalAlpha=1;
-  }
+  });
   // zoom badge (screen space)
   ctx.setTransform(1,0,0,1,0,0);
   if(Math.abs(camZ-1)>0.001||camX!==0||camY!==0){
@@ -2917,6 +2981,8 @@ var TIPS={
   glob_image:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_emitter:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_motion:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_attractor:'🌐 Make this panel global: this emitter\u2019s attractor acts on ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
+  glob_deflector:'🌐 Make this panel global: this emitter\u2019s deflector acts on ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_mesh:'🌐 Make this panel global: this emitter\u2019s mesh warps ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_appearance:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_random:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
