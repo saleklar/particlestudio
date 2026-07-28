@@ -1233,7 +1233,8 @@ function meshReset(){
   T.meshPts=[];
   for(var j=0;j<n;j++)for(var i=0;i<n;i++)
     T.meshPts.push({x:T.meshRect.x+i/(n-1)*T.meshRect.w,y:T.meshRect.y+j/(n-1)*T.meshRect.h});
-  if(!document.getElementById('meshOn').checked)document.getElementById('meshOn').checked=true;
+  document.getElementById('meshOn').checked=true;
+  T.s.meshOn=true;   // keep the owner's snapshot in sync (warp reads s.meshOn, not the DOM)
 }
 function meshRebuild(){if(meshTarget().meshPts)meshReset();} // resolution change restarts flat
 // displacement of the warp at a world point (clamped bilinear over the grid)
