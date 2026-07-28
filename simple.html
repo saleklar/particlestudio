@@ -1108,11 +1108,12 @@ addEmitter();   // create "Emitter 1" from the current sidebar values
 // ── Persistent image library (IndexedDB) ─────────────────
 var _db=null;
 (function(){
-  var req=indexedDB.open('particleSimpleLib',2);
+  var req=indexedDB.open('particleSimpleLib',3);
   req.onupgradeneeded=function(e){
     var db=e.target.result;
     if(!db.objectStoreNames.contains('images'))db.createObjectStore('images',{keyPath:'name'});
     if(!db.objectStoreNames.contains('handles'))db.createObjectStore('handles',{keyPath:'id'});
+    if(!db.objectStoreNames.contains('session'))db.createObjectStore('session',{keyPath:'id'});
   };
   req.onsuccess=function(e){
     _db=e.target.result;
@@ -1130,6 +1131,17 @@ var _db=null;
       var htx=_db.transaction('handles','readonly').objectStore('handles').get('seqDirs');
       htx.onsuccess=function(){if(htx.result&&htx.result.dirs)_seqDirs=htx.result.dirs;};
     }catch(e2){}
+    // restore the last session so a refresh keeps the current project
+    try{
+      var stx=_db.transaction('session','readonly').objectStore('session').get('current');
+      stx.onsuccess=function(){
+        if(!stx.result||!stx.result.data)return;
+        try{
+          var proj=JSON.parse(stx.result.data);
+          if(proj&&proj.app==='particle-simple')applyProject(proj);
+        }catch(e3){}
+      };
+    }catch(e4){}
   };
 })();
 function seqDirSave(){
@@ -2668,7 +2680,7 @@ function loadBg(input){
 }
 
 // ── Project save / load ─────────────────────────────────
-function saveProject(){
+function buildProject(){
   var proj={app:'particle-simple',version:1,
     sliders:{},selects:{},checks:{},texts:{},colors:{},
     ratePts:ratePts.slice(),
@@ -2703,6 +2715,10 @@ function saveProject(){
     if(t.builtin)proj.images.push({name:t.name,sel:t.sel,builtin:true});
     else proj.images.push({name:t.name,sel:t.sel,data:t.img.src});
   });
+  return proj;
+}
+function saveProject(){
+  var proj=buildProject();
   var name=(document.getElementById('expName').value||'particles').trim();
   var blob=new Blob([JSON.stringify(proj)],{type:'application/json'});
   var a=document.createElement('a');
@@ -2719,6 +2735,12 @@ function loadProject(input){
     var proj;
     try{proj=JSON.parse(r.result);}catch(e){alert('Not a valid project file.');return;}
     if(!proj||proj.app!=='particle-simple'){alert('Not a Particle Simple project file.');return;}
+    applyProject(proj);
+  };
+  r.readAsText(f);
+  input.value='';
+}
+function applyProject(proj){
     for(var id in proj.sliders||{}){var el=document.getElementById(id);if(el){el.value=proj.sliders[id];sync(el);}}
     for(var id2 in proj.selects||{}){var el2=document.getElementById(id2);if(el2)el2.value=proj.selects[id2];}
     for(var id3 in proj.checks||{}){var el3=document.getElementById(id3);if(el3)el3.checked=proj.checks[id3];}
@@ -2810,10 +2832,24 @@ function loadProject(input){
     }
     onModeChange();
     restartLoop();
-  };
-  r.readAsText(f);
-  input.value='';
 }
+
+// ── Session persistence — a refresh keeps the current project ─────────
+// Any edit marks the session dirty; every 2 s the whole project (same format
+// as Save Project) is written to IndexedDB and restored on the next load.
+var _sessDirty=false;
+function sessSave(){
+  if(!_db)return;
+  try{
+    var data=JSON.stringify(buildProject());
+    _db.transaction('session','readwrite').objectStore('session').put({id:'current',data:data,t:Date.now()});
+  }catch(e){}
+}
+document.addEventListener('input',function(){_sessDirty=true;},true);
+document.addEventListener('change',function(){_sessDirty=true;},true);
+window.addEventListener('pointerup',function(){_sessDirty=true;});   // canvas drags, curve edits
+setInterval(function(){if(_sessDirty){_sessDirty=false;sessSave();}},2000);
+document.addEventListener('visibilitychange',function(){if(document.hidden&&_sessDirty){_sessDirty=false;sessSave();}});
 
 // ── Main loop ─────────────────────────────────────────────
 var last=performance.now(),frames=0,fpsTime=0;
