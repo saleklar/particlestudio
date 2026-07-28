@@ -82,6 +82,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Emitter W</label><input type="range" id="emitW" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Emitter H</label><input type="range" id="emitH" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Density</label><input type="range" id="emitDensity" min="-100" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Depth</label><input type="range" id="emitDepth" min="0" max="1000" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Lifetime s</label><input type="range" id="life" min="0.2" max="10" step="0.1" value="2.5" oninput="sync(this)"><span class="val">2.5</span></div>
 
   <h2>Motion<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_motion">🌐 all</span> <input type="checkbox" id="glob_motion" onchange="onGlobToggle('motion',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
@@ -124,6 +125,15 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Show grid</label><input type="checkbox" id="meshShow" checked style="accent-color:#c6f;cursor:pointer"></div>
   <button class="btn" onclick="meshReset()">▦ Reset Mesh</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">A square warp grid — drag its vertices to sculpt a flow. Particles crossing the grid bend along the deformation, as if flying around a 3D object behind them. Weight = how strictly they follow (1 = locked to the flow, 0.1 = gentle nudge). Baked into Spine + PNG exports.</div>
+
+  <h2>3D Camera</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="cam3dOn" style="accent-color:#6cf;cursor:pointer"><span style="color:#888;font-size:10px">Alt+drag canvas to orbit</span></div>
+  <div class="row"><label>Yaw °</label><input type="range" id="camYaw" min="-180" max="180" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Pitch °</label><input type="range" id="camPitch" min="-85" max="85" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Perspective</label><input type="range" id="camPersp" min="200" max="4000" step="10" value="900" oninput="sync(this)"><span class="val">900</span></div>
+  <div class="row"><label>Orbit °/s</label><input type="range" id="camOrbit" min="-180" max="180" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <button class="btn" onclick="cam3dReset()">⟲ Reset Camera</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Simulates particles in 3D: velocities spread into depth, the Emitter’s Depth slider gives the shape thickness, and the camera orbits the emitter (single emitter) or the canvas centre. Orbit °/s auto-rotates over time — for a seamless loop use 360 ÷ loop seconds. Perspective = focal length (small = strong). Baked into Spine + PNG exports as projected 2D. Deflector, mesh and bodies act on the ground plane (X/Y).</div>
 
   <h2>PSD Bodies</h2>
   <div class="row"><label>Physics</label><input type="checkbox" id="bodiesOn" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">drag bodies on canvas</span></div>
@@ -232,6 +242,7 @@ function resetDefaults(){
   document.getElementById('emitShape').value='box';
   document.getElementById('attractOn').checked=false;
   document.getElementById('attractFalloff').value='linear';
+  document.getElementById('cam3dOn').checked=false;
   document.getElementById('defOn').checked=false;
   document.getElementById('defAction').value='bounce';
   document.getElementById('tintMode').value='off';
@@ -273,7 +284,7 @@ function onModeChange(){
 // owner per panel; checking it on another emitter takes ownership over.
 var EM_GROUPS={
   image:[],
-  emitter:['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','life'],
+  emitter:['mode','rate','rateCurveOn','maxCount','emitShape','emitW','emitH','emitDensity','emitDepth','life'],
   motion:['speed','speedVar','angle','spread','gravY','gravX','drag','turbAmp','turbScale','turbSpeed'],
   attractor:['attractOn','attractForce','attractRadius','attractFalloff'],
   deflector:['defOn','defAction','defBounce','defFriction','defXformTex','defXformLife','defRandBounce','defRandFriction','defScatter'],
@@ -1125,7 +1136,7 @@ var PRESETS={
     loopOn:false,totFrames:240}
 };
 // everything a preset may not mention returns to neutral
-var PRESET_NEUTRAL={gravX:0,drag:0,turbAmp:0,turbScale:120,turbSpeed:1,
+var PRESET_NEUTRAL={gravX:0,drag:0,turbAmp:0,turbScale:120,turbSpeed:1,emitDepth:0,
   attractOn:false,attractForce:600,attractRadius:0,attractFalloff:'linear',
   defOn:false,defAction:'bounce',defBounce:0.6,defFriction:0.1,defRandBounce:0,defRandFriction:0,defScatter:0,defXformLife:0.6,
   tintMode:'off',randOpacity:0,emitDensity:0};
@@ -1187,6 +1198,32 @@ cv.addEventListener('wheel',function(e){
 },{passive:false});
 function resetView(){camX=0;camY=0;camZ=1;}
 
+// ── 3D camera (optional — particles get a Z axis, camera orbits the pivot) ─
+// Pure projection: simulation runs in world XYZ, the camera only changes how
+// it is drawn/recorded, so preview, loops and exports stay deterministic.
+var camODrag=null;
+function cam3dReset(){
+  ['camYaw','camPitch','camOrbit'].forEach(function(id){var el=document.getElementById(id);el.value=0;sync(el);});
+  var pe=document.getElementById('camPersp');pe.value=900;sync(pe);
+}
+function cam3Params(t){
+  if(!document.getElementById('cam3dOn').checked)return null;
+  var pvx,pvy;
+  if(emitters.length===1){pvx=emX(emitters[0]);pvy=emY(emitters[0]);}
+  else{pvx=cv.width/2;pvy=cv.height/2;}
+  var yaw=(V('camYaw')+V('camOrbit')*(t||0))*Math.PI/180;
+  var pit=V('camPitch')*Math.PI/180;
+  return {px:pvx,py:pvy,cy:Math.cos(yaw),sy:Math.sin(yaw),cp:Math.cos(pit),sp:Math.sin(pit),f:Math.max(100,V('camPersp'))};
+}
+function proj3(cam,x,y,z){
+  var dx=x-cam.px,dy=y-cam.py,dz=z||0;
+  var x1=dx*cam.cy+dz*cam.sy,z1=dz*cam.cy-dx*cam.sy;   // yaw around the vertical axis
+  var y1=dy*cam.cp-z1*cam.sp,z2=dy*cam.sp+z1*cam.cp;   // pitch around the horizontal axis
+  var s=cam.f/(cam.f+z2);
+  if(!(s>0)||s>100)s=0;                                 // behind / at the camera → cull
+  return {x:cam.px+x1*s,y:cam.py+y1*s,s:s,d:z2};
+}
+
 // ── Attractor (per emitter; 🌐 on the panel makes one act on all) ────────
 var attDragging=false;
 function attTarget(){return emitters.length?emFor(emitters[emIdx],'attractor'):null;}
@@ -1222,8 +1259,9 @@ function setAtt(e){
 function applyAttractor(p,dt){
   var o=emFor(p.em,'attractor');
   if(!o.s.attractOn||o.attX==null)return;
-  var dx=o.attX-p.x,dy=o.attY-p.y;
-  var d=Math.sqrt(dx*dx+dy*dy);
+  var c3a=document.getElementById('cam3dOn').checked;
+  var dx=o.attX-p.x,dy=o.attY-p.y,dz=c3a?-(p.z||0):0;   // attractor sits on the z=0 plane
+  var d=Math.sqrt(dx*dx+dy*dy+dz*dz);
   if(d<1)d=1;
   var f=parseFloat(o.s.attractForce),R=parseFloat(o.s.attractRadius);
   if(R>0&&d>R)return;
@@ -1233,6 +1271,7 @@ function applyAttractor(p,dt){
     case 'inv2':   f*=10000/(d*d); break;
   }
   p.vx+=dx/d*f*dt;p.vy+=dy/d*f*dt;
+  if(c3a)p.vz=(p.vz||0)+dz/d*f*dt;
 }
 
 // ── Turbulence (deterministic flow field — depends only on particle
@@ -1247,6 +1286,10 @@ function applyTurbulence(p,dt){
   var fy=Math.cos(x*1.1-t)+0.5*Math.sin(x*2.3+t*0.8+4.2)+0.25*Math.sin((x-y)*3.7-t*1.1);
   p.vx+=fx*amp*0.57*dt;   // 0.57 normalises the max field magnitude to ~1
   p.vy+=fy*amp*0.57*dt;
+  if(document.getElementById('cam3dOn').checked){
+    var fz=Math.sin((x-y)*2.1+t*0.7+2.6)+0.5*Math.sin(x*3.1-t*1.2+0.9);
+    p.vz=(p.vz||0)+fz*amp*0.57*0.75*dt;
+  }
 }
 // ── Mesh deformer (warp grid — particles steer along the deformation) ───
 // A flat N×N lattice is the rest state. Dragging vertices defines a smooth
@@ -1723,6 +1766,10 @@ cv.addEventListener('pointerdown',function(e){
     cv.setPointerCapture(e.pointerId);cv.style.cursor='grabbing';
     e.preventDefault();return;
   }
+  if(e.altKey&&document.getElementById('cam3dOn').checked){
+    camODrag={sx:e.clientX,sy:e.clientY,yaw:V('camYaw'),pitch:V('camPitch')};
+    cv.setPointerCapture(e.pointerId);cv.style.cursor='move';e.preventDefault();return;
+  }
   if(attractorHit(e)){attDragging=true;cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;}
   var dh=defHandleHit(e);
   if(dh){
@@ -1753,6 +1800,14 @@ cv.addEventListener('pointerdown',function(e){
 });
 cv.addEventListener('pointermove',function(e){
   if(panning){camX=panCX+(e.clientX-panSX);camY=panCY+(e.clientY-panSY);return;}
+  if(camODrag){
+    var nyaw=camODrag.yaw+(e.clientX-camODrag.sx)*0.4;
+    var npit=camODrag.pitch+(e.clientY-camODrag.sy)*0.4;
+    nyaw=Math.max(-180,Math.min(180,nyaw));npit=Math.max(-85,Math.min(85,npit));
+    var ye=document.getElementById('camYaw');ye.value=nyaw;sync(ye);
+    var pe2=document.getElementById('camPitch');pe2.value=npit;sync(pe2);
+    return;
+  }
   if(attDragging){setAtt(e);return;}
   if(defDrag){moveDef(e);return;}
   if(meshDrag){
@@ -1770,7 +1825,7 @@ cv.addEventListener('pointermove',function(e){
   }
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(meshDrag){meshDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(camODrag)camODrag=null;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(meshDrag){meshDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 cv.addEventListener('dblclick',function(e){
   // deflector editing: dbl-click a point removes it, dbl-click the line inserts a point
@@ -1837,9 +1892,17 @@ function spawn(em){
   var tm=document.getElementById('tintMode').value,tintArr=null;
   if(tm==='const')tintArr=hexToRgbArr(document.getElementById('tintColor').value);
   else if(tm==='rand')tintArr=sampleTintGrad(rng());
+  // 3D: emitter depth offset + velocity elevation out of the screen plane
+  var c3=document.getElementById('cam3dOn').checked,oz=0,b3=0;
+  if(c3){
+    var ed=EV(em,'emitDepth')||0;
+    if(ed>0)oz=bias1((rng()-0.5)*2)*ed/2;
+    b3=((rng()-0.5)*(EV(em,'spread')+master*180))*Math.PI/180;
+  }
+  var cb3=Math.cos(b3);
   particles.push({
-    x:emX(em)+ox, y:emY(em)+oy,
-    vx:Math.cos(a)*sp, vy:Math.sin(a)*sp,
+    x:emX(em)+ox, y:emY(em)+oy, z:oz,
+    vx:Math.cos(a)*sp*cb3, vy:Math.sin(a)*sp*cb3, vz:c3?Math.sin(b3)*sp:0,
     rot:rng()*360, spin:jit(EV(em,'spin'),EV(em,'randSpin'))*(rng()<0.5?-1:1),
     size:sz, age:0, life:Math.max(0.05,jit(EV(em,'life'),EV(em,'randLife'))),
     gravMul:Math.max(0,jit(1,EV(em,'randGrav'))),
@@ -1905,6 +1968,7 @@ function exportSpine(){
       });
       tagNew(before);
     }
+    var camE=cam3Params((curF-L)/30);
     for(var i=0;i<particles.length;i++){
       var p=particles[i],t=p.age/p.life;
       var acv=alphaCurve.sample(t),alpha;
@@ -1920,7 +1984,11 @@ function exportSpine(){
         var es=EV(p.em,'endScale')*(p.endScaleMul||1);
         scl=1+(es-1)*t;
       }
-      p._trk.frames.push({x:p.x-emX(p.em),y:-(p.y-emY(p.em)),rot:-p.rot,s:p.size*scl,a:Math.max(0,Math.min(1,alpha)),tex:p.texName,t:tintFor(p,t)});
+      p._trk.frames.push((function(){
+        var fx=p.x,fy=p.y,fsz=p.size*scl,fa=Math.max(0,Math.min(1,alpha));
+        if(camE){var prE=proj3(camE,p.x,p.y,p.z);if(prE.s<=0)fa=0;else{fx=prE.x;fy=prE.y;fsz*=prE.s;}}
+        return {x:fx-emX(p.em),y:-(fy-emY(p.em)),rot:-p.rot,s:fsz,a:fa,tex:p.texName,t:tintFor(p,t)};
+      })());
     }
     for(var i2=particles.length-1;i2>=0;i2--){
       var q=particles[i2];q.age+=dt;
@@ -1930,9 +1998,9 @@ function exportSpine(){
       applyAttractor(q,dt);
       applyTurbulence(q,dt);
       applyMeshWarp(q,dt);
-      if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
+      if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;q.vz=(q.vz||0)*f2;}
       var _ox=q.x,_oy=q.y;
-      q.x+=q.vx*dt;q.y+=q.vy*dt;
+      q.x+=q.vx*dt;q.y+=q.vy*dt;q.z=(q.z||0)+(q.vz||0)*dt;
       applyDeflector(q,_ox,_oy);
       q.rot+=q.spin*dt;
       seqFrameFor(q);
@@ -2360,12 +2428,19 @@ function exportPNGSeq(){
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
   function pad(n){return ('0000'+n).slice(-4);}
-  function renderFrame(prefix,idx){
+  function renderFrame(prefix,idx,tCam){
     og.setTransform(1,0,0,1,0,0);
     og.globalCompositeOperation='source-over';og.globalAlpha=1;
     og.clearRect(0,0,oc.width,oc.height);
     og.globalCompositeOperation=blend;
-    for(var j=0;j<particles.length;j++){
+    var camP=cam3Params(tCam||0),prA=null,ordA=null;
+    if(camP){
+      prA=new Array(particles.length);ordA=new Array(particles.length);
+      for(var o1=0;o1<particles.length;o1++){var qo1=particles[o1];prA[o1]=proj3(camP,qo1.x,qo1.y,qo1.z);ordA[o1]=o1;}
+      ordA.sort(function(a,b){return prA[b].d-prA[a].d;});
+    }
+    for(var j0=0;j0<particles.length;j0++){
+      var j=ordA?ordA[j0]:j0;
       var q=particles[j],t=q.age/q.life;
       var acv=alphaCurve.sample(t),alpha;
       if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
@@ -2380,11 +2455,12 @@ function exportPNGSeq(){
         var es=EV(q.em,'endScale')*(q.endScaleMul||1);
         scale=1+(es-1)*t;
       }
-      var s=q.size*scale;
+      var s=q.size*scale,qpx=q.x,qpy=q.y;
+      if(camP){var prq2=prA[j];if(prq2.s<=0)continue;qpx=prq2.x;qpy=prq2.y;s*=prq2.s;}
       if(s<0.5||alpha<=0)continue;
       og.globalAlpha=Math.max(0,Math.min(1,alpha));
       og.save();
-      og.translate(q.x,q.y);
+      og.translate(qpx,qpy);
       og.rotate(q.rot*Math.PI/180);
       var timg2=q.tex,tc2=tintFor(q,t);
       if(tc2&&(tc2[0]<248||tc2[1]<248||tc2[2]<248))timg2=tintedSprite(q.tex,q.texName,tc2);
@@ -2417,12 +2493,12 @@ function exportPNGSeq(){
       });
     }
     if(introOutro){
-      if(g>=L-iF&&g<L)renderFrame('intro',g-(L-iF));
-      else if(g>=L&&g<L+totF)renderFrame('loop',g-L);
-      else if(g>=L+totF)renderFrame('outro',g-L-totF);
+      if(g>=L-iF&&g<L)renderFrame('intro',g-(L-iF),(g-L)/30);
+      else if(g>=L&&g<L+totF)renderFrame('loop',g-L,(g-L)/30);
+      else if(g>=L+totF)renderFrame('outro',g-L-totF,(g-L)/30);
     }else if(looping){
-      if(g>=L)renderFrame('',g-L);
-    }else renderFrame('',g);
+      if(g>=L)renderFrame('',g-L,(g-L)/30);
+    }else renderFrame('',g,g/30);
     for(var i2=particles.length-1;i2>=0;i2--){
       var q2=particles[i2];q2.age+=dt;
       if(q2.age>=q2.life){particles.splice(i2,1);continue;}
@@ -2431,9 +2507,9 @@ function exportPNGSeq(){
       applyAttractor(q2,dt);
       applyTurbulence(q2,dt);
       applyMeshWarp(q2,dt);
-      if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
+      if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;q2.vz=(q2.vz||0)*f2;}
       var _ox2=q2.x,_oy2=q2.y;
-      q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;
+      q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.z=(q2.z||0)+(q2.vz||0)*dt;
       applyDeflector(q2,_ox2,_oy2);
       q2.rot+=q2.spin*dt;
       seqFrameFor(q2);
@@ -2733,9 +2809,9 @@ function loop(now){
       applyAttractor(p,dt);
       applyTurbulence(p,dt);
       applyMeshWarp(p,dt);
-      if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;}
+      if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;p.vz=(p.vz||0)*f;}
       var _ox=p.x,_oy=p.y;
-      p.x+=p.vx*dt;p.y+=p.vy*dt;
+      p.x+=p.vx*dt;p.y+=p.vy*dt;p.z=(p.z||0)+(p.vz||0)*dt;
       applyDeflector(p,_ox,_oy);
       collideBodiesParticle(p);
       p.rot+=p.spin*dt;
@@ -2792,7 +2868,16 @@ function loop(now){
   }
   ctx.globalCompositeOperation=document.getElementById('blend').value;
   drawnP=0;
-  for(var j=0;j<particles.length;j++){
+  // 3D projection: precompute per-particle screen pos + depth-sort (far first)
+  var cam=cam3Params(document.getElementById('loopOn').checked?loopTime:simTime);
+  var prArr=null,ordIdx=null;
+  if(cam){
+    prArr=new Array(particles.length);ordIdx=new Array(particles.length);
+    for(var oi=0;oi<particles.length;oi++){var qo=particles[oi];prArr[oi]=proj3(cam,qo.x,qo.y,qo.z);ordIdx[oi]=oi;}
+    ordIdx.sort(function(a,b){return prArr[b].d-prArr[a].d;});
+  }
+  for(var j0=0;j0<particles.length;j0++){
+    var j=ordIdx?ordIdx[j0]:j0;
     var q=particles[j],t=q.age/q.life;
     var acv=alphaCurve.sample(t),alpha;
     if(acv!==null){alpha=acv*Math.min(1,q.fadeMul||1);}
@@ -2807,12 +2892,13 @@ function loop(now){
       var es=EV(q.em,'endScale')*(q.endScaleMul||1);
       scale=1+(es-1)*t;
     }
-    var s=q.size*scale;
+    var s=q.size*scale,qpx=q.x,qpy=q.y;
+    if(cam){var prq=prArr[j];if(prq.s<=0)continue;qpx=prq.x;qpy=prq.y;s*=prq.s;}
     if(s<0.5||alpha<=0)continue;
     drawnP++;
     ctx.globalAlpha=alpha;
     ctx.save();
-    ctx.translate(q.x,q.y);
+    ctx.translate(qpx,qpy);
     ctx.rotate(q.rot*Math.PI/180);
     var timg=q.tex,tc=tintFor(q,t);
     if(tc&&(tc[0]<248||tc[1]<248||tc[2]<248))timg=tintedSprite(q.tex,q.texName,tc);
@@ -2824,6 +2910,7 @@ function loop(now){
   ctx.lineWidth=1/camZ;
   for(var me=0;me<emitters.length;me++){
     var mEm=emitters[me],mx=emX(mEm),my=emY(mEm);
+    if(cam){var mpr=proj3(cam,mx,my,0);if(mpr.s>0){mx=mpr.x;my=mpr.y;}}
     ctx.globalAlpha=me===emIdx?0.8:(mEm.on?0.3:0.15);
     ctx.strokeStyle=me===emIdx?'#f90':'#c80';
     var ew=Math.max(EV(mEm,'emitW'),6),eh=Math.max(EV(mEm,'emitH'),6);
@@ -2978,6 +3065,12 @@ var TIPS={
   emitW:'Emitter width in pixels (box/circle/ring/line).',
   emitH:'Emitter height in pixels (box/circle/ring).',
   emitDensity:'Spatial density gradient inside the emitter shape. 0 = even spread, positive = more particles near the centre, negative = more near the edges. Works with box, circle and line shapes.',
+  emitDepth:'3D only: thickness of the emitter shape along the depth axis, in pixels. Particles spawn within ±half this depth. Needs the 3D Camera panel enabled.',
+  cam3dOn:'Simulate particles in 3D: velocity spread also tilts into depth, turbulence and the attractor act in 3D, and the camera below projects the result. Deflector, mesh warp and PSD bodies stay on the flat X/Y plane.',
+  camYaw:'Camera rotation around the vertical axis, in degrees. Alt+drag the canvas horizontally does the same.',
+  camPitch:'Camera tilt up/down, in degrees. Alt+drag the canvas vertically does the same.',
+  camPersp:'Focal length in pixels. Small = strong perspective (near particles much bigger), large = almost orthographic.',
+  camOrbit:'Auto-rotate the yaw over time, degrees per second. Deterministic — baked into Spine and PNG exports. For a seamless loop pick 360 ÷ loop length in seconds (or a multiple).',
   glob_image:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_emitter:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
   glob_motion:'🌐 Make this panel global: this emitter\u2019s settings drive ALL emitters. Only one emitter can own a global panel — checking it on another emitter takes it over.',
