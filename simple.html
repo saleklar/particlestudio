@@ -111,6 +111,14 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="centerDeflector()">─ Reset Deflector</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">A shapeable surface particles collide with. Double-click the line to add points, double-click a point to remove it. Bounce reflects particles, Die removes them, Transform swaps the image for a short second life.</div>
 
+  <h2>Mesh Deformer</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="meshOn" onchange="onMeshToggle()" style="accent-color:#c6f;cursor:pointer"><span style="color:#888;font-size:10px">drag vertices on canvas</span></div>
+  <div class="row"><label>Grid</label><input type="range" id="meshN" min="3" max="12" value="5" oninput="sync(this);meshRebuild()"><span class="val">5</span></div>
+  <div class="row"><label>Weight</label><input type="range" id="meshWeight" min="0" max="1" step="0.05" value="0.6" oninput="sync(this)"><span class="val">0.6</span></div>
+  <div class="row"><label>Show grid</label><input type="checkbox" id="meshShow" checked style="accent-color:#c6f;cursor:pointer"></div>
+  <button class="btn" onclick="meshReset()">▦ Reset Mesh</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">A square warp grid — drag its vertices to sculpt a flow. Particles crossing the grid bend along the deformation, as if flying around a 3D object behind them. Weight = how strictly they follow (1 = locked to the flow, 0.1 = gentle nudge). Baked into Spine + PNG exports.</div>
+
   <h2>PSD Bodies</h2>
   <div class="row"><label>Physics</label><input type="checkbox" id="bodiesOn" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">drag bodies on canvas</span></div>
   <label class="btn">🗂 Import PSD…<input type="file" accept=".psd" style="display:none" onchange="importPSD(this)"></label>
@@ -1039,6 +1047,79 @@ function applyTurbulence(p,dt){
   p.vx+=fx*amp*0.57*dt;   // 0.57 normalises the max field magnitude to ~1
   p.vy+=fy*amp*0.57*dt;
 }
+// ── Mesh deformer (warp grid — particles steer along the deformation) ───
+// A flat N×N lattice is the rest state. Dragging vertices defines a smooth
+// displacement field; the local Jacobian of that field bends particle
+// velocities, so trajectories follow the sculpted surface. Deterministic
+// (pure function of position), so preview, loops and exports match exactly.
+var meshPts=null,meshRect=null,meshDrag=null;
+function onMeshToggle(){
+  if(document.getElementById('meshOn').checked&&!meshPts)meshReset();
+}
+function meshReset(){
+  var n=Math.round(V('meshN'));
+  var w=cv.width*0.6,h=cv.height*0.6;
+  meshRect={x:(cv.width-w)/2,y:(cv.height-h)/2,w:w,h:h,n:n};
+  meshPts=[];
+  for(var j=0;j<n;j++)for(var i=0;i<n;i++)
+    meshPts.push({x:meshRect.x+i/(n-1)*meshRect.w,y:meshRect.y+j/(n-1)*meshRect.h});
+  if(!document.getElementById('meshOn').checked)document.getElementById('meshOn').checked=true;
+}
+function meshRebuild(){if(meshPts)meshReset();} // resolution change restarts flat
+// displacement of the warp at a world point (clamped bilinear over the grid)
+function meshDispC(px,py){
+  var R=meshRect,n=R.n;
+  var u=Math.max(0,Math.min(n-1,(px-R.x)/R.w*(n-1)));
+  var v=Math.max(0,Math.min(n-1,(py-R.y)/R.h*(n-1)));
+  var i=Math.min(n-2,Math.floor(u)),j=Math.min(n-2,Math.floor(v));
+  var fu=u-i,fv=v-j;
+  var k00=j*n+i,k10=k00+1,k01=k00+n,k11=k01+1;
+  var rx0=R.x+i/(n-1)*R.w,rx1=R.x+(i+1)/(n-1)*R.w;
+  var ry0=R.y+j/(n-1)*R.h,ry1=R.y+(j+1)/(n-1)*R.h;
+  var d00x=meshPts[k00].x-rx0,d00y=meshPts[k00].y-ry0;
+  var d10x=meshPts[k10].x-rx1,d10y=meshPts[k10].y-ry0;
+  var d01x=meshPts[k01].x-rx0,d01y=meshPts[k01].y-ry1;
+  var d11x=meshPts[k11].x-rx1,d11y=meshPts[k11].y-ry1;
+  return {
+    x:(d00x*(1-fu)+d10x*fu)*(1-fv)+(d01x*(1-fu)+d11x*fu)*fv,
+    y:(d00y*(1-fu)+d10y*fu)*(1-fv)+(d01y*(1-fu)+d11y*fu)*fv
+  };
+}
+function applyMeshWarp(p,dt){
+  if(!meshPts||!document.getElementById('meshOn').checked)return;
+  var wgt=V('meshWeight');
+  if(wgt<=0)return;
+  var R=meshRect,n=R.n;
+  var u=(p.x-R.x)/R.w*(n-1),v=(p.y-R.y)/R.h*(n-1);
+  if(u<0||v<0||u>n-1||v>n-1)return;
+  // influence fades in over the outer 20% so entry/exit is smooth
+  var edge=Math.min(u,v,(n-1)-u,(n-1)-v)/((n-1)*0.2);
+  if(edge>1)edge=1;
+  // Jacobian of the displacement field by central differences (half a cell)
+  var h=R.w/(n-1)*0.5;
+  var dxp=meshDispC(p.x+h,p.y),dxm=meshDispC(p.x-h,p.y);
+  var dyp=meshDispC(p.x,p.y+h),dym=meshDispC(p.x,p.y-h);
+  var a11=1+(dxp.x-dxm.x)/(2*h),a12=(dyp.x-dym.x)/(2*h);
+  var a21=(dxp.y-dxm.y)/(2*h),a22=1+(dyp.y-dym.y)/(2*h);
+  var nvx=p.vx*a11+p.vy*a12,nvy=p.vx*a21+p.vy*a22;
+  var sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy),ns=Math.sqrt(nvx*nvx+nvy*nvy);
+  if(ns<0.0001||sp<0.0001)return;
+  // steer toward the warped direction, preserving speed; weight = stiffness
+  var k=wgt*edge,tx=nvx/ns*sp,ty=nvy/ns*sp;
+  p.vx+=(tx-p.vx)*k;
+  p.vy+=(ty-p.vy)*k;
+}
+function meshHandleHit(e){
+  if(!document.getElementById('meshOn').checked||!meshPts)return null;
+  var r=cv.getBoundingClientRect();
+  var w=toWorld(e.clientX-r.left,e.clientY-r.top),g=10/camZ;
+  for(var k=0;k<meshPts.length;k++){
+    var dx=w.x-meshPts[k].x,dy=w.y-meshPts[k].y;
+    if(dx*dx+dy*dy<=g*g)return {pt:k};
+  }
+  return null;
+}
+
 // ── Deflector (polyline particles bounce off / die on / transform at) ───
 var defPts=null;                       // [{x,y},...] — 2+ points
 var defDrag=null,defLX=0,defLY=0;      // {pt:i} or {line:true}
@@ -1428,6 +1509,8 @@ cv.addEventListener('pointerdown',function(e){
     defLX=w0.x;defLY=w0.y;
     cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;
   }
+  var mh=meshHandleHit(e);
+  if(mh){meshDrag=mh;cv.setPointerCapture(e.pointerId);cv.style.cursor='move';return;}
   var bh=bodyHit(e);
   if(bh){
     bodyDrag=bh;
@@ -1443,6 +1526,11 @@ cv.addEventListener('pointermove',function(e){
   if(panning){camX=panCX+(e.clientX-panSX);camY=panCY+(e.clientY-panSY);return;}
   if(attDragging){setAtt(e);return;}
   if(defDrag){moveDef(e);return;}
+  if(meshDrag){
+    var rq=cv.getBoundingClientRect(),wq=toWorld(e.clientX-rq.left,e.clientY-rq.top);
+    meshPts[meshDrag.pt].x=wq.x;meshPts[meshDrag.pt].y=wq.y;
+    return;
+  }
   if(bodyDrag){
     var rm=cv.getBoundingClientRect(),wm=toWorld(e.clientX-rm.left,e.clientY-rm.top);
     var nowT=performance.now(),dtm=Math.max(0.001,(nowT-bodyPT)/1000);
@@ -1453,7 +1541,7 @@ cv.addEventListener('pointermove',function(e){
   }
   if(dragging)setEmit(e);
 });
-window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
+window.addEventListener('pointerup',function(){dragging=false;if(attDragging){attDragging=false;cv.style.cursor='crosshair';}if(defDrag){defDrag=null;cv.style.cursor='crosshair';}if(meshDrag){meshDrag=null;cv.style.cursor='crosshair';}if(bodyDrag){var db=bodyDrag.b;db.x0=db.x;db.y0=db.y;if(db.type==='dynamic'){db.vx=bodyVX*0.6;db.vy=bodyVY*0.6;}bodyDrag=null;cv.style.cursor='crosshair';}if(panning){panning=false;cv.style.cursor=spaceHeld?'grab':'crosshair';}});
 cv.addEventListener('contextmenu',function(e){e.preventDefault();});
 cv.addEventListener('dblclick',function(e){
   // deflector editing: dbl-click a point removes it, dbl-click the line inserts a point
@@ -1596,6 +1684,7 @@ function exportSpine(){
       var gm=q.gravMul||1;q.vx+=gx*gm*dt;q.vy+=gy*gm*dt;
       applyAttractor(q,dt);
       applyTurbulence(q,dt);
+      applyMeshWarp(q,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q.vx*=f2;q.vy*=f2;}
       var _ox=q.x,_oy=q.y;
       q.x+=q.vx*dt;q.y+=q.vy*dt;
@@ -2013,6 +2102,7 @@ function exportPNGSeq(){
       var gm=q2.gravMul||1;q2.vx+=gx*gm*dt;q2.vy+=gy*gm*dt;
       applyAttractor(q2,dt);
       applyTurbulence(q2,dt);
+      applyMeshWarp(q2,dt);
       if(drag>0){var f2=Math.max(0,1-drag*dt);q2.vx*=f2;q2.vy*=f2;}
       var _ox2=q2.x,_oy2=q2.y;
       q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;
@@ -2110,6 +2200,8 @@ function saveProject(){
     defPts:defPts?defPts.map(function(p){return {x:p.x,y:p.y};}):null,
     bg:bgData,
     seqEnabled:seqEnabled,
+    meshPts:meshPts?meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
+    meshRect:meshRect?{x:meshRect.x,y:meshRect.y,w:meshRect.w,h:meshRect.h,n:meshRect.n}:null,
     bodies:bodies.map(function(b){
       return {name:b.name,type:b.type,visible:b.visible,x:b.x0,y:b.y0,
               data:b.img.toDataURL?b.img.toDataURL('image/png'):b.img.src};
@@ -2159,6 +2251,10 @@ function loadProject(input){
     if(proj.defPts&&proj.defPts.length>=2)defPts=proj.defPts.map(function(p){return {x:p.x,y:p.y};});
     else if(typeof proj.defX1==='number')defPts=[{x:proj.defX1,y:proj.defY1},{x:proj.defX2,y:proj.defY2}]; // legacy 2-point projects
     seqEnabled=proj.seqEnabled||{};
+    if(proj.meshPts&&proj.meshRect){
+      meshPts=proj.meshPts.map(function(p){return {x:p.x,y:p.y};});
+      meshRect={x:proj.meshRect.x,y:proj.meshRect.y,w:proj.meshRect.w,h:proj.meshRect.h,n:proj.meshRect.n};
+    }else{meshPts=null;meshRect=null;}
     if(proj.bg){
       var bimg=new Image();
       bimg.onload=function(){bgImg=bimg;bgData=proj.bg;};
@@ -2272,6 +2368,7 @@ function loop(now){
       p.vx+=gx*gm*dt;p.vy+=gy*gm*dt;
       applyAttractor(p,dt);
       applyTurbulence(p,dt);
+      applyMeshWarp(p,dt);
       if(drag>0){var f=Math.max(0,1-drag*dt);p.vx*=f;p.vy*=f;}
       var _ox=p.x,_oy=p.y;
       p.x+=p.vx*dt;p.y+=p.vy*dt;
@@ -2400,6 +2497,25 @@ function loop(now){
       ctx.beginPath();ctx.arc(attX,attY,R2,0,Math.PI*2);ctx.stroke();
       ctx.setLineDash([]);
     }
+    ctx.globalAlpha=1;
+  }
+  // mesh deformer grid
+  if(document.getElementById('meshOn').checked&&meshPts&&document.getElementById('meshShow').checked){
+    var mn=meshRect.n;
+    ctx.strokeStyle='#c6f';ctx.fillStyle='#c6f';
+    ctx.globalAlpha=0.4;
+    ctx.lineWidth=1/camZ;
+    ctx.beginPath();
+    for(var mj=0;mj<mn;mj++)for(var mi=0;mi<mn;mi++){
+      var mp=meshPts[mj*mn+mi];
+      if(mi<mn-1){var mr=meshPts[mj*mn+mi+1];ctx.moveTo(mp.x,mp.y);ctx.lineTo(mr.x,mr.y);}
+      if(mj<mn-1){var mdn=meshPts[(mj+1)*mn+mi];ctx.moveTo(mp.x,mp.y);ctx.lineTo(mdn.x,mdn.y);}
+    }
+    ctx.stroke();
+    ctx.globalAlpha=0.85;
+    var mhs=4/camZ;
+    for(var mk=0;mk<meshPts.length;mk++)
+      ctx.fillRect(meshPts[mk].x-mhs,meshPts[mk].y-mhs,mhs*2,mhs*2);
     ctx.globalAlpha=1;
   }
   // deflector polyline
