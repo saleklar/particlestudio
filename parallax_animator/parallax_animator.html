@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Parallax Animator</title>
+<link rel="stylesheet" href="parallax.css">
+</head>
+<body>
+<div id="ui">
+  <h1>Parallax / Perspective Animator</h1>
+  <div class="row"><label>Import PSD</label><input id="psdFile" type="file" accept=".psd"></div>
+  <div class="row"><label>Or import images</label><input id="imgFiles" type="file" accept="image/*" multiple></div>
+  <div id="psdNotice" style="font-size:12px;margin-top:6px;color:#ccc"></div>
+  <div class="row"><button id="scanBtn">Scan Layers</button><button id="importBtn">Import Selected</button></div>
+  <h2>Layers</h2>
+  <div id="layerList" class="panel"></div>
+  <h2>Simulation</h2>
+  <div class="row"><label>Depth scale</label><input id="depthScale" type="range" min="0" max="2" step="0.01" value="0.5"><span id="depthScaleVal">0.50</span></div>
+  <div class="row"><label>Motion</label><select id="motionType"><option value="none">None</option><option value="lr">Left ↔ Right (wobble)</option><option value="fb">Forward ↔ Back (wobble)</option><option value="const_lr">Constant Left → Right</option><option value="const_rl">Constant Right → Left</option><option value="const_z_in">Constant Toward Camera</option><option value="const_z_out">Constant Away From Camera</option><option value="loop_z_in">Loop Toward Camera</option><option value="loop_z_out">Loop Away From Camera</option></select></div>
+  <div class="row"><label>Amplitude</label><input id="amplitude" type="range" min="0" max="800" value="120"><span id="ampVal">120</span></div>
+  <div class="row"><label>Speed</label><input id="speed" type="range" min="0" max="4" step="0.01" value="0.8"><span id="speedVal">0.80</span></div>
+  <div class="row"><label>Loop Fade s</label><input id="fade" type="range" min="0" max="2" step="0.01" value="0.6"><span id="fadeVal">0.60</span></div>
+  <div class="row"><button id="previewBtn">Toggle Preview</button><button id="exportBtn">Export Spine JSON</button></div>
+  <div class="row" style="font-size:12px;color:#888;margin-top:8px">Notes: PSD parsing uses PSD.js; if PSD fails you can import flattened images. Export includes base64 images and simple bones/attachments for Spine.</div>
+
+  <h2>Perspective Preview</h2>
+  <div id="perspPanel" class="panel">
+    <div class="row"><label>Selected</label><select id="layerSel"></select></div>
+    <div class="row"><label>Translate X</label><input id="tx" type="range" min="-2000" max="2000" value="0"><span class="val" id="txVal">0</span></div>
+    <div class="row"><label>Translate Y</label><input id="ty" type="range" min="-2000" max="2000" value="0"><span class="val" id="tyVal">0</span></div>
+    <div class="row"><label>Translate Z</label><input id="tz" type="range" min="-5" max="5" step="0.01" value="0"><span class="val" id="tzVal">0.00</span></div>
+    <div class="row"><label>Rotation °</label><input id="rot" type="range" min="-180" max="180" value="0"><span class="val" id="rotVal">0</span></div>
+    <div class="row"><label>Scale</label><input id="pscale" type="range" min="0.01" max="3" step="0.01" value="1"><span class="val" id="pscaleVal">1.00</span></div>
+    <div class="row"><button id="resetLayer">Reset Layer Transform</button><button id="applyAll">Apply To All</button></div>
+  </div>
+</div>
+<div id="stage">
+  <canvas id="canvas"></canvas>
+</div>
+<!-- Optional local PSD.js: place psd.min.js beside this file to enable PSD parsing (no network needed) -->
+<script src="psd.min.js"></script>
+<script>
+  // If PSD.js is not present, parallax.js will still work using image imports.
+  if (typeof PSD === 'undefined') console.info('PSD.js not found locally; PSD import disabled.');
+</script>
+<script src="parallax.js"></script>
+</body>
+</html>

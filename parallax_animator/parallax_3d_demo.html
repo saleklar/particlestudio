@@ -1,0 +1,1649 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Parallax 3D Demo (Clean Replacement)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#1a1a1a;color:#ddd;font:12px/1.4 'Segoe UI',Arial,sans-serif;overflow:hidden}
+#ui{position:fixed;left:0;top:0;bottom:0;width:280px;background:#1e1e1e;border-right:1px solid #333;overflow-y:auto;padding:10px}
+#ui::-webkit-scrollbar{width:5px}
+#ui::-webkit-scrollbar-thumb{background:#444;border-radius:3px}
+#stage{position:fixed;left:280px;right:0;top:0;bottom:0;background:#090909}
+#cv{width:100%;height:100%;display:block}
+h1{font-size:14px;color:#fff;margin-bottom:4px}
+h1 span{color:#f90}
+.hint{font-size:9px;color:#555;margin:0 0 8px}
+.sec-hint{font-size:9px;color:#555;margin:2px 0 6px}
+h2{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px;padding-bottom:3px;border-bottom:1px solid #333;cursor:pointer;user-select:none}
+h2:hover{color:#fff}
+h2::before{content:'\25be';display:inline-block;margin-right:5px;color:#f90;transition:transform .12s ease}
+h2.collapsed::before{transform:rotate(-90deg)}
+.sec-body.collapsed{display:none}
+.row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.row label{width:86px;flex-shrink:0;color:#999;font-size:11px;cursor:help}
+.row input[type=range]{flex:1;accent-color:#f90;height:14px;cursor:pointer}
+.row input[type=file]{flex:1;font-size:10px;color:#999}
+.row .val{width:42px;text-align:right;color:#f0c050;font-size:11px;font-family:monospace}
+.row select{flex:1;background:#2b2b2b;color:#ddd;border:1px solid #444;border-radius:3px;padding:3px 5px;font-size:11px}
+button{background:#2e2e2e;color:#ccc;border:1px solid #555;border-radius:3px;cursor:pointer;font-size:11px}
+button:hover{background:#3d3d3d;color:#fff}
+.btn{display:block;width:100%;padding:6px;text-align:center;margin-bottom:5px}
+.btn.accent{background:#c07000;border-color:#e09000;color:#fff}
+.btn.accent:hover{background:#d08000}
+.btnrow{display:flex;gap:5px}
+.btnrow .btn{flex:1}
+.layer{display:flex;align-items:center;gap:5px;padding:4px 2px;font-size:11px}
+.layerBlock{border-bottom:1px solid #2a2a2a;padding-bottom:3px;margin-bottom:2px}
+.layerBlock:last-child{border-bottom:0}
+.layerBlock.dragging{opacity:0.35}
+.layerBlock.dropAbove{box-shadow:0 -2px 0 0 #f90}
+.layerBlock.dropBelow{box-shadow:0 2px 0 0 #f90}
+.layer .grip{cursor:grab;color:#666;user-select:none;padding:0 2px}
+.layer .grip:hover{color:#f90}
+.layer .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ddd}
+.layer button{padding:1px 5px;font-size:11px;line-height:1.3}
+.layerSub{display:flex;gap:8px;align-items:center;padding:0 2px 2px;font-size:10px;color:#999}
+.layerSub input[type=number]{width:56px;background:#2a2a2a;color:#ddd;border:1px solid #444;border-radius:2px;padding:1px 4px;font-size:11px}
+.small{font-size:10px;color:#777}
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Parallax <span>3D Animator</span></h1>
+  <div class="hint">Hover any label for an explanation · drag layers on the canvas to move them · Alt+drag records vanishing-point motion</div>
+
+  <h2>Images &amp; Presets</h2>
+  <div class="sec-body">
+    <div class="row"><label title="Pick one PNG per depth layer. Files named like 'fire_001.png, fire_002.png' are grouped into an animated sequence automatically.">Images</label><input id="files" type="file" accept="image/*" multiple title="Select layer images. Numbered file names (name_001, name_002…) become one animated sequence layer."></div>
+    <div class="btnrow">
+      <button class="btn accent" id="loadBtn" title="Build the layer stack from the selected files. First file = nearest layer.">Load Images</button>
+      <button class="btn" id="playBtn" title="Pause / resume the live preview animation.">Pause</button>
+    </div>
+    <div class="row"><label title="Ready-made demo scenes with procedurally painted layers — good starting points to explore the settings.">Preset</label><select id="presetSel" title="Choose a demo scene, then press Load Preset.">
+      <option value="">— choose —</option>
+      <option value="lat_lr">Roadside drive (left → right)</option>
+      <option value="lat_rl">Roadside drive (right → left)</option>
+      <option value="forward">Door corridor (forward)</option>
+      <option value="backward">Door corridor (backward)</option>
+      <option value="train_lat">Train pass-by (lateral)</option>
+      <option value="train_fwd">Train toward camera (head-on)</option>
+      <option value="train_persp">Train from vanishing point (perspective)</option>
+    </select></div>
+    <button class="btn" id="presetBtn" title="Replace the current layers with the selected preset scene.">Load Preset</button>
+  </div>
+
+  <h2>Motion</h2>
+  <div class="sec-body">
+    <div class="sec-hint">How the camera travels through the layer stack.</div>
+    <div class="row"><label title="Forward/Backward: camera flies through depth (layers zoom past). Lateral: camera slides sideways, near layers scroll faster than far ones.">Motion</label><select id="mode" title="Camera travel direction.">
+      <option value="forward">Forward (zoom in)</option>
+      <option value="backward">Backward (zoom out)</option>
+      <option value="lat_lr">Lateral: left → right</option>
+      <option value="lat_rl">Lateral: right → left</option>
+    </select></div>
+    <div class="row"><label title="Camera travel speed in pixels (or depth units) per second. 0 freezes the motion.">Camera Speed</label><input id="camSpeed" type="range" min="0" max="1000" value="18" title="Travel speed. Higher = faster fly-through / scroll."><span class="val" id="camSpeedVal">18</span></div>
+    <div class="row"><label title="Perspective strength — how quickly layers shrink with distance. Higher = stronger depth illusion.">Depth Scale</label><input id="depthScale" type="range" min="0.01" max="2" step="0.01" value="0.45" title="How much distance shrinks a layer."><span class="val" id="depthScaleVal">0.45</span></div>
+    <div class="row"><label title="Depth distance between consecutive layers in the stack. Larger spacing = layers feel further apart.">Layer Spacing</label><input id="spacing" type="range" min="10" max="800" value="180" title="Depth gap between neighbouring layers."><span class="val" id="spacingVal">180</span></div>
+    <div class="row"><label title="Fade-out distance as a layer gets close to the camera (forward/backward modes). Prevents a hard pop when it passes the camera.">Near Fade</label><input id="nearFade" type="range" min="0" max="300" value="90" title="Fade distance near the camera. 0 = no fade."><span class="val" id="nearFadeVal">90</span></div>
+    <div class="row"><label title="Fade-in distance for layers appearing at the far end of the depth loop. Hides the wrap-around.">Far Fade</label><input id="farFade" type="range" min="0" max="600" value="160" title="Fade distance at the far end. 0 = no fade."><span class="val" id="farFadeVal">160</span></div>
+    <div class="row"><label title="Extra magnification for near layers. 1 = pure perspective; higher values exaggerate the size of close layers for a more dramatic look.">Scale Boost</label><input id="scaleBoost" type="range" min="1" max="6" step="0.1" value="2.2" title="Exaggerates the size of near layers."><span class="val" id="scaleBoostVal">2.2</span></div>
+  </div>
+
+  <h2>Camera</h2>
+  <div class="sec-body">
+    <div class="sec-hint">Framing, vanishing point &amp; hand-held sway. Drag the gold cross on the canvas to move the vanishing point.</div>
+    <div class="row"><label title="Horizontal camera pan. Near layers shift more than far ones (parallax-weighted).">Cam X</label><input id="camX" type="range" min="-2000" max="2000" value="0" title="Pan the camera left/right."><span class="val" id="camXVal">0</span></div>
+    <div class="row"><label title="Vertical camera pan. Near layers shift more than far ones (parallax-weighted).">Cam Y</label><input id="camY" type="range" min="-2000" max="2000" value="0" title="Pan the camera up/down."><span class="val" id="camYVal">0</span></div>
+    <div class="row"><label title="Horizontal vanishing point: far layers converge toward this point. Also draggable as the gold cross on the canvas.">Persp Ctr X</label><input id="vpX" type="range" min="-1500" max="1500" value="0" title="Vanishing point X. Far layers drift toward it."><span class="val" id="vpXVal">0</span></div>
+    <div class="row"><label title="Vertical vanishing point: far layers converge toward this point. Also draggable as the gold cross on the canvas.">Persp Ctr Y</label><input id="vpY" type="range" min="-1500" max="1500" value="0" title="Vanishing point Y. Far layers drift toward it."><span class="val" id="vpYVal">0</span></div>
+    <div class="row"><label title="Amplitude of horizontal camera sway (hand-held feel), in pixels. 0 = off.">Sway X Amp</label><input id="swayX" type="range" min="0" max="800" value="0" title="Side-to-side sway amount."><span class="val" id="swayXVal">0</span></div>
+    <div class="row"><label title="Amplitude of vertical camera sway (hand-held feel), in pixels. 0 = off.">Sway Y Amp</label><input id="swayY" type="range" min="0" max="800" value="0" title="Up-and-down sway amount."><span class="val" id="swayYVal">0</span></div>
+    <div class="row"><label title="Speed of the sway oscillation. X and Y use slightly different frequencies for a natural drift.">Sway Speed</label><input id="swaySpeed" type="range" min="0" max="5" step="0.05" value="1" title="Sway oscillation speed."><span class="val" id="swaySpeedVal">1</span></div>
+    <button class="btn" id="clearVpAnimBtn" title="Delete the recorded vanishing-point animation and go back to the slider values.">Clear VP Anim</button>
+    <div class="sec-hint" id="vpAnimInfo">Alt+drag on stage records VP motion (baked into the export).</div>
+  </div>
+
+  <h2>Export</h2>
+  <div class="sec-body">
+    <div class="sec-hint">Bakes the animation into Spine JSON — one bone + slot per layer (lateral modes export real tiled copies).</div>
+    <div class="row"><label title="Target Spine Editor version. The JSON format differs between versions — pick the one matching your editor.">Spine Version</label><select id="spineVer" title="Must match your Spine Editor version or import will fail.">
+      <option value="4.2" selected>4.2</option>
+      <option value="4.1">4.1</option>
+      <option value="4.0">4.0</option>
+      <option value="3.8">3.8</option>
+      <option value="3.7">3.7 and earlier</option>
+    </select></div>
+    <div class="row"><label title="Sampling rate for baking the animation. Curves are then simplified to max 5 keys per sweep, so higher FPS mostly improves accuracy, not file size.">FPS</label><input id="expFps" type="range" min="10" max="60" value="30" title="Bake sampling rate."><span class="val" id="expFpsVal">30</span></div>
+    <div class="row"><label title="Playback rate of image-sequence layers (frame-swap speed), both in the preview and in the exported attachment timeline.">Seq FPS</label><input id="seqFps" type="range" min="1" max="60" value="12" title="Frame rate for animated sequence layers."><span class="val" id="seqFpsVal">12</span></div>
+    <div class="row"><label title="Exported loop duration in seconds. 0 = auto: one full depth cycle (forward/backward) or one full scroll-off (lateral). The loop always closes seamlessly.">Loop (sec)</label><input id="expLoop" type="range" min="0" max="60" step="0.5" value="0" title="Loop length. 0 = automatic seamless loop."><span class="val" id="expLoopVal">auto</span></div>
+    <div class="btnrow">
+      <button class="btn accent" id="exportSpineBtn" title="Download the baked animation as Spine JSON. Put the exported PNGs in ./images/ next to it.">Export Spine JSON</button>
+      <button class="btn" id="exportImagesBtn" title="Download every layer frame as a PNG (named to match the Spine attachments).">Export PNGs</button>
+    </div>
+  </div>
+
+  <h2>Layer Stack</h2>
+  <div class="sec-body">
+    <div class="sec-hint">Top = nearest, bottom = furthest. Drag rows by the ≡ grip to reorder. Dist± nudges a layer's depth; Repeat = how many times it appears per loop.</div>
+    <div id="layers"></div>
+  </div>
+
+  <div class="small" id="status">Load images to begin.</div>
+</div>
+<div id="stage"><canvas id="cv"></canvas></div>
+<input id="replaceInput" type="file" accept="image/*" multiple style="display:none">
+
+<script>
+'use strict';
+// Collapsible sections — same behaviour as the main editor panels.
+document.querySelectorAll('#ui h2').forEach(h=>{
+  h.addEventListener('click', ()=>{
+    h.classList.toggle('collapsed');
+    const body = h.nextElementSibling;
+    if(body && body.classList.contains('sec-body')) body.classList.toggle('collapsed');
+  });
+});
+const filesEl = document.getElementById('files');
+const loadBtn = document.getElementById('loadBtn');
+const playBtn = document.getElementById('playBtn');
+const statusEl = document.getElementById('status');
+const layersEl = document.getElementById('layers');
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+
+const modeEl = document.getElementById('mode');
+const camSpeedEl = document.getElementById('camSpeed');
+const depthScaleEl = document.getElementById('depthScale');
+const spacingEl = document.getElementById('spacing');
+const nearFadeEl = document.getElementById('nearFade');
+const farFadeEl = document.getElementById('farFade');
+const scaleBoostEl = document.getElementById('scaleBoost');
+
+const camSpeedVal = document.getElementById('camSpeedVal');
+const depthScaleVal = document.getElementById('depthScaleVal');
+const spacingVal = document.getElementById('spacingVal');
+const nearFadeVal = document.getElementById('nearFadeVal');
+const farFadeVal = document.getElementById('farFadeVal');
+const scaleBoostVal = document.getElementById('scaleBoostVal');
+
+const camXEl = document.getElementById('camX');
+const camYEl = document.getElementById('camY');
+const vpXEl = document.getElementById('vpX');
+const vpYEl = document.getElementById('vpY');
+const swayXEl = document.getElementById('swayX');
+const swayYEl = document.getElementById('swayY');
+const swaySpeedEl = document.getElementById('swaySpeed');
+const expFpsEl = document.getElementById('expFps');
+const expLoopEl = document.getElementById('expLoop');
+const seqFpsEl = document.getElementById('seqFps');
+const spineVerEl = document.getElementById('spineVer');
+const replaceInput = document.getElementById('replaceInput');
+
+let layers = []; // {name, frames:[Image,...], frameNames:[string,...], baseZ, zOff, repeat, x, y, rot}
+let playing = true;
+let cameraZ = 0;
+let cameraX = 0;
+let animTime = 0;
+let lastT = 0;
+let replaceTarget = -1;
+let dragIndex = -1;
+let hitRects = [];           // rebuilt every frame, draw order (far -> near)
+let layerDrag = null;        // {layer, startX, startY, origX, origY}
+let hoverLayer = null;
+let vpTrack = null;          // recorded VP animation {duration, keys:[{t,x,y}]}
+let vpRecording = null;      // {start, keys:[]} while Alt+LMB held
+
+function bindVal(inp, out, fmt=(v)=>v){
+  const f=()=>out.textContent=fmt(inp.value);
+  inp.addEventListener('input',f);f();
+}
+bindVal(camSpeedEl, camSpeedVal);
+bindVal(depthScaleEl, depthScaleVal, v=>Number(v).toFixed(2));
+bindVal(spacingEl, spacingVal);
+bindVal(nearFadeEl, nearFadeVal);
+bindVal(farFadeEl, farFadeVal);
+bindVal(scaleBoostEl, scaleBoostVal, v=>Number(v).toFixed(1));
+bindVal(camXEl, document.getElementById('camXVal'));
+bindVal(camYEl, document.getElementById('camYVal'));
+bindVal(vpXEl, document.getElementById('vpXVal'));
+bindVal(vpYEl, document.getElementById('vpYVal'));
+bindVal(swayXEl, document.getElementById('swayXVal'));
+bindVal(swayYEl, document.getElementById('swayYVal'));
+bindVal(swaySpeedEl, document.getElementById('swaySpeedVal'), v=>Number(v).toFixed(2));
+bindVal(expFpsEl, document.getElementById('expFpsVal'));
+bindVal(seqFpsEl, document.getElementById('seqFpsVal'));
+bindVal(expLoopEl, document.getElementById('expLoopVal'), v=>Number(v)>0?Number(v).toFixed(1):'auto');
+
+spacingEl.addEventListener('input', ()=>{ reindexZ(); refreshLayerList(); });
+
+function resize(){
+  cv.width = cv.clientWidth;
+  cv.height = cv.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function fileToImage(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>resolve(img);
+      img.onerror = reject;
+      img.src = r.result;
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function reindexZ(){
+  const spacing = Number(spacingEl.value);
+  for(let i=0;i<layers.length;i++) layers[i].baseZ = i * spacing;
+}
+
+// Current frame image of a layer at time t (seconds).
+function layerImg(l, t){
+  if(l.frames.length === 1) return l.frames[0];
+  const fps = Number(seqFpsEl.value);
+  const idx = Math.floor(t * fps) % l.frames.length;
+  return l.frames[idx];
+}
+
+// Group files into sequences: same prefix + trailing number + same extension.
+function groupSequences(files){
+  const groups = []; // {key, items:[{file, num, order}]}
+  const map = new Map();
+  files.forEach((file, order)=>{
+    const m = file.name.match(/^(.*?)(\d+)(\.[a-z0-9]+)$/i);
+    if(m){
+      const key = m[1] + '#' + m[3].toLowerCase();
+      if(!map.has(key)){ const g={key, base:(m[1].replace(/[_\-. ]+$/,'')||'seq'), items:[], order}; map.set(key,g); groups.push(g); }
+      map.get(key).items.push({file, num: parseInt(m[2],10), order});
+    }else{
+      groups.push({key:null, base:file.name, items:[{file, num:0, order}], order});
+    }
+  });
+  groups.sort((a,b)=>a.order-b.order);
+  groups.forEach(g=>g.items.sort((a,b)=>a.num-b.num));
+  return groups;
+}
+
+async function filesToLayer(group){
+  const frames = [], frameNames = [];
+  for(const it of group.items){
+    const img = await fileToImage(it.file);
+    frames.push(img);
+    frameNames.push(it.file.name);
+  }
+  return {
+    name: frames.length>1 ? `${group.base} [${frames.length}f]` : group.base,
+    frames, frameNames,
+    baseZ: 0, zOff: 0, repeat: 1, x: 0, y: 0, rot: 0
+  };
+}
+
+function refreshLayerList(){
+  layersEl.innerHTML = '';
+  for(let i=0;i<layers.length;i++){
+    const l = layers[i];
+    const block = document.createElement('div'); block.className='layerBlock';
+    block.dataset.index = i;
+    const row = document.createElement('div'); row.className='layer';
+    const grip = document.createElement('div'); grip.className='grip'; grip.textContent='\u2261'; grip.title='Drag to reorder';
+    // Only the grip arms dragging, so inputs/buttons keep normal behavior.
+    grip.addEventListener('mousedown', ()=>{ block.draggable = true; });
+    block.addEventListener('mouseup', ()=>{ block.draggable = false; });
+    const n = document.createElement('div'); n.className='name'; n.textContent=l.name; n.title=l.name;
+    const z = document.createElement('div'); z.textContent='Z '+Math.round(l.baseZ + l.zOff);
+    z.title='Current depth of this layer (stack position \u00d7 spacing + Dist\u00b1). Smaller = nearer the camera.';
+    row.appendChild(grip); row.appendChild(n); row.appendChild(z);
+    const mk = (txt, title, fn)=>{
+      const b = document.createElement('button'); b.textContent=txt; b.title=title;
+      b.addEventListener('click', fn); row.appendChild(b);
+    };
+    mk('\u2191','Move up (nearer)', ()=>{ if(i>0){ [layers[i-1],layers[i]]=[layers[i],layers[i-1]]; reindexZ(); refreshLayerList(); } });
+    mk('\u2193','Move down (further)', ()=>{ if(i<layers.length-1){ [layers[i+1],layers[i]]=[layers[i],layers[i+1]]; reindexZ(); refreshLayerList(); } });
+    mk('\u29c9','Duplicate layer', ()=>{
+      const copy = {name:l.name+' copy', frames:l.frames.slice(), frameNames:l.frameNames.slice(), baseZ:0, zOff:l.zOff, repeat:l.repeat, x:l.x, y:l.y, rot:l.rot, stat:!!l.stat};
+      layers.splice(i+1,0,copy); reindexZ(); refreshLayerList();
+    });
+    mk('\ud83d\uddbc','Replace image / sequence', ()=>{ replaceTarget=i; replaceInput.value=''; replaceInput.click(); });
+    mk('\u2715','Delete layer', ()=>{ layers.splice(i,1); reindexZ(); refreshLayerList(); });
+    block.appendChild(row);
+
+    // Per-layer tweaks: distance offset + repeat interval.
+    const sub = document.createElement('div'); sub.className='layerSub';
+    const mkNum = (labelTxt, title, value, step, oninput)=>{
+      const lab = document.createElement('span'); lab.textContent = labelTxt; lab.title = title;
+      const inp = document.createElement('input'); inp.type='number'; inp.step=step; inp.value=value; inp.title=title;
+      inp.addEventListener('input', ()=>oninput(Number(inp.value)||0));
+      sub.appendChild(lab); sub.appendChild(inp);
+    };
+    mkNum('Dist\u00b1','Extra distance for this layer, added to general spacing (Z units)', l.zOff, 10, v=>{ l.zOff=v; z.textContent='Z '+Math.round(l.baseZ+l.zOff); });
+    mkNum('Repeat','How many times this layer appears during one loop (1 = seen once per loop, higher = repeats more often)', l.repeat, 1, v=>{ l.repeat=Math.max(1,Math.round(v)); });
+    const statLab = document.createElement('span'); statLab.textContent='Static';
+    statLab.title='Stationary layer: ignores camera motion, sway and the vanishing point — stays fixed at its x/y (use for backdrops).';
+    const statChk = document.createElement('input'); statChk.type='checkbox'; statChk.checked=!!l.stat; statChk.title=statLab.title;
+    statChk.addEventListener('change', ()=>{ l.stat = statChk.checked; });
+    sub.appendChild(statLab); sub.appendChild(statChk);
+    block.appendChild(sub);
+
+    // Drag & drop reordering.
+    block.addEventListener('dragstart', (e)=>{
+      dragIndex = i;
+      block.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i)); // required by some browsers
+    });
+    block.addEventListener('dragend', ()=>{
+      dragIndex = -1;
+      block.draggable = false;
+      layersEl.querySelectorAll('.layerBlock').forEach(b=>b.classList.remove('dragging','dropAbove','dropBelow'));
+    });
+    block.addEventListener('dragover', (e)=>{
+      if(dragIndex < 0 || dragIndex === i) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = block.getBoundingClientRect();
+      const above = (e.clientY - rect.top) < rect.height/2;
+      block.classList.toggle('dropAbove', above);
+      block.classList.toggle('dropBelow', !above);
+    });
+    block.addEventListener('dragleave', ()=>{
+      block.classList.remove('dropAbove','dropBelow');
+    });
+    block.addEventListener('drop', (e)=>{
+      if(dragIndex < 0 || dragIndex === i) return;
+      e.preventDefault();
+      const rect = block.getBoundingClientRect();
+      const above = (e.clientY - rect.top) < rect.height/2;
+      let to = above ? i : i+1;
+      const [moved] = layers.splice(dragIndex, 1);
+      if(dragIndex < to) to--;
+      layers.splice(to, 0, moved);
+      dragIndex = -1;
+      reindexZ();
+      refreshLayerList();
+    });
+
+    layersEl.appendChild(block);
+  }
+}
+
+replaceInput.addEventListener('change', async ()=>{
+  const files = Array.from(replaceInput.files || []);
+  if(!files.length || replaceTarget<0 || replaceTarget>=layers.length) return;
+  try{
+    const groups = groupSequences(files);
+    const nl = await filesToLayer(groups[0]);
+    const tgt = layers[replaceTarget];
+    tgt.frames = nl.frames; tgt.frameNames = nl.frameNames; tgt.name = nl.name;
+    refreshLayerList();
+    statusEl.textContent = 'Layer replaced: ' + nl.name;
+  }catch(e){ statusEl.textContent = 'Replace failed: ' + e; }
+  replaceTarget = -1;
+});
+
+async function loadImages(){
+  const files = Array.from(filesEl.files || []);
+  if(!files.length){ statusEl.textContent='Choose image files first.'; return; }
+  statusEl.textContent='Loading images...';
+  const groups = groupSequences(files);
+  const newLayers = [];
+  for(const g of groups){
+    try{
+      newLayers.push(await filesToLayer(g));
+    }catch(e){
+      console.error('Layer load failed', g.base, e);
+    }
+  }
+  layers = newLayers;
+  cameraZ = 0;
+  cameraX = 0;
+  animTime = 0;
+  reindexZ();
+  refreshLayerList();
+  statusEl.textContent = layers.length ? `${layers.length} layer(s) loaded.` : 'No valid images loaded.';
+}
+
+filesEl.addEventListener('change', loadImages);
+loadBtn.addEventListener('click', loadImages);
+playBtn.addEventListener('click', ()=>{
+  playing = !playing;
+  playBtn.textContent = playing ? 'Pause' : 'Play';
+});
+
+// ---- Preset scenes (procedural placeholder art) ----
+function makeCanvas(w, h, draw){
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  return c;
+}
+
+function paintSky(g,w,h){
+  const gr = g.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,'#3a6ea8'); gr.addColorStop(0.7,'#a8c8e0'); gr.addColorStop(1,'#d8c8a0');
+  g.fillStyle = gr; g.fillRect(0,0,w,h);
+}
+function paintClouds(g,w,h){
+  g.clearRect(0,0,w,h);
+  for(let i=0;i<6;i++){
+    const cx = (i+0.5)*w/6 + (i%2?40:-30), cy = h*0.25 + (i%3)*h*0.18, s = 40+(i%3)*25;
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    for(let j=0;j<5;j++){
+      g.beginPath();
+      g.arc(cx + (j-2)*s*0.55, cy + Math.sin(j*2.1)*s*0.15, s*(0.55+0.2*Math.sin(j*1.7+i)), 0, 7);
+      g.fill();
+    }
+  }
+}
+function paintTree(g,w,h,trunkCol,leafCol){
+  g.clearRect(0,0,w,h);
+  g.fillStyle = trunkCol;
+  g.fillRect(w/2-w*0.05, h*0.55, w*0.1, h*0.45);
+  g.fillStyle = leafCol;
+  for(let i=0;i<3;i++){
+    const r = w*0.32*(1-i*0.22);
+    g.beginPath(); g.arc(w/2, h*(0.42-i*0.14), r, 0, 7); g.fill();
+  }
+}
+function paintTreeline(g,w,h){
+  g.clearRect(0,0,w,h);
+  g.fillStyle = '#2c4a35';
+  g.beginPath(); g.moveTo(0,h);
+  for(let x=0;x<=w;x+=20){
+    g.lineTo(x, h*0.5 + Math.sin(x*0.05)*h*0.12 + Math.sin(x*0.013)*h*0.18);
+  }
+  g.lineTo(w,h); g.closePath(); g.fill();
+}
+function paintFence(g,w,h){
+  g.clearRect(0,0,w,h);
+  g.fillStyle = '#8a6a45';
+  for(let x=8;x<w;x+=42){ g.fillRect(x, h*0.25, 12, h*0.75); }
+  g.fillRect(0, h*0.35, w, 10);
+  g.fillRect(0, h*0.65, w, 10);
+}
+function paintCar(g,w,h){
+  g.clearRect(0,0,w,h);
+  g.fillStyle = '#b8332a';
+  g.beginPath();
+  g.moveTo(w*0.05,h*0.7); g.lineTo(w*0.12,h*0.45); g.lineTo(w*0.3,h*0.4);
+  g.lineTo(w*0.42,h*0.22); g.lineTo(w*0.72,h*0.22); g.lineTo(w*0.85,h*0.42);
+  g.lineTo(w*0.95,h*0.48); g.lineTo(w*0.95,h*0.7); g.closePath(); g.fill();
+  g.fillStyle = '#cfe8f5';
+  g.fillRect(w*0.45,h*0.26,w*0.24,h*0.14);
+  g.fillStyle = '#222';
+  g.beginPath(); g.arc(w*0.28,h*0.72,h*0.13,0,7); g.fill();
+  g.beginPath(); g.arc(w*0.75,h*0.72,h*0.13,0,7); g.fill();
+  g.fillStyle = '#666';
+  g.beginPath(); g.arc(w*0.28,h*0.72,h*0.06,0,7); g.fill();
+  g.beginPath(); g.arc(w*0.75,h*0.72,h*0.06,0,7); g.fill();
+}
+function paintGround(g,w,h){
+  const gr = g.createLinearGradient(0,0,0,h);
+  gr.addColorStop(0,'#7a8a5a'); gr.addColorStop(1,'#5a6a42');
+  g.fillStyle = gr; g.fillRect(0,0,w,h);
+  g.fillStyle = 'rgba(60,70,44,0.5)';
+  for(let i=0;i<40;i++){ g.fillRect((i*97)%w, (i*53)%h, 30, 4); }
+}
+function paintDoorFrame(g,w,h){
+  g.clearRect(0,0,w,h);
+  // Wall with rectangular opening.
+  g.fillStyle = '#9a8a72';
+  g.fillRect(0,0,w,h);
+  g.fillStyle = 'rgba(0,0,0,0.12)';
+  for(let i=0;i<60;i++){ g.fillRect((i*137)%w, (i*89)%h, 26, 3); }
+  const ox = w*0.32, oy = h*0.18, ow = w*0.36, oh = h*0.82;
+  g.clearRect(ox, oy, ow, oh);
+  // Wooden frame around the opening.
+  g.fillStyle = '#6a4a28';
+  const t = w*0.035;
+  g.fillRect(ox-t, oy-t, ow+2*t, t);        // lintel
+  g.fillRect(ox-t, oy, t, oh);              // left jamb
+  g.fillRect(ox+ow, oy, t, oh);             // right jamb
+  g.fillStyle = '#7a5a34';
+  g.fillRect(ox-t*1.6, oy-t*1.6, ow+3.2*t, t*0.6);
+  // Wood grain.
+  g.strokeStyle = 'rgba(40,25,10,0.4)'; g.lineWidth = 2;
+  for(let i=0;i<5;i++){
+    g.beginPath();
+    g.moveTo(ox-t+2, oy + i*oh/5);
+    g.lineTo(ox-2, oy + i*oh/5 + 8);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(ox+ow+2, oy + i*oh/5);
+    g.lineTo(ox+ow+t-2, oy + i*oh/5 + 8);
+    g.stroke();
+  }
+}
+
+function presetLayer(name, canvas, opts={}){
+  const frames = Array.isArray(canvas) ? canvas : [canvas];
+  const frameNames = frames.length > 1
+    ? frames.map((_,i)=>name+'_'+String(i+1).padStart(2,'0')+'.png')
+    : [name+'.png'];
+  return {
+    name, frames, frameNames,
+    baseZ:0, zOff:opts.zOff||0, repeat:opts.repeat||1, x:opts.x||0, y:opts.y||0, rot:0, stat:!!opts.stat
+  };
+}
+
+// Animated chimney smoke: puffs rise from (cx,cy), drifting `drift` px sideways
+// and `rise` px up over their life. `phase` 0..1 cycles the puffs seamlessly.
+function paintSmoke(g, cx, cy, phase, drift, rise){
+  for(let k=0;k<6;k++){
+    const q = ((k/6 + phase) % 1);
+    const x = cx + drift*q + Math.sin((q*3+k)*2.1)*8*q;
+    const y = cy - rise*q;
+    const r = 9 + q*32;
+    const a = q < 0.12 ? q/0.12 : (1-q)*0.85;
+    g.fillStyle = 'rgba(215,215,222,'+(0.5*a).toFixed(3)+')';
+    g.beginPath(); g.arc(x,y,r,0,7); g.fill();
+    g.fillStyle = 'rgba(255,255,255,'+(0.25*a).toFixed(3)+')';
+    g.beginPath(); g.arc(x-r*0.25,y-r*0.2,r*0.6,0,7); g.fill();
+  }
+}
+// Build `n` canvas frames; draw(g,w,h,phase) is called with phase = i/n.
+function makeFrames(n, w, h, draw){
+  return Array.from({length:n}, (_,i)=>makeCanvas(w, h, (g,ww,hh)=>draw(g,ww,hh,i/n)));
+}
+
+// ---- Train art ----
+function paintLoco(g,w,h){
+  g.clearRect(0,0,w,h);
+  const wheelY = h*0.82;
+  // cab at the back (left) + boiler pointing right (direction of travel)
+  g.fillStyle = '#27415a';
+  g.fillRect(w*0.08, h*0.14, w*0.32, h*0.59);
+  g.fillRect(w*0.33, h*0.35, w*0.62, h*0.38);
+  g.fillStyle = '#1c2e40';
+  g.fillRect(w*0.08, h*0.14, w*0.32, h*0.08); // cab roof
+  g.fillStyle = '#cfe8f5';
+  g.fillRect(w*0.12, h*0.24, w*0.09, h*0.16);
+  g.fillRect(w*0.26, h*0.24, w*0.09, h*0.16);
+  // chimney + dome
+  g.fillStyle = '#1c2e40';
+  g.fillRect(w*0.78, h*0.1, w*0.08, h*0.28);
+  g.fillRect(w*0.75, h*0.06, w*0.14, h*0.06);
+  g.beginPath(); g.arc(w*0.6, h*0.35, w*0.05, Math.PI, 0); g.fill();
+  // headlamp at the nose (right)
+  g.fillStyle = '#ffe9a0';
+  g.fillRect(w*0.94, h*0.42, w*0.04, h*0.12);
+  // undercarriage + cowcatcher
+  g.fillStyle = '#16222e';
+  g.fillRect(w*0.07, h*0.7, w*0.9, h*0.1);
+  g.beginPath(); g.moveTo(w*0.92,h*0.7); g.lineTo(w*1.0,h*0.94); g.lineTo(w*0.97,h*0.7); g.closePath(); g.fill();
+  // wheels
+  for(const wx of [0.14,0.28,0.48,0.66,0.84]){
+    g.fillStyle = '#222';
+    g.beginPath(); g.arc(w*wx, wheelY, h*0.11, 0, 7); g.fill();
+    g.fillStyle = '#888';
+    g.beginPath(); g.arc(w*wx, wheelY, h*0.045, 0, 7); g.fill();
+  }
+}
+function paintWagon(g,w,h,col){
+  g.clearRect(0,0,w,h);
+  g.fillStyle = col || '#7a3b2e';
+  g.fillRect(w*0.04, h*0.28, w*0.92, h*0.44);
+  g.fillStyle = 'rgba(0,0,0,0.2)';
+  for(let i=0;i<6;i++) g.fillRect(w*(0.09+i*0.15), h*0.3, w*0.02, h*0.4);
+  g.fillStyle = 'rgba(255,255,255,0.12)';
+  g.fillRect(w*0.04, h*0.28, w*0.92, h*0.06);
+  g.fillStyle = '#16222e';
+  g.fillRect(w*0.02, h*0.7, w*0.96, h*0.08);
+  for(const wx of [0.2,0.34,0.66,0.8]){
+    g.fillStyle = '#222';
+    g.beginPath(); g.arc(w*wx, h*0.83, h*0.1, 0, 7); g.fill();
+    g.fillStyle = '#888';
+    g.beginPath(); g.arc(w*wx, h*0.83, h*0.04, 0, 7); g.fill();
+  }
+}
+function paintTrainSide(g,w,h){
+  // Full consist on one canvas: 3 wagons + locomotive at the front (right).
+  g.clearRect(0,0,w,h);
+  const carW = w*0.225, gap = w*0.012;
+  const cols = ['#6a4a72','#5a6a42','#7a3b2e'];
+  let x = w*0.01;
+  for(let i=0;i<3;i++){
+    const wag = makeCanvas(360,160,(gg,ww,hh)=>paintWagon(gg,ww,hh,cols[i]));
+    g.drawImage(wag, x, h*0.24, carW, h*0.6);
+    // coupler
+    g.fillStyle = '#16222e'; g.fillRect(x+carW-2, h*0.6, gap+4, h*0.05);
+    x += carW + gap;
+  }
+  const loco = makeCanvas(420,210,paintLoco);
+  g.drawImage(loco, x, h*0.02, carW*1.25, h*0.84);
+}
+function paintTrainFront(g,w,h){
+  g.clearRect(0,0,w,h);
+  // cab silhouette behind the boiler
+  g.fillStyle = '#1c2e40';
+  g.fillRect(w*0.16, h*0.05, w*0.68, h*0.55);
+  g.fillStyle = '#2c445e';
+  g.fillRect(w*0.16, h*0.05, w*0.68, h*0.07);
+  // chimney
+  g.fillStyle = '#1c2e40'; g.fillRect(w*0.45, h*0.0, w*0.1, h*0.1);
+  // boiler face
+  g.fillStyle = '#27415a';
+  g.beginPath(); g.arc(w/2, h*0.42, w*0.27, 0, 7); g.fill();
+  g.fillStyle = '#16222e';
+  g.beginPath(); g.arc(w/2, h*0.42, w*0.21, 0, 7); g.fill();
+  // headlamp
+  g.fillStyle = '#ffe9a0';
+  g.beginPath(); g.arc(w/2, h*0.34, w*0.05, 0, 7); g.fill();
+  g.fillStyle = 'rgba(255,233,160,0.25)';
+  g.beginPath(); g.arc(w/2, h*0.34, w*0.1, 0, 7); g.fill();
+  // buffer beam + cowcatcher
+  g.fillStyle = '#8a2222';
+  g.fillRect(w*0.28, h*0.66, w*0.44, h*0.07);
+  g.fillStyle = '#333';
+  g.beginPath(); g.moveTo(w*0.28,h*0.73); g.lineTo(w*0.5,h*0.97); g.lineTo(w*0.72,h*0.73); g.closePath(); g.fill();
+  g.strokeStyle = '#555'; g.lineWidth = 3;
+  for(let i=1;i<5;i++){
+    g.beginPath(); g.moveTo(w*(0.28+i*0.088), h*0.73); g.lineTo(w*0.5, h*0.95); g.stroke();
+  }
+}
+function paintTrack(g,w,h){
+  g.clearRect(0,0,w,h);
+  g.fillStyle = '#6a5a45';
+  for(let x=4;x<w;x+=36) g.fillRect(x, h*0.18, 20, h*0.72);
+  g.fillStyle = '#9a9a9a';
+  g.fillRect(0, h*0.16, w, h*0.14);
+  g.fillRect(0, h*0.6, w, h*0.14);
+  g.fillStyle = 'rgba(255,255,255,0.25)';
+  g.fillRect(0, h*0.16, w, h*0.04);
+  g.fillRect(0, h*0.6, w, h*0.04);
+}
+
+// ---- 3/4 perspective train art (front faces camera, body recedes right
+// toward the vanishing point) ----
+function paintLocoPersp(g,w,h){
+  g.clearRect(0,0,w,h);
+  // Side of the boiler receding toward the VP (up-right, converging).
+  g.fillStyle = '#203750';
+  g.beginPath();
+  g.moveTo(w*0.30, h*0.30); g.lineTo(w*0.72, h*0.40);
+  g.lineTo(w*0.72, h*0.66); g.lineTo(w*0.30, h*0.80);
+  g.closePath(); g.fill();
+  // boiler bands
+  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 3;
+  for(const fx of [0.42,0.54,0.65]){
+    g.beginPath();
+    g.moveTo(w*fx, h*(0.30 + (fx-0.30)/0.42*0.10));
+    g.lineTo(w*fx, h*(0.80 - (fx-0.30)/0.42*0.14));
+    g.stroke();
+  }
+  // Cab at the far end (smaller, higher — deeper in perspective).
+  g.fillStyle = '#1c2e40';
+  g.fillRect(w*0.70, h*0.22, w*0.24, h*0.44);
+  g.fillStyle = '#16222e';
+  g.fillRect(w*0.68, h*0.18, w*0.28, h*0.07);
+  g.fillStyle = '#cfe8f5';
+  g.fillRect(w*0.74, h*0.30, w*0.07, h*0.12);
+  g.fillRect(w*0.84, h*0.30, w*0.07, h*0.12);
+  // Wheels along the sloping bottom edge, shrinking with depth.
+  for(const [fx,fy,fr] of [[0.36,0.84,0.085],[0.5,0.8,0.075],[0.63,0.76,0.065],[0.78,0.72,0.055]]){
+    g.fillStyle = '#222';
+    g.beginPath(); g.arc(w*fx, h*fy, h*fr, 0, 7); g.fill();
+    g.fillStyle = '#888';
+    g.beginPath(); g.arc(w*fx, h*fy, h*fr*0.4, 0, 7); g.fill();
+  }
+  // Chimney above the front of the boiler.
+  g.fillStyle = '#1c2e40';
+  g.fillRect(w*0.30, h*0.06, w*0.09, h*0.26);
+  g.fillRect(w*0.27, h*0.02, w*0.15, h*0.06);
+  // Front face: round boiler head nearest the camera.
+  const cx = w*0.19, cyc = h*0.52, r = w*0.17;
+  g.fillStyle = '#2c445e';
+  g.beginPath(); g.arc(cx, cyc, r, 0, 7); g.fill();
+  g.fillStyle = '#16222e';
+  g.beginPath(); g.arc(cx, cyc, r*0.76, 0, 7); g.fill();
+  g.strokeStyle = '#3a5a7a'; g.lineWidth = 4;
+  g.beginPath(); g.arc(cx, cyc, r*0.98, 0, 7); g.stroke();
+  // headlamp + glow
+  g.fillStyle = 'rgba(255,233,160,0.25)';
+  g.beginPath(); g.arc(cx, cyc - r*0.45, r*0.34, 0, 7); g.fill();
+  g.fillStyle = '#ffe9a0';
+  g.beginPath(); g.arc(cx, cyc - r*0.45, r*0.17, 0, 7); g.fill();
+  // buffer beam + cowcatcher under the front face
+  g.fillStyle = '#8a2222';
+  g.fillRect(cx - r*0.9, h*0.78, r*1.8, h*0.06);
+  g.fillStyle = '#333';
+  g.beginPath();
+  g.moveTo(cx - r*0.9, h*0.84); g.lineTo(cx, h*0.99); g.lineTo(cx + r*0.9, h*0.84);
+  g.closePath(); g.fill();
+  g.strokeStyle = '#555'; g.lineWidth = 3;
+  for(let i=1;i<4;i++){
+    g.beginPath();
+    g.moveTo(cx - r*0.9 + i*r*0.45, h*0.84);
+    g.lineTo(cx, h*0.97);
+    g.stroke();
+  }
+}
+function paintWagonPersp(g,w,h,col){
+  g.clearRect(0,0,w,h);
+  const c = col || '#7a3b2e';
+  // Side receding toward the VP (converging up-right).
+  g.fillStyle = c;
+  g.beginPath();
+  g.moveTo(w*0.34, h*0.24); g.lineTo(w*0.96, h*0.36);
+  g.lineTo(w*0.96, h*0.62); g.lineTo(w*0.34, h*0.76);
+  g.closePath(); g.fill();
+  // roof edge highlight along the top
+  g.fillStyle = 'rgba(255,255,255,0.14)';
+  g.beginPath();
+  g.moveTo(w*0.34, h*0.24); g.lineTo(w*0.96, h*0.36);
+  g.lineTo(w*0.96, h*0.40); g.lineTo(w*0.34, h*0.29);
+  g.closePath(); g.fill();
+  // plank lines, compressed with depth
+  g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 3;
+  for(const q of [0.18,0.38,0.56,0.72,0.86]){
+    const fx = 0.34 + q*0.62;
+    g.beginPath();
+    g.moveTo(w*fx, h*(0.24 + q*0.12));
+    g.lineTo(w*fx, h*(0.76 - q*0.14));
+    g.stroke();
+  }
+  // wheels along the sloping underside
+  for(const [fx,fy,fr] of [[0.45,0.8,0.07],[0.58,0.77,0.062],[0.78,0.71,0.052],[0.9,0.68,0.046]]){
+    g.fillStyle = '#222';
+    g.beginPath(); g.arc(w*fx, h*fy, h*fr, 0, 7); g.fill();
+    g.fillStyle = '#888';
+    g.beginPath(); g.arc(w*fx, h*fy, h*fr*0.4, 0, 7); g.fill();
+  }
+  // Front face nearest the camera (darker shade of the side color).
+  g.fillStyle = shade(c, -28);
+  g.fillRect(w*0.05, h*0.20, w*0.29, h*0.60);
+  g.fillStyle = 'rgba(255,255,255,0.1)';
+  g.fillRect(w*0.05, h*0.20, w*0.29, h*0.07);
+  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 3;
+  g.strokeRect(w*0.08, h*0.28, w*0.23, h*0.44);
+  // buffers + coupler on the front face
+  g.fillStyle = '#16222e';
+  g.fillRect(w*0.05, h*0.80, w*0.29, h*0.05);
+  g.fillRect(w*0.09, h*0.85, w*0.045, h*0.05);
+  g.fillRect(w*0.26, h*0.85, w*0.045, h*0.05);
+  // front wheels (nearest, largest)
+  for(const fx of [0.12,0.27]){
+    g.fillStyle = '#222';
+    g.beginPath(); g.arc(w*fx, h*0.9, h*0.08, 0, 7); g.fill();
+    g.fillStyle = '#888';
+    g.beginPath(); g.arc(w*fx, h*0.9, h*0.032, 0, 7); g.fill();
+  }
+}
+// Darken/lighten a #rrggbb color by `amt` (-255..255).
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (n>>16) + amt));
+  const gg = Math.max(0, Math.min(255, ((n>>8)&255) + amt));
+  const b = Math.max(0, Math.min(255, (n&255) + amt));
+  return '#' + ((r<<16)|(gg<<8)|b).toString(16).padStart(6,'0');
+}
+
+function loadPreset(kind){
+  const W = Math.max(800, cv.width), H = Math.max(500, cv.height);
+  let newLayers = [];
+  // Presets own the vanishing point; reset it unless the preset sets one.
+  vpXEl.value = 0; vpYEl.value = 0;
+  if(kind === 'train_lat'){
+    // Whole consist near the camera slides past; scenery drifts slowly behind.
+    // Train is an animated sequence: chimney smoke trails back over the cars.
+    const trainFrames = makeFrames(8, 1500, 400, (g,w,h,ph)=>{
+      g.save(); g.translate(0,120); paintTrainSide(g,w,280); g.restore();
+      paintSmoke(g, w*0.945, 132, ph, -w*0.1, 108);
+    });
+    newLayers = [
+      presetLayer('train', trainFrames, {repeat:1, y:H*0.06}),
+      presetLayer('track', makeCanvas(Math.round(W*0.7), 64, paintTrack), {repeat:4, y:H*0.235}),
+      presetLayer('ground', makeCanvas(W, Math.round(H*0.45), paintGround), {repeat:1, y:H*0.3}),
+      presetLayer('treeline_far', makeCanvas(W, Math.round(H*0.4), paintTreeline), {repeat:6, y:-H*0.02}),
+      presetLayer('clouds', makeCanvas(W, Math.round(H*0.5), paintClouds), {repeat:2, y:-H*0.22}),
+      presetLayer('sky', makeCanvas(W, H, paintSky), {repeat:1, stat:true}),
+    ];
+    modeEl.value = 'lat_lr'; // scene slides right = train drives forward (loco leads)
+    camSpeedEl.value = 280;
+    spacingEl.value = 180;
+  }else if(kind === 'train_fwd'){
+    // Head-on: camera flies forward through the consist, fronts loom and pass.
+    // The lead locomotive puffs smoke straight up from its chimney.
+    const front = makeCanvas(380, 560, (g,w,h)=>{
+      g.save(); g.translate(0,120); paintTrainFront(g,w,440); g.restore();
+    });
+    const locoFrames = makeFrames(8, 380, 560, (g,w,h,ph)=>{
+      g.save(); g.translate(0,120); paintTrainFront(g,w,440); g.restore();
+      paintSmoke(g, w*0.5, 126, ph, w*0.03, 104);
+    });
+    const back = makeCanvas(W, H, (g,w,h)=>{
+      const gr = g.createLinearGradient(0,0,0,h);
+      gr.addColorStop(0,'#3a4e66'); gr.addColorStop(0.62,'#8fa8bf'); gr.addColorStop(0.66,'#5a6a42'); gr.addColorStop(1,'#42502f');
+      g.fillStyle = gr; g.fillRect(0,0,w,h);
+    });
+    newLayers = [];
+    for(let i=0;i<5;i++){
+      newLayers.push(presetLayer(i===0?'loco_front':'wagon_front_'+i, i===0?locoFrames:front, {repeat:1, y:H*0.04}));
+    }
+    newLayers.push(presetLayer('backdrop', back, {repeat:1, stat:true}));
+    modeEl.value = 'forward';
+    camSpeedEl.value = 160;
+    depthScaleEl.value = 0.6;
+    scaleBoostEl.value = 2.6;
+    spacingEl.value = 180;
+  }else if(kind === 'train_persp'){
+    // Perspective approach: the consist stretches back toward an off-center
+    // vanishing point and drives toward the camera (forward mode). Deep cars
+    // start small near the VP, grow and slide out as they approach, then pass
+    // beside the camera. Wagons cycle through depth = endless train.
+    const wagCols = ['#7a3b2e','#5a6a42','#6a4a72','#3f5a7a','#8a6a2e'];
+    const backdrop = makeCanvas(W, H, (g,w,h)=>{
+      const gr = g.createLinearGradient(0,0,0,h);
+      gr.addColorStop(0,'#3a4e66'); gr.addColorStop(0.6,'#8fa8bf'); gr.addColorStop(0.64,'#5a6a42'); gr.addColorStop(1,'#42502f');
+      g.fillStyle = gr; g.fillRect(0,0,w,h);
+    });
+    // Nearest = locomotive, then wagons trailing behind toward the VP.
+    // 3/4-view art: front faces the camera, body recedes toward the VP.
+    // The loco is an animated sequence — smoke drifts back toward the VP.
+    const locoFrames = makeFrames(8, 460, 420, (g,w,h,ph)=>{
+      g.save(); g.translate(0,120); paintLocoPersp(g,w,300); g.restore();
+      paintSmoke(g, w*0.345, 134, ph, w*0.14, 106);
+    });
+    newLayers = [ presetLayer('loco', locoFrames, {repeat:1, y:H*0.09, x:-W*0.18}) ];
+    for(let i=0;i<5;i++){
+      const wc = makeCanvas(420, 240, (g,w,h)=>paintWagonPersp(g,w,h,wagCols[i]));
+      newLayers.push(presetLayer('wagon_'+(i+1), wc, {repeat:1, y:H*0.16, x:-W*0.18}));
+    }
+    newLayers.push(presetLayer('backdrop', backdrop, {repeat:1, stat:true}));
+    modeEl.value = 'forward';
+    camSpeedEl.value = 200;
+    spacingEl.value = 200;
+    depthScaleEl.value = 0.5;
+    scaleBoostEl.value = 2.2;
+    vpXEl.value = 520;   // consist recedes toward the upper-right vanishing point
+    vpYEl.value = -110;
+  }else if(kind === 'lat_lr' || kind === 'lat_rl'){
+    // Index 0 = baseZ 0 = nearest camera; last index = furthest.
+    newLayers = [
+      presetLayer('tree_near', makeCanvas(280, 420, (g,w,h)=>paintTree(g,w,h,'#4a3020','#356b40')), {repeat:1, y:-H*0.05}),
+      presetLayer('car', makeCanvas(300, 130, paintCar), {repeat:1, y:H*0.16, x:-W*0.1}),
+      presetLayer('fence', makeCanvas(Math.round(W*0.7), Math.round(H*0.18), paintFence), {repeat:4, y:H*0.18}),
+      presetLayer('ground', makeCanvas(W, Math.round(H*0.45), paintGround), {repeat:1, y:H*0.28}),
+      presetLayer('treeline_far', makeCanvas(W, Math.round(H*0.4), paintTreeline), {repeat:6, y:-H*0.02}),
+      presetLayer('clouds', makeCanvas(W, Math.round(H*0.5), paintClouds), {repeat:2, y:-H*0.22}),
+      presetLayer('sky', makeCanvas(W, H, paintSky), {repeat:1, stat:true}),
+    ];
+    modeEl.value = kind;
+    camSpeedEl.value = 220;
+  }else{
+    // Door corridor: identical wooden door frames receding into depth.
+    const door = makeCanvas(Math.round(W*0.9), Math.round(H*0.95), paintDoorFrame);
+    const back = makeCanvas(W, H, (g,w,h)=>{
+      const gr = g.createRadialGradient(w/2,h/2,50,w/2,h/2,w*0.7);
+      gr.addColorStop(0,'#e8dcc8'); gr.addColorStop(1,'#4a4036');
+      g.fillStyle = gr; g.fillRect(0,0,w,h);
+    });
+    newLayers = [ presetLayer('backdrop', back, {repeat:1, stat:true}) ];
+    for(let i=0;i<5;i++){
+      newLayers.push(presetLayer('doorframe_'+(i+1), door, {repeat:1}));
+    }
+    modeEl.value = kind;
+    camSpeedEl.value = 160;
+    depthScaleEl.value = 0.6;
+    scaleBoostEl.value = 2.6;
+  }
+  layers = newLayers;
+  cameraZ = 0; cameraX = 0; animTime = 0;
+  reindexZ();
+  refreshLayerList();
+  // Refresh slider value labels.
+  [camSpeedEl, depthScaleEl, scaleBoostEl, spacingEl, vpXEl, vpYEl].forEach(el=>el.dispatchEvent(new Event('input')));
+  statusEl.textContent = `Preset "${kind}" loaded (${layers.length} layers).`;
+}
+
+document.getElementById('presetBtn').addEventListener('click', ()=>{
+  const k = document.getElementById('presetSel').value;
+  if(!k){ statusEl.textContent = 'Choose a preset first.'; return; }
+  loadPreset(k);
+});
+
+// Drag & drop support
+const stage = document.getElementById('stage');
+stage.addEventListener('dragover', (e)=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+stage.addEventListener('drop', async (e)=>{
+  e.preventDefault();
+  const dropped = Array.from(e.dataTransfer.files || []).filter(f=>f.type.startsWith('image/'));
+  if(!dropped.length){ statusEl.textContent='Drop image files only.'; return; }
+  const dt = new DataTransfer();
+  dropped.forEach(f=>dt.items.add(f));
+  filesEl.files = dt.files;
+  await loadImages();
+});
+
+// ---- Shared frame math (used by live render and export bake) ----
+function getParams(){
+  return {
+    mode: modeEl.value,
+    speed: Number(camSpeedEl.value),
+    depthScale: Number(depthScaleEl.value),
+    spacing: Number(spacingEl.value),
+    nearFade: Number(nearFadeEl.value),
+    farFade: Number(farFadeEl.value),
+    scaleBoost: Number(scaleBoostEl.value),
+    camX: Number(camXEl.value),
+    camY: Number(camYEl.value),
+    vpX: Number(vpXEl.value),
+    vpY: Number(vpYEl.value),
+    swayXAmp: Number(swayXEl.value),
+    swayYAmp: Number(swayYEl.value),
+    swaySpeed: Number(swaySpeedEl.value)
+  };
+}
+
+// Compute one layer's state. camZ/camXPos are the camera accumulators, t is seconds for sway.
+function layerState(layer, p, span, camZ, camXPos, t){
+  const lateral = (p.mode === 'lat_lr' || p.mode === 'lat_rl');
+  const effBase = layer.baseZ + (layer.zOff||0);
+  // Stationary layers (backdrops) ignore all camera motion, sway and the
+  // vanishing point — they just sit at their x/y at native scale.
+  if(layer.stat){
+    return {z: effBase, nearNorm: 0, scale: 1, alpha: 1, px: layer.x, py: layer.y, par: 0, lateral: false, stat: true};
+  }
+  const rep = Math.max(1, Math.round(layer.repeat||1));
+  let z;
+  if(lateral){
+    z = effBase;
+  }else{
+    // Repeat = appearances per loop: layer cycles through depth `rep` times per full span.
+    const period = span / rep;
+    z = (effBase - camZ) % period;
+    if(z < 0) z += period;
+  }
+  const nearNorm = Math.max(0, Math.min(1, 1 - (z / span)));
+  let scale = 1 / (1 + z * p.depthScale * 0.01);
+  scale *= (1 + nearNorm * (p.scaleBoost - 1));
+  let alpha = 1;
+  if(!lateral){
+    if(p.nearFade > 0 && z < p.nearFade) alpha = Math.max(0, z / p.nearFade);
+    const period = span / rep;
+    if(p.farFade > 0 && z > period - p.farFade) alpha = Math.min(alpha, Math.max(0, (period - z) / p.farFade));
+  }
+  // Camera pan + sway, parallax-weighted (near layers shift more).
+  const par = 0.15 + 0.85 * nearNorm;
+  const swayX = p.swayXAmp * Math.sin(t * p.swaySpeed * 2 * Math.PI * 0.2);
+  const swayY = p.swayYAmp * Math.sin(t * p.swaySpeed * 2 * Math.PI * 0.26);
+  let px = layer.x + (-(p.camX) + swayX) * par;
+  let py = layer.y + (-(p.camY) + swayY) * par;
+  // Perspective center (vanishing point): distant layers converge toward it,
+  // near layers stay put. Projection: pos = vp + (pos - vp) * scale-ish factor.
+  const conv = Math.max(0, Math.min(1, 1 - scale)); // 0 near, ->1 far
+  px += p.vpX * conv;
+  py += p.vpY * conv;
+  if(lateral){
+    px += -camXPos * par;
+  }
+  return {z, nearNorm, scale, alpha, px, py, par, lateral};
+}
+
+function render(now){
+  requestAnimationFrame(render);
+  if(!lastT) lastT = now;
+  const dt = Math.min(0.05, (now-lastT)/1000);
+  lastT = now;
+
+  const mode = modeEl.value;
+  const speed = Number(camSpeedEl.value);
+  if(playing && layers.length){
+    animTime += dt;
+    if(mode === 'forward') cameraZ += speed * dt;
+    else if(mode === 'backward') cameraZ -= speed * dt;
+    else if(mode === 'lat_lr') cameraX -= speed * dt; // scene slides right
+    else if(mode === 'lat_rl') cameraX += speed * dt; // scene slides left
+  }
+
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if(!layers.length){ drawVpCross(null); return; }
+
+  const p = getParams();
+  // Recorded vanishing point animation overrides the sliders.
+  if(vpTrack && !vpRecording){
+    const v = vpTrackAt(animTime % vpTrack.duration);
+    p.vpX = v.x; p.vpY = v.y;
+  }
+  const lateral = (mode === 'lat_lr' || mode === 'lat_rl');
+
+  // Keep total depth span tied to layer count and spacing.
+  const span = Math.max(1, layers.length * p.spacing);
+
+  // Build runtime list with wrapped apparent depth.
+  const runtime = layers.map((layer)=>{
+    const s = layerState(layer, p, span, cameraZ, cameraX, animTime);
+    return {layer, ...s};
+  });
+
+  // Draw far -> near (largest z first)
+  runtime.sort((a,b)=> b.z - a.z);
+
+  // Loop length for lateral tiling (each layer appears `repeat` times per loop).
+  const loopSec = computeLoopSeconds(p, span);
+
+  const cx = cv.width/2;
+  const cy = cv.height/2;
+  hitRects = [];
+  for(const r of runtime){
+    const l = r.layer;
+    const img = layerImg(l, animTime);
+    const w = img.width * r.scale;
+    const h = img.height * r.scale;
+
+    if(lateral && !l.stat){
+      // Tile spacing so the layer appears exactly `repeat` times during one loop:
+      // the layer scrolls speed*par*loopSec px per loop; divide that by repeat count.
+      const rep = Math.max(1, Math.round(l.repeat||1));
+      const scrollPerLoop = Math.max(1, p.speed * r.par * loopSec);
+      const step = Math.max(4, scrollPerLoop / rep);
+      const y = cy - h/2 + r.py;
+      let off = (r.px % step);
+      if(off > 0) off -= step;
+      off -= Math.ceil(w/step)*step; // ensure left edge coverage
+      ctx.save();
+      ctx.globalAlpha = r.alpha;
+      for(let xx = off; xx < cv.width; xx += step){
+        ctx.drawImage(img, xx, y, w, h);
+        hitRects.push({layer:l, x:xx, y, w, h});
+      }
+      if((hoverLayer === l || (layerDrag && layerDrag.layer === l))){
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = layerDrag && layerDrag.layer === l ? '#ffcf40' : 'rgba(255,207,64,0.5)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(off, y, cv.width - off, h);
+      }
+      ctx.restore();
+      continue;
+    }
+
+    const x = cx - w/2 + r.px;
+    const y = cy - h/2 + r.py;
+    hitRects.push({layer:l, x, y, w, h});
+
+    ctx.save();
+    ctx.globalAlpha = r.alpha;
+    ctx.translate(x + w/2, y + h/2);
+    ctx.rotate((l.rot||0) * Math.PI/180);
+    ctx.drawImage(img, -w/2, -h/2, w, h);
+    if(hoverLayer === l || (layerDrag && layerDrag.layer === l)){
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = layerDrag && layerDrag.layer === l ? '#ffcf40' : 'rgba(255,207,64,0.5)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-w/2, -h/2, w, h);
+    }
+    ctx.restore();
+  }
+
+  drawVpCross(p);
+  drawRecIndicator();
+}
+requestAnimationFrame(render);
+
+function drawRecIndicator(){
+  if(!vpRecording) return;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  const x = cv.width - 78, y = 22;
+  // Blink at ~1 Hz.
+  if(Math.floor(performance.now()/500) % 2 === 0){
+    ctx.fillStyle = '#e33';
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px Segoe UI, Arial, sans-serif';
+  ctx.fillText('REC', x + 14, y + 5);
+  ctx.restore();
+}
+
+// Interpolated VP value at time tt within the recorded track.
+function vpTrackAt(tt){
+  const keys = vpTrack.keys;
+  if(tt <= keys[0].t) return {x:keys[0].x, y:keys[0].y};
+  for(let i=1;i<keys.length;i++){
+    if(tt <= keys[i].t){
+      const a = keys[i-1], b = keys[i];
+      const u = (tt - a.t) / Math.max(1e-6, b.t - a.t);
+      return {x: a.x + (b.x-a.x)*u, y: a.y + (b.y-a.y)*u};
+    }
+  }
+  const last = keys[keys.length-1];
+  return {x:last.x, y:last.y};
+}
+
+// ---- Vanishing point cross (draggable) ----
+let vpDragging = false;
+let vpHover = false;
+
+function vpScreenPos(p){
+  return { x: cv.width/2 + (p ? p.vpX : Number(vpXEl.value)),
+           y: cv.height/2 + (p ? p.vpY : Number(vpYEl.value)) };
+}
+
+function drawVpCross(p){
+  const {x, y} = vpScreenPos(p);
+  const s = 14;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = vpHover || vpDragging ? 3 : 2;
+  ctx.strokeStyle = vpDragging ? '#ffcf40' : (vpHover ? '#ffe090' : 'rgba(255,207,64,0.75)');
+  ctx.beginPath();
+  ctx.moveTo(x-s, y); ctx.lineTo(x+s, y);
+  ctx.moveTo(x, y-s); ctx.lineTo(x, y+s);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, s*0.55, 0, Math.PI*2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function canvasPos(e){
+  const rect = cv.getBoundingClientRect();
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function nearVp(pos){
+  const {x, y} = vpScreenPos();
+  return Math.hypot(pos.x - x, pos.y - y) < 18;
+}
+
+// Topmost (nearest) layer under the cursor; hitRects is in draw order far->near.
+function layerAt(pos){
+  for(let i=hitRects.length-1; i>=0; i--){
+    const r = hitRects[i];
+    if(pos.x >= r.x && pos.x <= r.x + r.w && pos.y >= r.y && pos.y <= r.y + r.h) return r.layer;
+  }
+  return null;
+}
+
+function setVp(px, py){
+  const nx = Math.round(px - cv.width/2);
+  const ny = Math.round(py - cv.height/2);
+  vpXEl.value = Math.max(Number(vpXEl.min), Math.min(Number(vpXEl.max), nx));
+  vpYEl.value = Math.max(Number(vpYEl.min), Math.min(Number(vpYEl.max), ny));
+  vpXEl.dispatchEvent(new Event('input'));
+  vpYEl.dispatchEvent(new Event('input'));
+}
+
+cv.addEventListener('mousedown', (e)=>{
+  const pos = canvasPos(e);
+  if(e.altKey && e.button === 0){
+    // Record vanishing point animation.
+    setVp(pos.x, pos.y);
+    vpRecording = {start: performance.now(), keys: [{t:0, x:Number(vpXEl.value), y:Number(vpYEl.value)}]};
+    e.preventDefault();
+    return;
+  }
+  if(nearVp(pos)){ vpDragging = true; e.preventDefault(); return; }
+  const l = layerAt(pos);
+  if(l){
+    layerDrag = {layer:l, startX:pos.x, startY:pos.y, origX:l.x, origY:l.y};
+    e.preventDefault();
+  }
+});
+window.addEventListener('mousemove', (e)=>{
+  const pos = canvasPos(e);
+  if(vpRecording){
+    setVp(pos.x, pos.y);
+    vpRecording.keys.push({
+      t: (performance.now() - vpRecording.start) / 1000,
+      x: Number(vpXEl.value), y: Number(vpYEl.value)
+    });
+  }else if(vpDragging){
+    setVp(pos.x, pos.y);
+  }else if(layerDrag){
+    // px/py are additive with layer.x/y, so screen delta maps 1:1.
+    layerDrag.layer.x = layerDrag.origX + (pos.x - layerDrag.startX);
+    layerDrag.layer.y = layerDrag.origY + (pos.y - layerDrag.startY);
+    statusEl.textContent = `${layerDrag.layer.name}: x ${Math.round(layerDrag.layer.x)}, y ${Math.round(layerDrag.layer.y)}`;
+  }else{
+    vpHover = nearVp(pos);
+    hoverLayer = vpHover ? null : layerAt(pos);
+    cv.style.cursor = vpHover ? 'move' : (hoverLayer ? 'grab' : 'default');
+  }
+});
+window.addEventListener('mouseup', ()=>{
+  if(vpRecording){
+    const dur = (performance.now() - vpRecording.start) / 1000;
+    if(dur >= 0.2 && vpRecording.keys.length >= 2){
+      vpTrack = {duration: dur, keys: vpRecording.keys};
+      animTime = 0; // restart so playback starts at the beginning of the recording
+      document.getElementById('vpAnimInfo').textContent = `VP anim: ${dur.toFixed(1)}s, ${vpTrack.keys.length} keys`;
+      statusEl.textContent = `Vanishing point animation recorded (${dur.toFixed(1)}s).`;
+    }else{
+      statusEl.textContent = 'VP recording too short — hold Alt and drag longer.';
+    }
+    vpRecording = null;
+  }
+  vpDragging = false; layerDrag = null;
+});
+
+document.getElementById('clearVpAnimBtn').addEventListener('click', ()=>{
+  vpTrack = null;
+  document.getElementById('vpAnimInfo').textContent = 'Alt+drag on stage records VP motion';
+  statusEl.textContent = 'VP animation cleared — sliders/cross control it again.';
+});
+// Double-click anywhere on stage to jump the vanishing point there.
+cv.addEventListener('dblclick', (e)=>{ const pos = canvasPos(e); setVp(pos.x, pos.y); });
+
+// ---- Export ----
+function downloadBlob(blob, filename){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+
+function attachmentName(name){ return name.replace(/\.[a-z0-9]+$/i,''); }
+
+// Bone/slot base names inherit the layer names (sanitized + made unique).
+function layerBaseNames(){
+  const used = new Set();
+  return layers.map(l=>{
+    let n = String(l.name||'layer').replace(/\.[a-z0-9]+$/i,'')
+      .replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'_') || 'layer';
+    let out = n, k = 2;
+    while(used.has(out)) out = n + '_' + (k++);
+    used.add(out);
+    return out;
+  });
+}
+
+function computeLoopSeconds(p, span){
+  const user = Number(expLoopEl.value);
+  if(user > 0) return user;
+  const speed = Math.max(1, p.speed);
+  if(p.mode === 'lat_lr' || p.mode === 'lat_rl'){
+    // Auto loop: time for the nearest layer (par=1) to scroll ~2 viewport widths.
+    const ref = Math.max(cv.width * 2, ...layers.map(l=>l.frames[0].width));
+    return ref / speed;
+  }
+  // Full depth cycle. Repeat counts divide the span evenly, so this stays seamless.
+  return span / speed;
+}
+
+// ---- Keyframe simplification (Ramer-Douglas-Peucker on timeline values) ----
+// Removes keys that lie on the linear interpolation of their neighbors.
+function rdpKeys(keys, dims, tol){
+  if(keys.length <= 2) return keys.slice();
+  const first = keys[0], last = keys[keys.length-1];
+  const dur = (last.time - first.time) || 1;
+  let maxD = -1, idx = -1;
+  for(let i=1;i<keys.length-1;i++){
+    const u = (keys[i].time - first.time) / dur;
+    let d = 0;
+    for(const dim of dims){
+      const interp = first[dim] + (last[dim]-first[dim]) * u;
+      d = Math.max(d, Math.abs(keys[i][dim] - interp));
+    }
+    if(d > maxD){ maxD = d; idx = i; }
+  }
+  if(maxD <= tol) return [first, last];
+  const a = rdpKeys(keys.slice(0, idx+1), dims, tol);
+  const b = rdpKeys(keys.slice(idx), dims, tol);
+  return a.slice(0,-1).concat(b);
+}
+
+// Cap a segment to maxKeys by escalating the tolerance until it fits.
+// One motion sweep is then described by at most 4-5 keys; interpolation
+// between them is smoothed with bezier easing on export.
+function rdpKeysCapped(keys, dims, tol, maxKeys){
+  let out = rdpKeys(keys, dims, tol);
+  let t = tol;
+  while(out.length > maxKeys && t < 1e7){
+    t *= 2;
+    out = rdpKeys(keys, dims, t);
+  }
+  return out;
+}
+
+// Simplify, but never across stepped boundaries (wrap jumps).
+// Each continuous sweep between wraps is capped at MAX_KEYS_PER_SEG keys.
+const MAX_KEYS_PER_SEG = 5;
+function simplifyKeys(keys, dims, tol){
+  const out = [];
+  let seg = [];
+  const flush = ()=>{ if(seg.length){ out.push(...rdpKeysCapped(seg, dims, tol, MAX_KEYS_PER_SEG)); seg = []; } };
+  for(const k of keys){
+    seg.push(k);
+    if(k.stepped) flush();
+  }
+  flush();
+  return out;
+}
+
+// ---- Bezier easing between sparse keys ----
+// Tangents via Catmull-Rom on the simplified points, so 4-5 keys still
+// reproduce the smooth acceleration of the original dense curve.
+function catmullTangents(keys, dim){
+  const n = keys.length, m = new Array(n);
+  for(let i=0;i<n;i++){
+    const p = keys[Math.max(0,i-1)], q = keys[Math.min(n-1,i+1)];
+    const dt = (q.time - p.time) || 1e-6;
+    m[i] = (q[dim]-p[dim])/dt;
+  }
+  return m;
+}
+
+function addBezier(keys, dims, is4){
+  if(keys.length < 2) return keys;
+  const tans = dims.map(d=>catmullTangents(keys, d));
+  for(let i=0;i<keys.length-1;i++){
+    const a = keys[i], b = keys[i+1];
+    if(a.stepped) continue;               // wrap snap stays stepped
+    const dt = b.time - a.time;
+    if(dt <= 0) continue;
+    if(is4){
+      // Spine 4.x: absolute time/value control points, per property (x then y).
+      const arr = [];
+      dims.forEach((d,di)=>{
+        const cx1 = a.time + dt/3, cy1 = a[d] + tans[di][i]*dt/3;
+        const cx2 = b.time - dt/3, cy2 = b[d] - tans[di][i+1]*dt/3;
+        arr.push(+cx1.toFixed(4), +cy1.toFixed(4), +cx2.toFixed(4), +cy2.toFixed(4));
+      });
+      a.curve = arr;
+    }else{
+      // Spine 3.x: one normalized bezier per key; fit it to the dominant dim.
+      let dd = dims[0], amp = 0;
+      dims.forEach(d=>{ const A = Math.abs(b[d]-a[d]); if(A > amp){ amp = A; dd = d; } });
+      const dv = b[dd] - a[dd];
+      if(Math.abs(dv) > 1e-9){
+        const di = dims.indexOf(dd);
+        const cy1 = (tans[di][i]*dt/3) / dv;
+        const cy2 = 1 - (tans[di][i+1]*dt/3) / dv;
+        a.curve = [0.333, +Math.max(-2, Math.min(3, cy1)).toFixed(3), 0.667, +Math.max(-2, Math.min(3, cy2)).toFixed(3)];
+      }
+    }
+  }
+  return keys;
+}
+
+function exportSpine(){
+  if(!layers.length){ statusEl.textContent='Load layers first.'; return; }
+  const p = getParams();
+  const span = Math.max(1, layers.length * p.spacing);
+  const fps = Number(expFpsEl.value);
+  const seqFps = Number(seqFpsEl.value);
+  const ver = spineVerEl.value; // '3.7' | '3.8' | '4.0' | '4.1' | '4.2'
+  const is4 = ver.startsWith('4');
+  const loop = computeLoopSeconds(p, span);
+  const frames = Math.max(2, Math.round(loop * fps));
+  const dir = (p.mode === 'backward') ? -1 : 1;
+  const latDir = (p.mode === 'lat_lr') ? -1 : (p.mode === 'lat_rl' ? 1 : 0);
+  const lateral = latDir !== 0;
+
+  // ---- Lateral modes: true tiled export ----------------------------------
+  // Mirror the live preview's tiling: every visible tile copy becomes its own
+  // bone+slot, all children of a per-layer "move" bone that slides exactly one
+  // tile step per cycle then snaps back (stepped). Tiles are spaced one step
+  // apart, so the snap is invisible — a perfectly seamless loop, no fades.
+  if(lateral){
+    const bones = [{name:'root'}];
+    const slots = [];
+    const attachments = {};
+    const boneTl = {}; const slotTl = {};
+    const swayOn = p.swayXAmp > 0 || p.swayYAmp > 0;
+    const baseNames = layerBaseNames();
+
+    // Static depth in lateral mode: setup order far -> near.
+    const orderLat = layers.map((l,i)=>({l,i, z0: layerState(l, p, span, 0, 0, 0).z}))
+      .sort((a,b)=> b.z0 - a.z0);
+
+    for(const o of orderLat){
+      const l = o.l, i = o.i;
+      const s0 = layerState(l, p, span, 0, 0, 0); // static z/scale/par in lateral
+      const rep = Math.max(1, Math.round(l.repeat||1));
+      const step = Math.max(4, p.speed * s0.par * loop / rep);
+      const cyc = loop / rep;
+      const delta = -latDir * step; // px drift over one cycle (matches preview)
+
+      // Optional sway parent bone (sampled + simplified curve).
+      let parentName = 'root';
+      if(swayOn){
+        const swayB = baseNames[i]+'_sway';
+        bones.push({name:swayB, parent:'root'});
+        const keys = [];
+        for(let f=0; f<=frames; f++){
+          const t = (f / frames) * loop;
+          keys.push({time:t,
+            x: p.swayXAmp * Math.sin(t * p.swaySpeed * 2*Math.PI*0.2) * s0.par,
+            y: -(p.swayYAmp * Math.sin(t * p.swaySpeed * 2*Math.PI*0.26) * s0.par)});
+        }
+        const simp = addBezier(simplifyKeys(keys, ['x','y'], 0.5), ['x','y'], is4);
+        boneTl[swayB] = {translate: simp.map(k=>({time:+k.time.toFixed(4), x:+k.x.toFixed(2), y:+k.y.toFixed(2), ...(k.curve?{curve:k.curve}:{})}))};
+        parentName = swayB;
+      }
+
+      // Move bone: sawtooth — slide one step, snap back, `repeat` cycles per loop.
+      const moveB = baseNames[i]+'_move';
+      bones.push({name:moveB, parent:parentName});
+      const eps = Math.min(0.004, cyc * 0.01);
+      const tr = [];
+      for(let c=0; c<rep; c++){
+        tr.push({time:+(c*cyc).toFixed(4), x:0, y:0});
+        tr.push({time:+((c+1)*cyc - eps).toFixed(4), x:+delta.toFixed(2), y:0, curve:'stepped'});
+      }
+      tr.push({time:+loop.toFixed(4), x:0, y:0});
+      boneTl[moveB] = {translate: tr};
+
+      // Static placement (sway excluded — it lives on the parent bone).
+      const conv = Math.max(0, Math.min(1, 1 - s0.scale));
+      const baseX = l.x + (-p.camX) * s0.par + p.vpX * conv;
+      const baseY = l.y + (-p.camY) * s0.par + p.vpY * conv;
+      const w = l.frames[0].width * s0.scale;
+
+      // Enough tile copies to cover the viewport at every move-bone position.
+      const lo = Math.min(0, delta), hi = Math.max(0, delta);
+      let kMin = Math.floor((-cv.width/2 - w/2 - hi - baseX) / step);
+      let kMax = Math.ceil(( cv.width/2 + w/2 - lo - baseX) / step);
+      if(kMax - kMin + 1 > 24){ kMax = kMin + 23; } // safety cap
+
+      const atts = {};
+      l.frameNames.forEach((fn, fi)=>{
+        atts[attachmentName(fn)] = {width:l.frames[fi].width, height:l.frames[fi].height};
+      });
+      // Sequence attachment timeline (same shape for every tile slot).
+      let attTl = null;
+      if(l.frames.length > 1){
+        attTl = [];
+        const stp = 1 / seqFps;
+        let prevIdx = -1;
+        for(let t=0; t<=loop + 1e-6; t+=stp){
+          const idx = Math.floor(t * seqFps) % l.frames.length;
+          if(idx !== prevIdx){ attTl.push({time:+Math.min(t,loop).toFixed(4), name: attachmentName(l.frameNames[idx])}); prevIdx = idx; }
+        }
+      }
+
+      for(let k=kMin, ti=0; k<=kMax; k++, ti++){
+        const nm = (kMax===kMin) ? baseNames[i] : baseNames[i]+'_t'+ti;
+        bones.push({name:nm, parent:moveB,
+          x:+(baseX + k*step).toFixed(2), y:+(-baseY).toFixed(2),
+          scaleX:+s0.scale.toFixed(4), scaleY:+s0.scale.toFixed(4)});
+        slots.push({name:nm, bone:nm, attachment: attachmentName(l.frameNames[0])});
+        attachments[nm] = atts;
+        if(attTl) slotTl[nm] = {attachment: attTl.map(a=>({...a}))};
+      }
+    }
+
+    const skins = (ver === '3.7') ? {default: attachments} : [{name:'default', attachments}];
+    const versionMap = {'3.7':'3.7.94','3.8':'3.8.75','4.0':'4.0.64','4.1':'4.1.24','4.2':'4.2.43'};
+    const spineVersion = versionMap[ver] || '4.2.43';
+    const json = {
+      skeleton: {spine: spineVersion, width: cv.width, height: cv.height, fps, images:'./images/'},
+      bones, slots, skins,
+      animations: { parallax: { slots: slotTl, bones: boneTl } }
+    };
+    downloadBlob(new Blob([JSON.stringify(json)], {type:'application/json'}), 'parallax_spine.json');
+    const keyCount = Object.values(boneTl).reduce((n,b)=>n+b.translate.length,0)
+      + Object.values(slotTl).reduce((n,s)=>n+(s.attachment?.length||0),0);
+    statusEl.textContent = `Exported Spine ${spineVersion} JSON (tiled): ${slots.length} tile slots, loop ${loop.toFixed(2)}s, ${keyCount} keys. Put layer PNGs in ./images/.`;
+    return;
+  }
+
+  // Slot setup order: far -> near at t=0.
+  const order0 = layers.map((l,i)=>({l,i}))
+    .map(o=>({...o, z0: layerState(o.l, p, span, 0, 0, 0).z}))
+    .sort((a,b)=> b.z0 - a.z0);
+  const baseNamesDepth = layerBaseNames();
+  const boneName = (i)=>baseNamesDepth[i];
+  const slotName = (i)=>baseNamesDepth[i];
+
+  const bones = [{name:'root'}];
+  const slots = [];
+  const attachments = {};
+  for(const o of order0){
+    bones.push({name: boneName(o.i), parent:'root'});
+    slots.push({name: slotName(o.i), bone: boneName(o.i), attachment: attachmentName(o.l.frameNames[0])});
+    // All frames of a sequence become attachments of the slot.
+    const atts = {};
+    o.l.frameNames.forEach((fn, fi)=>{
+      atts[attachmentName(fn)] = {width:o.l.frames[fi].width, height:o.l.frames[fi].height};
+    });
+    attachments[slotName(o.i)] = atts;
+  }
+  const setupIndex = {}; slots.forEach((s,idx)=>setupIndex[s.name]=idx);
+
+  // Slot color timeline key differs by version: 3.x = "color", 4.x = "rgba".
+  const colorKey = is4 ? 'rgba' : 'color';
+
+  // ---- Bake raw samples per layer, tracking wrap cycles for stepped keys ----
+  const raw = layers.map(()=>({tr:[], sc:[], al:[], cycle:null}));
+  const drawOrderTl = [];
+  let prevOrderKey = '';
+
+  for(let f=0; f<=frames; f++){
+    // Exact fraction of loop so the last sample lands exactly on t=loop (seamless).
+    const t = (f / frames) * loop;
+    const camZ = dir * p.speed * t;
+    let pf = p;
+    if(vpTrack){
+      const v = vpTrackAt(t % vpTrack.duration);
+      pf = {...p, vpX: v.x, vpY: v.y};
+    }
+    const states = layers.map((l,i)=>({i, l, s: layerState(l, pf, span, camZ, 0, t)}));
+
+    for(const st of states){
+      const rec = raw[st.i];
+      // Detect wrap: cycle index change => mark previous keys stepped
+      // so Spine snaps instead of sweeping backwards across the whole span.
+      const rep = Math.max(1, Math.round(st.l.repeat||1));
+      const period = span / rep;
+      const n = Math.floor(((st.l.baseZ + (st.l.zOff||0)) - camZ) / period);
+      if(rec.cycle !== null && n !== rec.cycle){
+        if(rec.tr.length){ rec.tr[rec.tr.length-1].stepped = true; }
+        if(rec.sc.length){ rec.sc[rec.sc.length-1].stepped = true; }
+        if(rec.al.length){ rec.al[rec.al.length-1].stepped = true; }
+      }
+      rec.cycle = n;
+      rec.tr.push({time:t, x:st.s.px, y:-st.s.py});
+      rec.sc.push({time:t, x:st.s.scale, y:st.s.scale});
+      rec.al.push({time:t, a:Math.max(0,Math.min(1,st.s.alpha))});
+    }
+
+    // Draw order timeline (depth modes reorder over time) — keys only on change.
+    const sorted = states.slice().sort((a,b)=> b.s.z - a.s.z);
+    const key = sorted.map(s=>s.i).join(',');
+    if(key !== prevOrderKey){
+      prevOrderKey = key;
+      const offsets = [];
+      sorted.forEach((st,newIdx)=>{
+        const off = newIdx - setupIndex[slotName(st.i)];
+        if(off !== 0) offsets.push({slot: slotName(st.i), offset: off, _setup: setupIndex[slotName(st.i)]});
+      });
+      // Spine requires offsets ordered by slot setup index, otherwise its
+      // reader over/underruns its internal arrays (aioob on import).
+      offsets.sort((a,b)=> a._setup - b._setup);
+      offsets.forEach(o=>delete o._setup);
+      drawOrderTl.push({time:+t.toFixed(4), offsets});
+    }
+  }
+
+  // ---- Simplify + convert to Spine timeline format ----
+  const boneTl = {}; const slotTl = {};
+  layers.forEach((l,i)=>{
+    const rec = raw[i];
+    const tr = addBezier(simplifyKeys(rec.tr, ['x','y'], 0.5), ['x','y'], is4);   // px tolerance
+    const sc = addBezier(simplifyKeys(rec.sc, ['x','y'], 0.004), ['x','y'], is4); // scale tolerance
+    const al = simplifyKeys(rec.al, ['a'], 0.008);       // alpha tolerance (~2/255), linear
+
+    const curveOf = (k)=> k.stepped ? {curve:'stepped'} : (k.curve ? {curve:k.curve} : {});
+    boneTl[boneName(i)] = {
+      translate: tr.map(k=>({time:+k.time.toFixed(4), x:+k.x.toFixed(2), y:+k.y.toFixed(2), ...curveOf(k)})),
+      scale: sc.map(k=>({time:+k.time.toFixed(4), x:+k.x.toFixed(4), y:+k.y.toFixed(4), ...curveOf(k)}))
+    };
+    const colorKeys = al.map(k=>{
+      const a = Math.round(k.a*255).toString(16).padStart(2,'0');
+      return {time:+k.time.toFixed(4), color:'ffffff'+a, ...(k.stepped?{curve:'stepped'}:{})};
+    });
+    slotTl[slotName(i)] = {[colorKey]: colorKeys};
+
+    // Attachment-swap timeline for sequences (works in every Spine version).
+    if(l.frames.length > 1){
+      const att = [];
+      const step = 1 / seqFps;
+      let prevIdx = -1;
+      for(let t=0; t<=loop + 1e-6; t+=step){
+        const idx = Math.floor(t * seqFps) % l.frames.length;
+        if(idx !== prevIdx){ // key only when the frame actually changes
+          att.push({time:+Math.min(t,loop).toFixed(4), name: attachmentName(l.frameNames[idx])});
+          prevIdx = idx;
+        }
+      }
+      slotTl[slotName(i)].attachment = att;
+    }
+  });
+
+  // Skins format differs: <=3.7 object map, >=3.8 array.
+  const skins = (ver === '3.7')
+    ? {default: attachments}
+    : [{name:'default', attachments}];
+  const versionMap = {'3.7':'3.7.94','3.8':'3.8.75','4.0':'4.0.64','4.1':'4.1.24','4.2':'4.2.43'};
+  const spineVersion = versionMap[ver] || '4.2.43';
+  // Draw order timeline key: "drawOrder" for 3.8+, "draworder" for 3.7 and earlier.
+  const drawOrderKey = (ver === '3.7') ? 'draworder' : 'drawOrder';
+  const anim = {
+    slots: slotTl,
+    bones: boneTl,
+    [drawOrderKey]: drawOrderTl
+  };
+
+  const json = {
+    skeleton: {spine: spineVersion, width: cv.width, height: cv.height, fps, images:'./images/'},
+    bones, slots,
+    skins,
+    animations: { parallax: anim }
+  };
+  downloadBlob(new Blob([JSON.stringify(json)], {type:'application/json'}), 'parallax_spine.json');
+  const keyCount = Object.values(boneTl).reduce((n,b)=>n+b.translate.length+b.scale.length,0)
+    + Object.values(slotTl).reduce((n,s)=>n+(s[colorKey]?.length||0)+(s.attachment?.length||0),0);
+  statusEl.textContent = `Exported Spine ${spineVersion} JSON: loop ${loop.toFixed(2)}s @ ${fps}fps, ${keyCount} keys after optimization. Put layer PNGs in ./images/.`;
+}
+
+async function exportImages(){
+  if(!layers.length){ statusEl.textContent='Load layers first.'; return; }
+  let count = 0;
+  for(const l of layers){
+    for(let fi=0; fi<l.frames.length; fi++){
+      const img = l.frames[fi];
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      await new Promise(res=>c.toBlob(b=>{ downloadBlob(b, attachmentName(l.frameNames[fi])+'.png'); res(); }, 'image/png'));
+      count++;
+    }
+  }
+  statusEl.textContent = `Exported ${count} PNG(s).`;
+}
+
+document.getElementById('exportSpineBtn').addEventListener('click', exportSpine);
+document.getElementById('exportImagesBtn').addEventListener('click', exportImages);
+</script>
+</body>
+</html>
