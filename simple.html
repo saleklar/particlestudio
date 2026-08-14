@@ -40,6 +40,28 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
 </style>
 </head>
 <body>
+<!-- ── V2 UPGRADE NOTICE ───────────────────────────────── -->
+<div id="v2-notice" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.65);align-items:center;justify-content:center">
+  <div style="background:#1e1e2e;border:1px solid #f90;border-radius:8px;padding:22px 28px;max-width:420px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6)">
+    <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:8px">🎉 Particle Studio <span style="color:#f90">v2</span> is available!</div>
+    <div style="font-size:12px;color:#aaa;margin-bottom:16px;line-height:1.5">You are using the old version. The new version adds Lights &amp; Shadows, a 3D Mesh Generator, emitter start delay and more.</div>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <a href="https://saleklar.github.io/particlestudio/simple.html" style="background:#c07000;border:1px solid #e09000;color:#fff;border-radius:4px;padding:7px 16px;font-size:12px;text-decoration:none;font-weight:600">🚀 Open v2</a>
+      <button onclick="dismissV2Notice()" style="background:#2e2e2e;border:1px solid #555;color:#ccc;border-radius:4px;padding:7px 16px;font-size:12px;cursor:pointer">Continue with old version</button>
+    </div>
+    <label style="display:block;margin-top:12px;font-size:10px;color:#666;cursor:pointer"><input type="checkbox" id="v2-notice-hide" style="vertical-align:middle;accent-color:#f90"> Don't show again</label>
+  </div>
+</div>
+<script>
+(function(){
+  try{ if(localStorage.getItem('psV2NoticeHidden')==='1') return; }catch(e){}
+  var el=document.getElementById('v2-notice'); if(el) el.style.display='flex';
+})();
+function dismissV2Notice(){
+  try{ if(document.getElementById('v2-notice-hide').checked) localStorage.setItem('psV2NoticeHidden','1'); }catch(e){}
+  document.getElementById('v2-notice').style.display='none';
+}
+</script>
 <div id="sidebar">
   <h1>Particle <span>Simple</span></h1>
   <div style="font-size:9px;color:#555;margin:-4px 0 8px">Sliders: mouse-wheel = one step · Shift+drag = fine adjust · click the number to type an exact value</div>
