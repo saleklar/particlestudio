@@ -2546,9 +2546,24 @@ function buildCfgFromSnapshot(snap, globalCfg){
     'vortexStr','vortexX','vortexY','turbStr','turbScale',
     'attractorStr','attractorRadius','attractorX','attractorY',
     'glowRadius','glowStr','pngSeqFPS'];
+  var defaults={emitRate:30, lifeMin:1.5, lifeMax:3.5, velMin:60, velMax:180, sizeStart:12, sizeEnd:0,
+    opStart:1, opEnd:0, gravY:120, maxVel:800, floorY:-1};
   numFields.forEach(function(k){
-    if(snap[k]!==undefined) c[k]=parseFloat(snap[k])||0;
-    else if(globalCfg[k]!==undefined) c[k]=globalCfg[k];
+    var val;
+    // Try snapshot first if  it has a valid value
+    if(snap[k]!==undefined && snap[k]!=='' && snap[k]!==null){
+      var parsed=parseFloat(snap[k]);
+      if(!isNaN(parsed)){ val=parsed; }
+    }
+    // Fall back to global config
+    if(val===undefined && globalCfg[k]!==undefined){
+      val=globalCfg[k];
+    }
+    // Last resort: use hardcoded default
+    if(val===undefined){
+      val=defaults[k]||0;
+    }
+    c[k]=val;
   });
   var strFields=['emitType','particleShape','pngSeqMode','blendMode','renderLayer','glowColor','glowBlend','exportName'];
   strFields.forEach(function(k){
@@ -3126,6 +3141,25 @@ var PRESETS=[
      drag:0.5,turbStr:70,turbScale:0.006,hueJitter:0,blendMode:'screen',motionBlur:0.2,
      glowRadius:0,glowStr:0,sizeJitter:40,spinJitter:10,emitX:400,emitY:560,boxW:900,boxH:20,
      grad:['#ffffff','#eeeeff','#ddddff','#ccccff']}
+   ]},
+  // ── WIN EVENTS ───────────────────────────────────────────
+  {name:'🎉 Win Events',
+   emitters:[
+    {name:'Celebration Burst',emitType:'ring',emitDir:0,emitSpread:360,emitRate:100,lifeMin:0.9,lifeMax:2.2,
+     velMin:140,velMax:420,sizeStart:14,sizeEnd:2,opStart:1,opEnd:0,gravX:0,gravY:-8,windX:0,windY:0,
+     drag:1.4,turbStr:70,turbScale:0.009,hueJitter:100,blendMode:'lighter',motionBlur:0.42,
+     glowRadius:18,glowStr:1.8,sizeJitter:50,spinJitter:180,emitX:400,emitY:300,emitRadius:0,
+     grad:['#ffffff','#ffff66','#ff8800','#ff0066']},
+    {name:'Rainbow Sparks',emitType:'ring',emitDir:0,emitSpread:360,emitRate:140,lifeMin:1.1,lifeMax:2.6,
+     velMin:160,velMax:480,sizeStart:7,sizeEnd:0,opStart:1,opEnd:0,gravX:0,gravY:-12,windX:0,windY:0,
+     drag:0.85,turbStr:45,turbScale:0.011,hueJitter:130,blendMode:'lighter',motionBlur:0.38,
+     glowRadius:14,glowStr:2.4,sizeJitter:65,spinJitter:360,emitX:400,emitY:300,emitRadius:0,
+     grad:['#ffffff','#ffff88','#ff88ff','#88ffff']},
+    {name:'Golden Confetti',emitType:'ring',emitDir:0,emitSpread:360,emitRate:80,lifeMin:0.7,lifeMax:2.0,
+     velMin:120,velMax:360,sizeStart:5,sizeEnd:0,opStart:0.95,opEnd:0,gravX:0,gravY:-5,windX:0,windY:0,
+     drag:1.1,turbStr:55,turbScale:0.01,hueJitter:120,blendMode:'lighter',motionBlur:0.3,
+     glowRadius:12,glowStr:2.6,sizeJitter:70,spinJitter:360,emitX:400,emitY:300,emitRadius:0,
+     grad:['#ffffff','#ffff00','#00ffff','#ff00ff']}
    ]}
 ];
 
@@ -3819,11 +3853,13 @@ function downloadJSON(data, filename){
 // ============================================================
 window.addEventListener('load', function(){
   setTimeout(function(){
+    // Reset preset selector to "None"
+    document.getElementById('presetSel').value='0';
     // Initialize emitter tabs
     buildEmitterTabs();
-    // Apply default Fire preset
-    applyPreset();
-    // Snapshot initial state into first emitter
+    // Reset all emitters to fresh state
+    resetSim();
+    // Save current UI state
     saveCfgToEmitter(0);
     updatePathPanel();
   },100);

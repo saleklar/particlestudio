@@ -15,6 +15,7 @@ h2{font-size:11px;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margi
 h2:hover{color:#fff}
 h2::before{content:'\25be';display:inline-block;margin-right:5px;color:#f90;transition:transform .12s ease}
 h2.collapsed::before{transform:rotate(-90deg)}
+.grp{margin:22px -10px 2px;padding:5px 10px;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#f90;background:#2a2318;border-top:1px solid #f9044;border-bottom:1px solid #f9044}
 .sec-body.collapsed{display:none}
 .row{display:flex;align-items:center;gap:5px;margin-bottom:5px}
 .row label{width:86px;flex-shrink:0;color:#999;font-size:11px}
@@ -34,7 +35,73 @@ h2.collapsed::before{transform:rotate(-90deg)}
 .tex-thumb:hover .x{display:block}
 #stage{flex:1;position:relative}
 canvas{display:block;width:100%;height:100%;cursor:crosshair}
-#hint{position:absolute;bottom:8px;left:10px;font-size:10px;color:#555;pointer-events:none}
+#kindPanel{position:absolute;top:150px;right:10px;width:262px;max-height:calc(100% - 200px);display:flex;flex-direction:column;background:rgba(16,16,20,.93);border:1px solid #3a3a3a;border-radius:6px;z-index:6;font-size:11px;color:#ccc;box-shadow:0 4px 18px rgba(0,0,0,.5)}
+#kindPanel .kphead{display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:move;border-bottom:1px solid #333;user-select:none}
+#kindPanel .kphead b{flex:1;color:#f90;font-size:11px;letter-spacing:.04em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#kindPanel .kpbtn{background:#2a2a2a;border:1px solid #444;color:#ccc;border-radius:3px;cursor:pointer;font-size:10px;padding:1px 6px}
+#kindPanel .kpbtn:hover{border-color:#f90;color:#fff}
+#kindPanel .kpbtn:disabled{opacity:.35;cursor:default}
+#kindPanel .kpbody{overflow-y:auto;padding:6px 8px}
+#kindPanel.collapsed .kpbody,#kindPanel.collapsed .kppick{display:none!important}
+#kindPanel .kprow{border:1px solid #2e2e2e;border-radius:4px;padding:5px;margin-bottom:6px;background:#1b1b1f}
+#kindPanel .kptop{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+#kindPanel .kptop img{width:36px;height:36px;object-fit:contain;background:#111;border:1px solid #444;border-radius:3px;cursor:pointer;flex:none}
+#kindPanel .kptop img:hover{border-color:#f90}
+#kindPanel .kpname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ddd;min-width:0}
+#kindPanel .kpline{display:flex;align-items:center;gap:6px;margin-top:2px}
+#kindPanel .kpline label{width:38px;color:#888;font-size:10px}
+#kindPanel .kpline input[type=range]{flex:1;accent-color:#f90;min-width:0}
+#kindPanel .kpline input[type=number]{width:52px;background:#222;border:1px solid #444;color:#ddd;font-size:10px;padding:1px 3px}
+#kindPanel .kppick{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;padding:6px;border-top:1px solid #333;max-height:220px;overflow-y:auto}
+#kindPanel .kppick img{width:100%;aspect-ratio:1;object-fit:contain;background:#111;border:1px solid #333;border-radius:3px;cursor:pointer}
+#kindPanel .kppick img:hover{border-color:#f90}
+.kbtn{flex:none;width:16px;height:16px;margin-left:3px;padding:0;border:none;background:none;color:#555;font-size:11px;line-height:16px;cursor:pointer}
+.kbtn:hover{color:#f90}
+.kbtn.kanim{color:#c87a00}
+.kbtn.kon{color:#ffb020;text-shadow:0 0 4px rgba(255,160,0,.7)}
+#tlKeys{position:absolute;left:0;right:0;top:-5px;height:9px;pointer-events:none}
+.tlkey{position:absolute;top:0;width:8px;height:8px;background:#ffb020;transform:rotate(45deg);border:1px solid #1a1a1a;cursor:pointer;pointer-events:auto}
+.tlkey:hover{background:#fff}
+#dopeSheet{position:absolute;left:0;right:0;bottom:32px;max-height:45%;display:none;flex-direction:column;background:rgba(14,14,18,.96);border-top:1px solid #3a3a3a;z-index:7;font-size:10px;color:#bbb;user-select:none}
+#dopeSheet .dshead{display:flex;gap:8px;align-items:center;padding:3px 8px;border-bottom:1px solid #2a2a2a}
+#dopeSheet .dshead b{color:#f90;font-size:10px;letter-spacing:.06em}
+#dopeSheet .dshelp{color:#666;margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dsInfo{color:#ffb020}
+#dsDel{background:#2a2a2a;border:1px solid #444;color:#ddd;border-radius:3px;cursor:pointer;font-size:10px;padding:1px 7px}
+#dsDel:hover{border-color:#f55;color:#fff}
+#dopeSheet .dsrulerrow{display:flex;height:16px;border-bottom:1px solid #2a2a2a;flex:none}
+#dopeSheet .dslabel{width:210px;flex:none;padding:0 6px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+#dopeSheet .dslabel:hover{color:#fff}
+#dsRuler{flex:1;position:relative;cursor:pointer}
+#dopeSheet .dstick{position:absolute;top:2px;font:9px monospace;color:#777;transform:translateX(-50%)}
+#dsRows{overflow-y:auto;position:relative;flex:1;min-height:0}
+#dopeSheet .dsgroup{padding:2px 6px;color:#f90;font-weight:700;background:#1a1610;border-bottom:1px solid #2a2a2a}
+#dopeSheet .dsrow{display:flex;height:18px;border-bottom:1px solid #222}
+#dopeSheet .dsrow:hover{background:#1c1c22}
+#dopeSheet .dslane{flex:1;position:relative;cursor:crosshair}
+#dopeSheet .dskey{position:absolute;top:4px;width:9px;height:9px;background:#c87a00;transform:rotate(45deg);border:1px solid #111;cursor:pointer}
+#dopeSheet .dskey:hover{background:#ffb020}
+#dopeSheet .dskey.sel{background:#fff;box-shadow:0 0 5px #ffb020}
+#dsMarq{position:absolute;border:1px dashed #ffb020;background:rgba(255,176,32,.1);display:none;pointer-events:none;z-index:2}
+#dsPlayhead{position:absolute;top:22px;bottom:0;width:1px;background:#ff5050;pointer-events:none;z-index:3}
+#dsEmpty{padding:10px;color:#777;display:none}
+#dsBtn{background:#2a2a2a;border:1px solid #444;color:#ddd;border-radius:3px;height:22px;cursor:pointer;font-size:10px;padding:0 8px;white-space:nowrap}
+#dsBtn:hover{border-color:#f90}
+#tex-mix{margin:4px 0 6px}
+#tex-mix .mixhead{display:flex;font-size:9px;color:#777;padding:0 2px 2px;gap:6px}
+#tex-mix .mixrow{display:flex;align-items:center;gap:6px;padding:2px;border-radius:3px}
+#tex-mix .mixrow:hover{background:#262626}
+#tex-mix img{width:22px;height:22px;object-fit:contain;background:#151515;border-radius:2px;flex:none}
+#tex-mix .mixname{flex:1;font-size:10px;color:#bbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#tex-mix input[type=number]{width:46px;background:#222;border:1px solid #444;color:#ddd;font-size:10px;padding:1px 3px}
+#tex-mix input[type=range]{width:64px;accent-color:#f90}
+#tex-mix .mixpct{width:30px;text-align:right;font:10px monospace;color:#f0c050}
+#hint{position:absolute;bottom:40px;left:10px;font-size:10px;color:#555;pointer-events:none}
+#timeline{position:absolute;left:0;right:0;bottom:0;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;background:rgba(16,16,20,.9);border-top:1px solid #333;z-index:5;user-select:none}
+#timeline input[type=range]{flex:1;accent-color:#f90;cursor:pointer;margin:0}
+#tlPlay{background:#2a2a2a;border:1px solid #444;color:#ddd;border-radius:3px;width:30px;height:22px;cursor:pointer;font-size:11px;padding:0}
+#tlPlay:hover{border-color:#f90}
+#tlLabel{font:11px monospace;color:#f0c050;min-width:86px;text-align:right}
 #stats{position:absolute;top:8px;right:10px;font:10px/1.5 monospace;color:#9a9a9a;background:rgba(14,14,14,.82);border:1px solid #333;border-radius:4px;padding:5px 9px;cursor:pointer;user-select:none;white-space:pre;text-align:right}
 #stats b{color:#f0c050;font-weight:700}
 #rec{display:none;position:absolute;top:8px;left:10px;font:bold 11px/1 monospace;color:#f44;background:rgba(14,14,14,.82);border:1px solid #a33;border-radius:4px;padding:5px 9px;pointer-events:none;user-select:none}
@@ -73,11 +140,16 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="resetScene()">🗑 Reset Scene</button>
   <button class="btn" onclick="openParallaxPanel()" title="Experimental feature: may change">🖼 Parallax Animator <small style="opacity:0.8;font-size:11px;margin-left:6px">(experimental)</small></button>
 
+  <div class="grp">Start</div>
   <h2>Presets</h2>
   <div class="row"><label>Preset</label><select id="presetSel" onchange="refreshPresetLabelEditor()">
     <option value="">— choose —</option>
     <option value="explosion">💥 Explosion</option>
     <option value="magicblast">🪄 Magic Blast</option>
+    <option value="camblow">💨 Blow at Camera</option>
+    <option value="magical_explosion">✨ Magical Explosion (sparkles)</option>
+    <option value="magical_wisps">🌌 Magical Wisps (layer 2)</option>
+    <option value="magical_glow">💫 Magical Glow (layer 3)</option>
     <option value="volcano">🌋 Volcano</option>
     <option value="rocket">🚀 Rocket Engine</option>
     <option value="nuke">☢️ Atom Bomb</option>
@@ -102,6 +174,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     <option value="embers">🕯 Embers</option>
     <option value="jackpot">💎 Jackpot</option>
     <option value="fire">🔥 Fire</option>
+    <option value="flame">🔥 Flame (licking teardrop)</option>
     <option value="twister">🌪 Twister</option>
     <option value="galaxy">🌌 Galaxy</option>
     <option value="snowball">🔮 Snowball</option>
@@ -109,9 +182,13 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     <option value="sparks">⚡ Sparks</option>
     <option value="lightning">🌩 Lightning (arc)</option>
     <option value="bubbles">🫧 Bubbles</option>
+    <option value="bubbletrans">🫧 Bubble Transition (50 frames)</option>
+    <option value="winevents">🎉 Win Events</option>
   </select></div>
   <div class="row"><label>Preset name</label><input type="text" id="presetLabel" placeholder="rename selected preset" oninput="renameSelectedPreset()"></div>
   <button class="btn" onclick="applyPreset()">Apply Preset</button>
+  <button class="btn" onclick="resetScene()">↻ Reset</button>
+  <button class="btn" onclick="savePreset()">💾 Save</button>
 
   <h2>Emitters</h2>
   <div id="emList" style="margin-bottom:4px"></div>
@@ -123,25 +200,6 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Loop path</label><input type="checkbox" id="emCapLoop" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">repeat playback until stopped</span></div>
   <div id="emCapInfo" style="font-size:10px;color:#666;margin-bottom:2px">Hold Ctrl while dragging the emitter to record its motion. Captured points: 0.</div>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Each emitter has its own Particle Image, Emitter, Motion, Attractor, Deflector, Appearance, Randomness and Mesh Deformer settings plus its own position — the sidebar edits the highlighted one. The 🌐 checkbox on a panel makes it global: that emitter’s values drive all emitters (only one owner per panel). Bodies, tint, curves, playback and export are always global. Click a name to edit it, ✎ or double-click to rename, 👁 toggles it, ⧉ duplicates it. In the Spine export each emitter becomes a parent bone (using its name) with its particles as child bones.</div>
-
-  <h2>Particle Image<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_image">🌐 all</span> <input type="checkbox" id="glob_image" onchange="onGlobToggle('image',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
-  <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
-  <button class="btn" onclick="mesh3dOpen()">🧊 3D Mesh Generator…</button>
-  <button class="btn" onclick="faceCapOpen()" title="Webcam → live 3D face mesh → particles. Snapshot or record a looping sequence into the gallery.">🎭 Face Capture…</button>
-  <div id="tex-gallery"></div>
-  <div id="seq-list"></div>
-  <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
-  <div class="row" id="seqFitRow" style="display:none"><label>Fit life</label><input type="checkbox" id="seqFitLife" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">play once over lifetime instead of looping</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox to load the remaining frames from its folder (the folder is granted once, then remembered — later sequences load silently). Plays as a flipbook, exports to Spine as a native sequence attachment (or per-frame attachment keys — see Export).</div>
-
-  <h2>Make Sheet</h2>
-  <div class="row"><label>Kind</label><select id="sheetKind"><option value="snowflake">Snowflake</option><option value="flake">Flake</option><option value="butterfly">Butterfly</option></select></div>
-  <div class="row"><label>Cell size</label><input type="number" id="sheetCellSize" value="256" min="64" max="1024" style="width:80px"><span class="val">px</span></div>
-  <div class="row"><label>Cols</label><input type="number" id="sheetCols" value="4" min="1" max="16" style="width:60px"><label style="width:40px">Rows</label><input type="number" id="sheetRows" value="4" min="1" max="16" style="width:60px"></div>
-  <div class="row"><label>Scale jitter</label><input type="range" id="sheetScaleJitter" min="0" max="100" value="30" oninput="sync(this)"><span class="val">30</span></div>
-  <div class="row"><label>Position jitter</label><input type="range" id="sheetPosJitter" min="0" max="0.5" step="0.01" value="0.2" oninput="sync(this)"><span class="val">0.20</span></div>
-  <div class="row"><label>Rotation jitter</label><input type="range" id="sheetRotJitter" min="0" max="180" value="45" oninput="sync(this)"><span class="val">45°</span></div>
-  <button class="btn" onclick="createSheetFromKind()">Create Sheet and Add to Gallery</button>
 
   <h2>Emitter<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_emitter">🌐 all</span> <input type="checkbox" id="glob_emitter" onchange="onGlobToggle('emitter',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Mode</label><select id="mode" onchange="onModeChange()"><option value="cont">Continuous</option><option value="burst">Burst</option></select></div>
@@ -160,7 +218,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
     <div class="row"><label>Rot Y °</label><input type="range" id="emitMeshRY" min="-180" max="180" value="0" oninput="sync(this)"><span class="val">0</span></div>
     <div class="row"><label>Spin °/s</label><input type="range" id="emitMeshSpin" min="-360" max="360" value="30" oninput="sync(this)"><span class="val">30</span></div>
   </div>
-  <div class="row"><label>Emitter W</label><input type="range" id="emitW" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
+  <div class="row"><label>Emitter W</label><input type="range" id="emitW" min="0" max="4000" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Emitter H</label><input type="range" id="emitH" min="0" max="1200" value="10" oninput="sync(this)"><span class="val">10</span></div>
   <div class="row"><label>Density</label><input type="range" id="emitDensity" min="-100" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Depth</label><input type="range" id="emitDepth" min="0" max="1000" value="0" oninput="sync(this)"><span class="val">0</span></div>
@@ -169,6 +227,67 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Path cycles</label><input type="range" id="emFollowSpeed" min="0.25" max="8" step="0.25" value="1" oninput="sync(this)"><span class="val">1</span></div>
   <div class="row"><label>Lifetime s</label><input type="range" id="life" min="0.2" max="10" step="0.1" value="2.5" oninput="sync(this)"><span class="val">2.5</span></div>
 
+  <div class="grp">Particle look</div>
+  <h2>Particle Image<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_image">🌐 all</span> <input type="checkbox" id="glob_image" onchange="onGlobToggle('image',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
+  <label class="btn" onclick="return pickImages(event)">📁 Load PNG(s)…<input type="file" accept="image/png,image/webp,image/gif" multiple style="display:none" onchange="loadImages(this)"></label>
+  <button class="btn" onclick="mesh3dOpen()">🧊 3D Mesh Generator…</button>
+  <button class="btn" onclick="faceCapOpen()" title="Webcam → live 3D face mesh → particles. Snapshot or record a looping sequence into the gallery.">🎭 Face Capture…</button>
+  <div id="tex-gallery"></div>
+  <div id="tex-mix"></div>
+  <div id="seq-list"></div>
+  <div class="row" id="seqFpsRow" style="display:none"><label>Seq FPS</label><input type="range" id="seqFps" min="1" max="60" value="30" oninput="sync(this)"><span class="val">30</span></div>
+  <div class="row" id="seqFitRow" style="display:none"><label>Fit life</label><input type="checkbox" id="seqFitLife" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">play once over lifetime instead of looping</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Uploads are saved to your browser library automatically. ✕ removes from library too. A numbered file (name_01…) is offered as a sequence — tick the checkbox to load the remaining frames from its folder (the folder is granted once, then remembered — later sequences load silently). Plays as a flipbook, exports to Spine as a native sequence attachment (or per-frame attachment keys — see Export).</div>
+
+  <h2>Make Sheet</h2>
+  <div class="row"><label>Kind</label><select id="sheetKind"><option value="snowflake">Snowflake</option><option value="flake">Flake</option><option value="butterfly">Butterfly</option></select></div>
+  <div class="row"><label>Cell size</label><input type="number" id="sheetCellSize" value="256" min="64" max="1024" style="width:80px"><span class="val">px</span></div>
+  <div class="row"><label>Cols</label><input type="number" id="sheetCols" value="4" min="1" max="16" style="width:60px"><label style="width:40px">Rows</label><input type="number" id="sheetRows" value="4" min="1" max="16" style="width:60px"></div>
+  <div class="row"><label>Scale X jitter</label><input type="range" id="sheetScaleJitter" min="0" max="100" value="30" oninput="sync(this)" title="How much each item's width may shrink at random (%)"><span class="val">30</span></div>
+  <div class="row"><label>Scale Y jitter</label><input type="range" id="sheetScaleJitterY" min="0" max="100" value="30" oninput="sync(this)" title="How much each item's height may shrink at random (%)"><span class="val">30</span></div>
+  <div class="row"><label>Uniform</label><input type="checkbox" id="sheetScaleLock" checked style="accent-color:#f90;cursor:pointer" title="On: width and height use the same random value (items keep their proportions). Off: width and height vary independently (squashed / stretched variants)."><span style="color:#888;font-size:10px">same random for X and Y</span></div>
+  <div class="row"><label>Position jitter</label><input type="range" id="sheetPosJitter" min="0" max="0.5" step="0.01" value="0.2" oninput="sync(this)"><span class="val">0.20</span></div>
+  <div class="row"><label>Rotation jitter</label><input type="range" id="sheetRotJitter" min="0" max="180" value="45" oninput="sync(this)"><span class="val">45°</span></div>
+  <div class="row"><label>Item size %</label><input type="range" id="sheetItemSize" min="20" max="300" value="90" oninput="sync(this)" title="Size of each item relative to its cell. Up to 100 = items stay apart; above 100 = items are bigger than their cells and overlap their neighbours (dense, packed sheets). Items are never cut at the sheet edge."><span class="val">90</span></div>
+  <button class="btn" onclick="createSheetFromKind()">Create Sheet and Add to Gallery</button>
+
+  <h2>Appearance<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_appearance">🌐 all</span> <input type="checkbox" id="glob_appearance" onchange="onGlobToggle('appearance',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
+  <div class="row"><label>Size</label><input type="range" id="size" min="2" max="1200" value="40" oninput="sync(this)"><span class="val">40</span></div>
+  <div class="row"><label>Size ±</label><input type="range" id="sizeVar" min="0" max="800" value="15" oninput="sync(this)"><span class="val">15</span></div>
+  <div class="row"><label>Stretch ×</label><input type="range" id="stretch" min="0.2" max="200" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
+  <div class="row"><label>Speed stretch</label><input type="range" id="speedStretch" min="0" max="20" step="0.1" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>End scale</label><input type="range" id="endScale" min="0" max="3" step="0.05" value="0.3" oninput="sync(this)"><span class="val">0.3</span></div>
+  <div class="row"><label>Size ramp ×</label><input type="range" id="sizeRamp" min="0.1" max="8" step="0.05" value="1" oninput="sync(this)"><span class="val">1</span></div>
+  <div class="row"><label>Wobble px</label><input type="range" id="wobAmp" min="0" max="200" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Squash %</label><input type="range" id="squash" min="0" max="60" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Wobble Hz</label><input type="range" id="wobHz" min="0.1" max="8" step="0.1" value="1.5" oninput="sync(this)"><span class="val">1.5</span></div>
+  <div class="row"><label>Spin °/s</label><input type="range" id="spin" min="-720" max="720" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Align motion</label><input type="checkbox" id="alignRot" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">rotate particle along its flight direction</span></div>
+  <div class="row"><label>Flap speed</label><input type="range" id="flapHz" min="0" max="20" step="0.5" value="7" oninput="sync(this)"><span class="val">7</span></div>
+  <div class="row"><label>Flap ± %</label><input type="range" id="flapVar" min="0" max="100" value="25" oninput="sync(this)"><span class="val">25</span></div>
+  <div class="row"><label>Face camera</label><input type="checkbox" id="faceCam" style="accent-color:#6cf;cursor:pointer"><span style="color:#888;font-size:10px">always billboard toward camera</span></div>
+  <div class="row"><label>Fade out</label><input type="range" id="fade" min="0" max="1" step="0.05" value="0.5" oninput="sync(this)"><span class="val">0.5</span></div>
+  <div class="row"><label>Scale curve</label><input type="checkbox" id="scaleCurveOn" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">size over lifetime (overrides End scale)</span></div>
+  <canvas id="scaleCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
+  <div class="row"><label>Alpha curve</label><input type="checkbox" id="alphaCurveOn" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">opacity over lifetime (overrides Fade out)</span></div>
+  <canvas id="alphaCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
+  <div class="row"><label>Blend</label><select id="blend"><option value="source-over">Normal</option><option value="lighter">Additive</option></select></div>
+  <div class="row"><label>Tint</label><select id="tintMode"><option value="off" selected>Off</option><option value="const">Constant</option><option value="life">Over life (gradient)</option><option value="rand">Random from gradient</option></select></div>
+  <div class="row"><label>Color</label><input type="color" id="tintColor" value="#ffffff" style="flex:1;height:22px;background:#2a2a2a;border:1px solid #444;border-radius:3px;padding:1px;cursor:pointer"></div>
+  <canvas id="tintGrad" width="256" height="30" style="width:100%;height:30px;border:1px solid #333;border-radius:3px;margin-bottom:3px;cursor:crosshair;display:block"></canvas>
+  <div class="row"><label>Stop color</label><input type="color" id="tintStopColor" value="#ff8800" style="flex:1;height:22px;background:#2a2a2a;border:1px solid #444;border-radius:3px;padding:1px;cursor:pointer"></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Tint multiplies the image color and exports as Spine slot color keys. Gradient: click to add a stop, drag to move, double-click to remove.</div>
+
+  <h2>Lightning</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="lgtOn" onchange="onLgtToggle()" style="accent-color:#9cf;cursor:pointer"><span style="color:#888;font-size:10px">arc: ● emitter → ◎ attractor</span></div>
+  <div class="row"><label>Detail</label><input type="range" id="lgtDepth" min="1" max="6" value="3" oninput="sync(this);lgtFromUI()"><span class="val">3</span></div>
+  <div class="row"><label>Roughness</label><input type="range" id="lgtRough" min="0" max="0.8" step="0.05" value="0.35" oninput="sync(this);lgtFromUI()"><span class="val">0.35</span></div>
+  <div class="row"><label>Flicker Hz</label><input type="range" id="lgtHz" min="0" max="30" step="1" value="12" oninput="sync(this);lgtFromUI()"><span class="val">12</span></div>
+  <div class="row"><label>Branches</label><input type="range" id="lgtBranch" min="0" max="4" value="1" oninput="sync(this);lgtFromUI()"><span class="val">1</span></div>
+  <div class="row"><label>Branch len %</label><input type="range" id="lgtBranchLen" min="5" max="60" value="15" oninput="sync(this);lgtFromUI()"><span class="val">15</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Detail doubles the segments each step (3 = 8 segments = 8 particles). Roughness = how jagged. Flicker Hz = reshapes per second (0 = frozen bolt). Thickness = the Size slider, colour = Appearance → Tint, brightness = Blend “Add”. Drag ● and ◎ on the canvas to move the endpoints.</div>
+
+  <div class="grp">Movement</div>
   <h2>Motion<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_motion">🌐 all</span> <input type="checkbox" id="glob_motion" onchange="onGlobToggle('motion',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Speed</label><input type="range" id="speed" min="0" max="12000" value="150" oninput="sync(this)"><span class="val">150</span></div>
   <div class="row"><label>Speed ±</label><input type="range" id="speedVar" min="0" max="6000" value="50" oninput="sync(this)"><span class="val">50</span></div>
@@ -188,6 +307,23 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Path follow</label><select id="pFollowPath"><option value="">— none —</option></select></div>
   <div class="row"><label>Path weight</label><input type="range" id="pFollowW" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
 
+  <h2>Randomness<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_random">🌐 all</span> <input type="checkbox" id="glob_random" onchange="onGlobToggle('random',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
+  <div class="row"><label>Master %</label><input type="range" id="randAll" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Life ±%</label><input type="range" id="randLife" min="0" max="100" value="25" oninput="sync(this)"><span class="val">25</span></div>
+  <div class="row"><label>Spin ±%</label><input type="range" id="randSpin" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Gravity ±%</label><input type="range" id="randGrav" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Scale ±%</label><input type="range" id="randScale" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Fade ±%</label><input type="range" id="randFade" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Opacity ±%</label><input type="range" id="randOpacity" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
+
+  <h2>Paths</h2>
+  <div id="pathList" style="margin-bottom:4px"></div>
+  <div class="row"><label>Type</label><select id="pathType"><option value="bezier" selected>Bezier (S-curve)</option><option value="circle">Circle</option><option value="square">Square</option><option value="line">Line</option></select></div>
+  <button class="btn" onclick="addPath()">+ Add Path</button>
+  <div class="row"><label>Show paths</label><input type="checkbox" id="pathShow" checked style="accent-color:#3f6;cursor:pointer"></div>
+  <div class="row"><label>3D camera</label><input type="checkbox" id="g3d_path" checked style="accent-color:#6cf;cursor:pointer"><span style="color:#888;font-size:10px">paths rotate with the 3D camera</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Global path library — every type becomes an editable spline. Click a path in the list to select it, then sculpt on canvas: drag the green anchors, drag the line to move the whole path, double-click the line to add a vertex, double-click an anchor to remove it. Use a path in the Emitter panel (“Follow path”: the emitter rides it, Path cycles = laps per animation loop) and/or in Motion (“Path follow”: particles steer along it, Path weight = how strictly).</div>
+
   <h2>Attractor<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_attractor">🌐 all</span> <input type="checkbox" id="glob_attractor" onchange="onGlobToggle('attractor',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="attractOn" onchange="onAttractToggle()" style="accent-color:#3cf;cursor:pointer"><span style="color:#888;font-size:10px">drag the ◎ marker on canvas</span></div>
   <div class="row"><label>Force</label><input type="range" id="attractForce" min="-3000" max="3000" step="10" value="600" oninput="sync(this)"><span class="val">600</span></div>
@@ -198,15 +334,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="centerAttractor()">◎ Center Attractor</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Positive force pulls particles in, negative pushes them away. Radius 0 = infinite range. Shape: pick a path from the Paths panel and particles are pulled toward (or pushed away from) the nearest point on it instead of the ◎ marker.</div>
 
-  <h2>Lightning</h2>
-  <div class="row"><label>Enable</label><input type="checkbox" id="lgtOn" onchange="onLgtToggle()" style="accent-color:#9cf;cursor:pointer"><span style="color:#888;font-size:10px">arc: ● emitter → ◎ attractor</span></div>
-  <div class="row"><label>Detail</label><input type="range" id="lgtDepth" min="1" max="6" value="3" oninput="sync(this);lgtFromUI()"><span class="val">3</span></div>
-  <div class="row"><label>Roughness</label><input type="range" id="lgtRough" min="0" max="0.8" step="0.05" value="0.35" oninput="sync(this);lgtFromUI()"><span class="val">0.35</span></div>
-  <div class="row"><label>Flicker Hz</label><input type="range" id="lgtHz" min="0" max="30" step="1" value="12" oninput="sync(this);lgtFromUI()"><span class="val">12</span></div>
-  <div class="row"><label>Branches</label><input type="range" id="lgtBranch" min="0" max="4" value="1" oninput="sync(this);lgtFromUI()"><span class="val">1</span></div>
-  <div class="row"><label>Branch len %</label><input type="range" id="lgtBranchLen" min="5" max="60" value="15" oninput="sync(this);lgtFromUI()"><span class="val">15</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Detail doubles the segments each step (3 = 8 segments = 8 particles). Roughness = how jagged. Flicker Hz = reshapes per second (0 = frozen bolt). Thickness = the Size slider, colour = Appearance → Tint, brightness = Blend “Add”. Drag ● and ◎ on the canvas to move the endpoints.</div>
-
+  <div class="grp">Collisions</div>
   <h2>Deflector<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_deflector">🌐 all</span> <input type="checkbox" id="glob_deflector" onchange="onGlobToggle('deflector',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="defOn" onchange="onDefToggle()" style="accent-color:#6d6;cursor:pointer"><span style="color:#888;font-size:10px">dbl-click line: add point</span></div>
   <div class="row"><label>Shape</label><select id="defPath"><option value="">— own line —</option></select></div>
@@ -222,6 +350,37 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="centerDeflector()">─ Reset Deflector</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">A shapeable surface particles collide with. Double-click the line to add points, double-click a point to remove it. Bounce reflects particles, Die removes them, Transform swaps the image for a short second life. Shape: pick a path from the Paths panel (circle, square, bezier…) to use it as the collision surface instead of the own line.</div>
 
+  <h2>3D Collider</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="col3dOn" style="accent-color:#6ff;cursor:pointer"><span style="color:#888;font-size:10px">glass ball / box in 3D space</span></div>
+  <div class="row"><label>Shape</label><select id="col3dShape"><option value="sphere" selected>Sphere</option><option value="box">Box</option></select></div>
+  <div class="row"><label>Mode</label><select id="col3dMode"><option value="contain" selected>Contain (keep inside)</option><option value="solid">Solid (bounce off)</option></select></div>
+  <div class="row"><label>Center X %</label><input type="range" id="col3dX" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
+  <div class="row"><label>Center Y %</label><input type="range" id="col3dY" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
+  <div class="row"><label>Radius</label><input type="range" id="col3dR" min="40" max="1200" step="5" value="340" oninput="sync(this)"><span class="val">340</span></div>
+  <div class="row"><label>Box W</label><input type="range" id="col3dW" min="40" max="2000" step="10" value="700" oninput="sync(this)"><span class="val">700</span></div>
+  <div class="row"><label>Box H</label><input type="range" id="col3dH" min="40" max="2000" step="10" value="500" oninput="sync(this)"><span class="val">500</span></div>
+  <div class="row"><label>Box depth</label><input type="range" id="col3dD" min="40" max="2000" step="10" value="500" oninput="sync(this)"><span class="val">500</span></div>
+  <div class="row"><label>Bounce</label><input type="range" id="col3dBounce" min="0" max="3" step="0.05" value="0.4" oninput="sync(this)"><span class="val">0.4</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">A true 3D collision volume: particles bounce on its wall in X/Y/Z — Contain traps them inside a closed glass ball or box (great with the 3D camera orbiting), Solid makes an obstacle they bounce off. Sphere uses Radius; Box uses W/H/Depth. Deterministic — baked into all exports. The Snowball preset uses a contained sphere.</div>
+
+  <h2>PSD Bodies</h2>
+  <div class="row"><label>Physics</label><input type="checkbox" id="bodiesOn" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">drag bodies on canvas</span></div>
+  <label class="btn">🗂 Import PSD…<input type="file" accept=".psd" style="display:none" onchange="importPSD(this)"></label>
+  <div id="bodyList" style="margin-bottom:5px"></div>
+  <div class="row"><label>Bounce</label><input type="range" id="bodyBounce" min="0" max="3" step="0.05" value="0.4" oninput="sync(this)"><span class="val">0.4</span></div>
+  <div class="row"><label>Friction</label><input type="range" id="bodyFriction" min="0" max="1" step="0.05" value="0.2" oninput="sync(this)"><span class="val">0.2</span></div>
+  <div class="row"><label>Gravity</label><input type="range" id="bodyGravity" min="0" max="3000" step="10" value="800" oninput="sync(this)"><span class="val">800</span></div>
+  <div class="row"><label>Speed ×</label><input type="range" id="bodySpeed" min="0.1" max="3" step="0.05" value="1" oninput="sync(this)"><span class="val">1</span></div>
+  <div class="row"><label>Start speed</label><input type="range" id="bodyStartSpeed" min="0" max="3000" step="10" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Ball size %</label><input type="range" id="bodyColScale" min="30" max="150" step="1" value="92" oninput="sync(this)"><span class="val">92</span></div>
+  <div class="row"><label>Mutual hits</label><input type="checkbox" id="bodyMutual" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">balls bounce off each other</span></div>
+  <div class="row"><label>Forces</label><input type="checkbox" id="bodyForces" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">turbulence, attractor, vortex, paths, mesh, deflector, 3D collider</span></div>
+  <div class="row"><label>Loop reset</label><input type="checkbox" id="bodyLoopReset" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">bodies restart from their start pose every loop</span></div>
+  <div class="row"><label>Outlines</label><input type="checkbox" id="bodyOutlines" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">green static · orange dynamic</span></div>
+  <button class="btn" onclick="bodies.length=0;rebuildBodyList()">✕ Clear Bodies</button>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Photoshop layers become pixel-accurate colliders. Static bodies block particles; dynamic bodies fall with gravity, bounce off statics and stage edges, and can be thrown with the mouse. Ball bodies are round dynamics that also bounce off each other (Mutual hits) — pick roles in the import dialog. Preview only — not exported.</div>
+
+  <div class="grp">Distortion</div>
   <h2>Mesh Deformer<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_mesh">🌐 all</span> <input type="checkbox" id="glob_mesh" onchange="onGlobToggle('mesh',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="meshOn" onchange="onMeshToggle()" style="accent-color:#c6f;cursor:pointer"><span style="color:#888;font-size:10px">drag vertices on canvas</span></div>
   <div class="row"><label>Grid</label><input type="range" id="meshN" min="3" max="12" value="5" oninput="sync(this);meshRebuild()"><span class="val">5</span></div>
@@ -242,14 +401,15 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="clearDispMap()">✕ Clear Displacement Map</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">The image is stretched over the whole canvas and sampled per particle: mid-grey (or 50% of the chosen channel) = no push, brighter pushes along +X/+Y, darker along −X/−Y — negative strengths flip the direction. Deterministic, so loops and exports match the preview.</div>
 
-  <h2>Paths</h2>
-  <div id="pathList" style="margin-bottom:4px"></div>
-  <div class="row"><label>Type</label><select id="pathType"><option value="bezier" selected>Bezier (S-curve)</option><option value="circle">Circle</option><option value="square">Square</option><option value="line">Line</option></select></div>
-  <button class="btn" onclick="addPath()">+ Add Path</button>
-  <div class="row"><label>Show paths</label><input type="checkbox" id="pathShow" checked style="accent-color:#3f6;cursor:pointer"></div>
-  <div class="row"><label>3D camera</label><input type="checkbox" id="g3d_path" checked style="accent-color:#6cf;cursor:pointer"><span style="color:#888;font-size:10px">paths rotate with the 3D camera</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Global path library — every type becomes an editable spline. Click a path in the list to select it, then sculpt on canvas: drag the green anchors, drag the line to move the whole path, double-click the line to add a vertex, double-click an anchor to remove it. Use a path in the Emitter panel (“Follow path”: the emitter rides it, Path cycles = laps per animation loop) and/or in Motion (“Path follow”: particles steer along it, Path weight = how strictly).</div>
+  <h2>Bulge Lens</h2>
+  <div class="row"><label>Enable</label><input type="checkbox" id="bulgeOn" style="accent-color:#9cf;cursor:pointer"><span style="color:#888;font-size:10px">glass-ball magnifier</span></div>
+  <div class="row"><label>Scale</label><input type="range" id="bulgeScale" min="0.3" max="4" step="0.05" value="1.8" oninput="sync(this)"><span class="val">1.8</span></div>
+  <div class="row"><label>Range</label><input type="range" id="bulgeRange" min="40" max="1200" step="10" value="320" oninput="sync(this)"><span class="val">320</span></div>
+  <div class="row"><label>Center X %</label><input type="range" id="bulgeX" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
+  <div class="row"><label>Center Y %</label><input type="range" id="bulgeY" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
+  <div style="font-size:10px;color:#666;margin-bottom:2px">Simulates a glass lens: particles inside the range are magnified and pushed outward, strongest at the centre and fading smoothly to the rim — like snowflakes seen through the glass of a snow globe. Purely visual, applied after the 3D camera, and baked into Spine + PNG exports. Scale &lt; 1 makes a shrinking (concave) lens.</div>
 
+  <div class="grp">Scene &amp; render</div>
   <h2>3D Camera</h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="cam3dOn" style="accent-color:#6cf;cursor:pointer"><span style="color:#888;font-size:10px">Alt+drag canvas to orbit</span></div>
   <div class="row"><label>Yaw °</label><input type="range" id="camYaw" min="-180" max="180" value="0" oninput="sync(this)"><span class="val">0</span></div>
@@ -265,44 +425,6 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div style="font-size:10px;color:#666;margin-bottom:2px">Camera keyframes: scrub the sliders to a pose, press “+ Key at Playhead” — the key is stamped at the current loop position (%). The camera glides between keys (wrapping seamlessly when Loop is on) and Orbit °/s is added on top. Deterministic — baked into Spine + PNG exports. ⤒ loads a key into the sliders, ⟲ overwrites it with the current sliders.</div>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Simulates particles in 3D: velocities spread into depth, the Emitter’s Depth slider gives the shape thickness, and the camera orbits the emitter (single emitter) or the canvas centre. Orbit °/s auto-rotates over time — for a seamless loop use 360 ÷ loop seconds. Perspective = focal length (small = strong). Baked into Spine + PNG exports as projected 2D. Deflector, mesh and bodies act on the ground plane (X/Y).</div>
 
-  <h2>PSD Bodies</h2>
-  <div class="row"><label>Physics</label><input type="checkbox" id="bodiesOn" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">drag bodies on canvas</span></div>
-  <label class="btn">🗂 Import PSD…<input type="file" accept=".psd" style="display:none" onchange="importPSD(this)"></label>
-  <div id="bodyList" style="margin-bottom:5px"></div>
-  <div class="row"><label>Bounce</label><input type="range" id="bodyBounce" min="0" max="3" step="0.05" value="0.4" oninput="sync(this)"><span class="val">0.4</span></div>
-  <div class="row"><label>Friction</label><input type="range" id="bodyFriction" min="0" max="1" step="0.05" value="0.2" oninput="sync(this)"><span class="val">0.2</span></div>
-  <div class="row"><label>Gravity</label><input type="range" id="bodyGravity" min="0" max="3000" step="10" value="800" oninput="sync(this)"><span class="val">800</span></div>
-  <div class="row"><label>Speed ×</label><input type="range" id="bodySpeed" min="0.1" max="3" step="0.05" value="1" oninput="sync(this)"><span class="val">1</span></div>
-  <div class="row"><label>Start speed</label><input type="range" id="bodyStartSpeed" min="0" max="3000" step="10" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Ball size %</label><input type="range" id="bodyColScale" min="30" max="150" step="1" value="92" oninput="sync(this)"><span class="val">92</span></div>
-  <div class="row"><label>Mutual hits</label><input type="checkbox" id="bodyMutual" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">balls bounce off each other</span></div>
-  <div class="row"><label>Forces</label><input type="checkbox" id="bodyForces" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">turbulence, attractor, vortex, paths, mesh, deflector, 3D collider</span></div>
-  <div class="row"><label>Loop reset</label><input type="checkbox" id="bodyLoopReset" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">bodies restart from their start pose every loop</span></div>
-  <div class="row"><label>Outlines</label><input type="checkbox" id="bodyOutlines" checked style="accent-color:#c9f;cursor:pointer"><span style="color:#888;font-size:10px">green static · orange dynamic</span></div>
-  <button class="btn" onclick="bodies.length=0;rebuildBodyList()">✕ Clear Bodies</button>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Photoshop layers become pixel-accurate colliders. Static bodies block particles; dynamic bodies fall with gravity, bounce off statics and stage edges, and can be thrown with the mouse. Ball bodies are round dynamics that also bounce off each other (Mutual hits) — pick roles in the import dialog. Preview only — not exported.</div>
-
-  <h2>Bulge Lens</h2>
-  <div class="row"><label>Enable</label><input type="checkbox" id="bulgeOn" style="accent-color:#9cf;cursor:pointer"><span style="color:#888;font-size:10px">glass-ball magnifier</span></div>
-  <div class="row"><label>Scale</label><input type="range" id="bulgeScale" min="0.3" max="4" step="0.05" value="1.8" oninput="sync(this)"><span class="val">1.8</span></div>
-  <div class="row"><label>Range</label><input type="range" id="bulgeRange" min="40" max="1200" step="10" value="320" oninput="sync(this)"><span class="val">320</span></div>
-  <div class="row"><label>Center X %</label><input type="range" id="bulgeX" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
-  <div class="row"><label>Center Y %</label><input type="range" id="bulgeY" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Simulates a glass lens: particles inside the range are magnified and pushed outward, strongest at the centre and fading smoothly to the rim — like snowflakes seen through the glass of a snow globe. Purely visual, applied after the 3D camera, and baked into Spine + PNG exports. Scale &lt; 1 makes a shrinking (concave) lens.</div>
-
-  <h2>3D Collider</h2>
-  <div class="row"><label>Enable</label><input type="checkbox" id="col3dOn" style="accent-color:#6ff;cursor:pointer"><span style="color:#888;font-size:10px">glass ball / box in 3D space</span></div>
-  <div class="row"><label>Shape</label><select id="col3dShape"><option value="sphere" selected>Sphere</option><option value="box">Box</option></select></div>
-  <div class="row"><label>Mode</label><select id="col3dMode"><option value="contain" selected>Contain (keep inside)</option><option value="solid">Solid (bounce off)</option></select></div>
-  <div class="row"><label>Center X %</label><input type="range" id="col3dX" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
-  <div class="row"><label>Center Y %</label><input type="range" id="col3dY" min="0" max="100" value="50" oninput="sync(this)"><span class="val">50</span></div>
-  <div class="row"><label>Radius</label><input type="range" id="col3dR" min="40" max="1200" step="5" value="340" oninput="sync(this)"><span class="val">340</span></div>
-  <div class="row"><label>Box W</label><input type="range" id="col3dW" min="40" max="2000" step="10" value="700" oninput="sync(this)"><span class="val">700</span></div>
-  <div class="row"><label>Box H</label><input type="range" id="col3dH" min="40" max="2000" step="10" value="500" oninput="sync(this)"><span class="val">500</span></div>
-  <div class="row"><label>Box depth</label><input type="range" id="col3dD" min="40" max="2000" step="10" value="500" oninput="sync(this)"><span class="val">500</span></div>
-  <div class="row"><label>Bounce</label><input type="range" id="col3dBounce" min="0" max="3" step="0.05" value="0.4" oninput="sync(this)"><span class="val">0.4</span></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">A true 3D collision volume: particles bounce on its wall in X/Y/Z — Contain traps them inside a closed glass ball or box (great with the 3D camera orbiting), Solid makes an obstacle they bounce off. Sphere uses Radius; Box uses W/H/Depth. Deterministic — baked into all exports. The Snowball preset uses a contained sphere.</div>
-
   <h2>Lights &amp; Shadows</h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="lightsOn" style="accent-color:#ffd54f;cursor:pointer"><span style="color:#888;font-size:10px">drag lights on canvas</span></div>
   <div class="row"><label>Shadows</label><input type="checkbox" id="lightShadow" checked style="accent-color:#ffd54f;cursor:pointer"><span style="color:#888;font-size:10px">out of light = black</span></div>
@@ -316,38 +438,6 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Angle °</label><input type="range" id="lightAngle" min="-180" max="180" value="90" oninput="sync(this);onLightEdit()"><span class="val">90</span></div>
   <div class="row"><label>Cone °</label><input type="range" id="lightCone" min="5" max="90" value="30" oninput="sync(this);onLightEdit()"><span class="val">30</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Add lights and drag them on the canvas; the sliders edit the selected light. With Shadows on, particles outside every light’s range fade to black (Feather = how soft the edge is); with Shadows off, lights only add their colour. Light colours multiply into the existing particle tint — and into the slot tint of the Spine export, so the lighting survives in Spine. Point = radius falloff · Spot = cone (Angle + Cone) · Directional = even fill light.</div>
-
-  <h2>Appearance<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_appearance">🌐 all</span> <input type="checkbox" id="glob_appearance" onchange="onGlobToggle('appearance',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
-  <div class="row"><label>Size</label><input type="range" id="size" min="2" max="1200" value="40" oninput="sync(this)"><span class="val">40</span></div>
-  <div class="row"><label>Size ±</label><input type="range" id="sizeVar" min="0" max="800" value="15" oninput="sync(this)"><span class="val">15</span></div>
-  <div class="row"><label>Stretch ×</label><input type="range" id="stretch" min="0.2" max="200" step="0.1" value="1" oninput="sync(this)"><span class="val">1</span></div>
-  <div class="row"><label>Speed stretch</label><input type="range" id="speedStretch" min="0" max="20" step="0.1" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>End scale</label><input type="range" id="endScale" min="0" max="3" step="0.05" value="0.3" oninput="sync(this)"><span class="val">0.3</span></div>
-  <div class="row"><label>Spin °/s</label><input type="range" id="spin" min="-720" max="720" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Align motion</label><input type="checkbox" id="alignRot" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">rotate particle along its flight direction</span></div>
-  <div class="row"><label>Flap speed</label><input type="range" id="flapHz" min="0" max="20" step="0.5" value="7" oninput="sync(this)"><span class="val">7</span></div>
-  <div class="row"><label>Flap ± %</label><input type="range" id="flapVar" min="0" max="100" value="25" oninput="sync(this)"><span class="val">25</span></div>
-  <div class="row"><label>Face camera</label><input type="checkbox" id="faceCam" style="accent-color:#6cf;cursor:pointer"><span style="color:#888;font-size:10px">always billboard toward camera</span></div>
-  <div class="row"><label>Fade out</label><input type="range" id="fade" min="0" max="1" step="0.05" value="0.5" oninput="sync(this)"><span class="val">0.5</span></div>
-  <div class="row"><label>Scale curve</label><input type="checkbox" id="scaleCurveOn" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">size over lifetime (overrides End scale)</span></div>
-  <canvas id="scaleCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
-  <div class="row"><label>Alpha curve</label><input type="checkbox" id="alphaCurveOn" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">opacity over lifetime (overrides Fade out)</span></div>
-  <canvas id="alphaCurve" width="256" height="64" style="width:100%;height:64px;background:#141414;border:1px solid #333;border-radius:3px;margin-bottom:5px;cursor:crosshair;display:block"></canvas>
-  <div class="row"><label>Blend</label><select id="blend"><option value="source-over">Normal</option><option value="lighter">Additive</option></select></div>
-  <div class="row"><label>Tint</label><select id="tintMode"><option value="off" selected>Off</option><option value="const">Constant</option><option value="life">Over life (gradient)</option><option value="rand">Random from gradient</option></select></div>
-  <div class="row"><label>Color</label><input type="color" id="tintColor" value="#ffffff" style="flex:1;height:22px;background:#2a2a2a;border:1px solid #444;border-radius:3px;padding:1px;cursor:pointer"></div>
-  <canvas id="tintGrad" width="256" height="30" style="width:100%;height:30px;border:1px solid #333;border-radius:3px;margin-bottom:3px;cursor:crosshair;display:block"></canvas>
-  <div class="row"><label>Stop color</label><input type="color" id="tintStopColor" value="#ff8800" style="flex:1;height:22px;background:#2a2a2a;border:1px solid #444;border-radius:3px;padding:1px;cursor:pointer"></div>
-  <div style="font-size:10px;color:#666;margin-bottom:2px">Tint multiplies the image color and exports as Spine slot color keys. Gradient: click to add a stop, drag to move, double-click to remove.</div>
-
-  <h2>Randomness<label style="float:right;font-weight:400;font-size:9px;color:#888;cursor:pointer"><span id="globhint_random">🌐 all</span> <input type="checkbox" id="glob_random" onchange="onGlobToggle('random',this.checked)" style="accent-color:#f90;vertical-align:middle;cursor:pointer"></label></h2>
-  <div class="row"><label>Master %</label><input type="range" id="randAll" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Life ±%</label><input type="range" id="randLife" min="0" max="100" value="25" oninput="sync(this)"><span class="val">25</span></div>
-  <div class="row"><label>Spin ±%</label><input type="range" id="randSpin" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Gravity ±%</label><input type="range" id="randGrav" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Scale ±%</label><input type="range" id="randScale" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Fade ±%</label><input type="range" id="randFade" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
-  <div class="row"><label>Opacity ±%</label><input type="range" id="randOpacity" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
 
   <h2>FX Filters</h2>
   <div class="row"><label>Enable</label><input type="checkbox" id="fxOn" style="accent-color:#f6c;cursor:pointer"><span style="color:#888;font-size:10px">post-process filters</span></div>
@@ -370,6 +460,9 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Live preview</label><input type="checkbox" id="fxPreview" checked style="accent-color:#f6c;cursor:pointer"><span style="color:#888;font-size:10px">show filters on the canvas (can cost fps)</span></div>
   <div class="row"><label>Blur px</label><input type="range" id="fxBlur" min="0" max="20" step="0.5" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Motion blur %</label><input type="range" id="fxEcho" min="0" max="95" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Heat warp px</label><input type="range" id="fxWarp" min="0" max="60" value="0" oninput="sync(this)"><span class="val">0</span></div>
+  <div class="row"><label>Warp size</label><input type="range" id="fxWarpScale" min="20" max="400" value="120" oninput="sync(this)"><span class="val">120</span></div>
+  <div class="row"><label>Warp speed</label><input type="range" id="fxWarpSpeed" min="0.1" max="5" step="0.1" value="1.2" oninput="sync(this)"><span class="val">1.2</span></div>
   <div class="row"><label>Glow %</label><input type="range" id="fxGlow" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
   <div class="row"><label>Glow size</label><input type="range" id="fxGlowSize" min="2" max="40" value="12" oninput="sync(this)"><span class="val">12</span></div>
   <div class="row"><label>Star glow %</label><input type="range" id="fxStar" min="0" max="100" value="0" oninput="sync(this)"><span class="val">0</span></div>
@@ -400,6 +493,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="bgImg=null;bgData=null">✕ Clear Background</button>
   <div style="font-size:10px;color:#666;margin-bottom:2px">Reference only — never included in the Spine export.</div>
 
+  <div class="grp">Output</div>
   <h2>Playback</h2>
   <div class="row"><label>Loop</label><input type="checkbox" id="loopOn" onchange="restartLoop()" style="accent-color:#f90;cursor:pointer"><span style="color:#888;font-size:10px">fixed length, seamless repeat</span></div>
   <div class="row"><label>Frames</label><input type="range" id="totFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
@@ -424,7 +518,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <div class="row"><label>Outro frames</label><input type="range" id="outroFrames" min="10" max="600" value="90" oninput="sync(this)"><span class="val">90</span></div>
   <div style="font-size:10px;color:#666;margin-bottom:4px">Single: one animation (loops seamlessly if Loop is on). Trio: three seamless animations in one skeleton — needs Loop. Loop length = Frames (Playback).</div>
   <div class="row"><label>Sequences</label><select id="expSeqMode"><option value="native" selected>Spine sequence (native)</option><option value="keys">Attachment keys</option></select></div>
-  <div class="row"><label>Spine ver.</label><select id="spineVer"><option value="4.2" selected>4.2</option><option value="4.1">4.1</option></select></div>
+  <div class="row"><label>Spine ver.</label><select id="spineVer"><option value="4.2" selected>4.2 (and 4.3)</option><option value="4.1">4.1</option><option value="4.0">4.0</option><option value="3.8">3.8</option><option value="3.7">3.7</option></select></div>
   <div class="row"><label>Name</label><input type="text" id="expName" value="particles"></div>
   <button class="btn accent" onclick="exportSpine()">⬇ Export Spine ZIP</button>
   <div style="font-size:10px;color:#666;margin-top:2px">Downloads a .zip with the skeleton JSON + all used PNGs in images/. Import the JSON into Spine and point its images path at the images folder.</div>
@@ -441,12 +535,17 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="saveProject()">💾 Save Project…</button>
   <label class="btn">📂 Load Project…<input type="file" accept=".psproj,.json" style="display:none" onchange="loadProject(this)"></label>
   <div style="font-size:10px;color:#666;margin-top:2px">Saves every setting, all curves, emitter position and the selected images into one shareable file.</div>
+
 </div>
 
 <div id="stage">
+  <div id="glowBg" style="position:absolute;top:0;left:0;width:100%;height:100%;background:radial-gradient(circle,rgba(200,255,136,0.3),rgba(100,200,100,0.15),transparent);pointer-events:none;opacity:0;transition:opacity 0.3s"></div>
   <canvas id="cv"></canvas>
   <div id="hint">Click/drag: move emitter · Ctrl+drag: record path · Wheel: zoom · Middle/right-drag or Space+drag: pan · Double-click: reset view</div>
   <div id="stats" onclick="statsExpanded=!statsExpanded" title="Click to expand/collapse"></div>
+  <div id="kindPanel"><div class="kphead" id="kpHead"><b id="kpTitle">Particle Mixer</b><button class="kpbtn" id="kpAdd" title="Add another image to this emitter">+ Add kind</button><button class="kpbtn" id="kpFold" title="Collapse / expand">&#9662;</button></div><div class="kpbody" id="kpBody"></div><div class="kppick" id="kpPick" style="display:none"></div></div>
+  <div id="dopeSheet"><div class="dshead"><b>KEYS</b><button id="dsDel" title="Delete the selected keys (Del)">&#128465; Delete</button><span id="dsInfo"></span><span class="dshelp">click / Shift-click / drag a box: select &middot; Del: delete &middot; drag keys: move &middot; double-click: go to frame &middot; click a name: select its row &middot; Ctrl+A: all</span></div><div class="dsrulerrow"><div class="dslabel" style="cursor:default;color:#666">frame</div><div id="dsRuler" title="Click to go to that frame"></div></div><div id="dsRows"></div><div id="dsMarq"></div><div id="dsPlayhead"></div><div id="dsEmpty">No animated settings yet &mdash; click &#9671; next to a setting (or a Particle Mixer value) to key it.</div></div>
+  <div id="timeline"><div id="tlKeys"></div><button id="tlPlay" onclick="togglePause()" title="Play / pause (the frame you scrub to stays paused)">⏸</button><input type="range" id="tlSlider" min="0" max="89" value="0" step="1" title="Drag to scrub the animation frame by frame (30 fps). The simulation is re-run up to the chosen frame, exactly like the exports."><button id="dsBtn" title="Show / hide the key editor: one row per animated setting">Keys &#9652;</button><span id="tlLabel">0 / 90</span></div>
   <div id="rec"><span class="dot"></span>RECORDING</div>
   <div id="emsel">Emitter: —</div>
   <div id="nodePanel">
@@ -714,7 +813,7 @@ var EM_GROUPS={
   attractor:['attractOn','attractForce','attractRadius','attractFalloff','attractPath'],
   deflector:['defOn','defAction','defBounce','defFriction','defXformTex','defXformLife','defRandBounce','defRandFriction','defScatter','defPath'],
   mesh:['meshOn','meshN','meshWeight'],
-  appearance:['size','sizeVar','endScale','spin','fade','alignRot','faceCam','stretch','speedStretch','flapHz','flapVar'],
+  appearance:['size','sizeVar','endScale','sizeRamp','wobAmp','squash','wobHz','spin','fade','alignRot','faceCam','stretch','speedStretch','flapHz','flapVar'],
   random:['randAll','randLife','randSpin','randGrav','randScale','randFade','randOpacity']
 };
 var EM_IDS=[],EM_GRP={};
@@ -728,7 +827,9 @@ function emOf(em,id){return emGlobals[EM_GRP[id]]||em;}  // owner of a single se
 // Node Panel links win over per-emitter values and 🌐 owners (most specific first)
 function ES(em,id){
   if(_nodeOv&&_nodeOv.size){var o=_nodeOv.get(em);if(o&&o[id]!==undefined)return o[id];}
-  return emOf(em,id).s[id];
+  var ow=emOf(em,id);
+  if(ow.keys&&ow.keys[id])return keyVal(ow.keys[id],_animF);   // keyframed setting
+  return ow.s[id];
 }
 var TINT_DEFAULT_STOPS=[{p:0,c:'#ffffff'},{p:1,c:'#ff8800'}];
 function cloneTintStops(st){return (st||TINT_DEFAULT_STOPS).map(function(s){return {p:s.p,c:s.c};});}
@@ -1589,6 +1690,7 @@ function emLoad(i){
   refreshSelectedEmitterInfo();
   nodesMarkSidebar();
   onModeChange();drawRateCurve();rebuildGallery();rebuildEmList();
+  _kLastUIF=null;keysRefreshUI();
 }
 function emActivate(i){if(i!==emIdx&&emitters[i])emLoad(i);}
 function emDuplicate(i){
@@ -1597,7 +1699,7 @@ function emDuplicate(i){
   var em={name:src.name+' copy',on:src.on,x:src.x,y:src.y,
           s:JSON.parse(JSON.stringify(src.s)),
           ratePts:src.ratePts.slice(),
-          texSel:JSON.parse(JSON.stringify(src.texSel||{})),pool:[],acc:0,
+          texSel:JSON.parse(JSON.stringify(src.texSel||{})),texMix:JSON.parse(JSON.stringify(src.texMix||{})),keys:JSON.parse(JSON.stringify(src.keys||{})),pool:[],acc:0,
           meshPts:src.meshPts?src.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
           meshRect:src.meshRect?{x:src.meshRect.x,y:src.meshRect.y,w:src.meshRect.w,h:src.meshRect.h,n:src.meshRect.n}:null,
           attX:src.attX,attY:src.attY,
@@ -2142,6 +2244,42 @@ function builtinTextures(){
     g.fillStyle=gr2;
     g.fillRect(0,24,64,16);
   }));
+  arr.push(makeTex('flame',function(g){
+    // one licking flame tongue lying on its side: rounded base on the left, thin wavy tip on the
+    // right (align motion points the tip where the particle travels). White + fibrous inner strands,
+    // so the tint colours it and stacked tongues read as streaky fire instead of round blobs.
+    var S=128,x0=10,x1=124,cy=64;
+    function half(t){return 26*Math.pow(Math.sin(Math.PI*Math.min(1,t*1.25+0.08)),0.9)*(1-0.55*t);}  // half-width along the tongue
+    function mid(t){return cy+7*Math.sin(t*Math.PI*1.6)*t;}                                             // slight S-curve toward the tip
+    var rnd=(function(){var s=7;return function(){s=(s*16807)%2147483647;return s/2147483647;};})();
+    // soft body: the outline filled several times, from wide + faint to narrow + strong = feathered edge
+    // (no ctx.filter blur: it is missing in some browsers and stalls headless renderers)
+    var body=g.createLinearGradient(x0,0,x1,0);
+    body.addColorStop(0,'rgba(255,255,255,0.05)');body.addColorStop(0.25,'rgba(255,255,255,0.16)');
+    body.addColorStop(0.7,'rgba(255,255,255,0.13)');body.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=body;
+    for(var f=1.25;f>=0.55;f-=0.175){
+      g.beginPath();
+      for(var i=0;i<=40;i++){var t=i/40;g.lineTo(x0+(x1-x0)*t,mid(t)-half(t)*f);}
+      for(i=40;i>=0;i--){t=i/40;g.lineTo(x0+(x1-x0)*t,mid(t)+half(t)*f);}
+      g.closePath();g.fill();
+    }
+    g.save();g.lineCap='round';g.shadowColor='rgba(255,255,255,0.6)';g.shadowBlur=3;   // inner strands, converging toward the tip
+    for(var k=0;k<14;k++){
+      var off=(rnd()*2-1)*0.9,wob=rnd()*Math.PI*2,lw=1+rnd()*2.6;
+      g.beginPath();
+      for(i=0;i<=32;i++){
+        t=i/32;var hw=half(t);
+        var y=mid(t)+off*hw*(1-0.35*t)+2.2*Math.sin(t*9+wob)*(1-t);
+        if(i===0)g.moveTo(x0+(x1-x0)*t,y);else g.lineTo(x0+(x1-x0)*t,y);
+      }
+      var sg=g.createLinearGradient(x0,0,x1,0);
+      sg.addColorStop(0,'rgba(255,255,255,0)');sg.addColorStop(0.2,'rgba(255,255,255,'+(0.35+rnd()*0.4)+')');
+      sg.addColorStop(0.85,'rgba(255,255,255,0.25)');sg.addColorStop(1,'rgba(255,255,255,0)');
+      g.strokeStyle=sg;g.lineWidth=lw;g.stroke();
+    }
+    g.restore();
+  },128));
   arr.push(makeTex('bolt',function(g){
     // electric arc segment: wide soft halo + hot white core, tips feathered
     // so overlapping joints of the lightning polyline blend seamlessly
@@ -2294,71 +2432,6 @@ function builtinTextures(){
     arr.push(flakeSheet('flake sheet B',31,6));
     arr.push(flakeSheet('flake sheet C',97,8));
   })();
-  // helper: draw a single flake/particle into an arbitrary context
-  function drawFlakeGeneric(g,cx,cy,radius,kind){
-    g.save();g.translate(cx,cy);
-    if(kind==='butterfly'){
-      // simple butterfly silhouette scaled to radius
-      var s=radius/32; g.scale(s,s); g.translate(0,0);
-      g.fillStyle='rgba(255,255,255,0.95)';
-      g.beginPath(); g.moveTo(2,-3); g.bezierCurveTo(8,-24,26,-28,29,-16); g.bezierCurveTo(31,-7,18,-1,3,0); g.closePath(); g.fill();
-      g.beginPath(); g.moveTo(2,1); g.bezierCurveTo(16,3,24,10,20,18); g.bezierCurveTo(16,25,5,20,2,6); g.closePath(); g.fill();
-      g.restore(); return;
-    }
-    // snowflake / flake style
-    var arms = kind==='snowflake'?6:(5+Math.floor(Math.random()*3));
-    var branches = kind==='snowflake'?3:2;
-    g.strokeStyle='rgba(255,255,255,'+(0.8+Math.random()*0.2)+')';
-    g.lineCap='round'; g.lineWidth=1.2; g.shadowColor='rgba(190,225,255,0.8)'; g.shadowBlur=2;
-    for(var a=0;a<arms;a++){
-      g.save(); g.rotate(a/arms*Math.PI*2);
-      g.beginPath(); g.moveTo(0,0); g.lineTo(0,-radius); g.stroke();
-      for(var b=1;b<=branches;b++){
-        var t=(b/(branches+1))*radius; var len=radius*(0.12+Math.random()*0.25);
-        var sp=0.4+Math.random()*0.6;
-        g.beginPath(); g.moveTo(0,-t); g.lineTo(Math.sin(sp)*len,-t-Math.cos(sp)*len); g.moveTo(0,-t); g.lineTo(-Math.sin(sp)*len,-t-Math.cos(sp)*len); g.stroke();
-      }
-      g.restore();
-    }
-    g.beginPath(); g.arc(0,0,Math.max(1,radius*0.06),0,Math.PI*2); g.fillStyle='rgba(255,255,255,0.9)'; g.fill();
-    g.restore();
-  }
-
-  // create a sheet image from the selected kind and options, add to textures
-  function createSheetFromKind(){
-    var kind=document.getElementById('sheetKind').value;
-    var cell = Math.max(32,parseInt(document.getElementById('sheetCellSize').value,10)||256);
-    var cols = Math.max(1,parseInt(document.getElementById('sheetCols').value,10)||4);
-    var rows = Math.max(1,parseInt(document.getElementById('sheetRows').value,10)||4);
-    var scaleJ = (parseInt(document.getElementById('sheetScaleJitter').value,10)||30)/100;
-    var posJ = parseFloat(document.getElementById('sheetPosJitter').value)||0.2;
-    var rotJ = (parseInt(document.getElementById('sheetRotJitter').value,10)||45)*Math.PI/180;
-    var W = cols*cell, H = rows*cell;
-    var cv = document.createElement('canvas'); cv.width=W; cv.height=H;
-    var g = cv.getContext('2d'); g.clearRect(0,0,W,H);
-    for(var r=0;r<rows;r++){
-      for(var c=0;c<cols;c++){
-        var cx = c*cell + cell/2 + (Math.random()*2-1)*cell*posJ;
-        var cy = r*cell + cell/2 + (Math.random()*2-1)*cell*posJ;
-        var scl = 1 - (Math.random()*scaleJ);
-        var rr = (cell*0.45)*scl;
-        g.save(); g.translate(cx,cy); g.rotate((Math.random()*2-1)*rotJ);
-        drawFlakeGeneric(g,0,0,rr,kind);
-        g.restore();
-      }
-    }
-    var dataUrl = cv.toDataURL('image/png');
-    var name = 'sheet_'+kind+'_'+Date.now();
-    var img = new Image();
-    img.onload = function(){
-      textures.push({img:img,sel:true,name:name,builtin:false});
-      try{libSave(name,dataUrl);}catch(e){}
-      rebuildGallery();
-      ensureOneSelected();
-      rebuildSpawnPool();
-    };
-    img.src = dataUrl;
-  }
   arr.push(makeTex('butterfly',function(g){
     // white butterfly silhouette — stays white so the tint gradient colors it
     g.save();g.translate(32,33);
@@ -2563,6 +2636,70 @@ function builtinTextures(){
     hl2.addColorStop(1,'rgba(255,255,255,0)');
     g.fillStyle=hl2;g.beginPath();g.arc(43,44,4.5,0,Math.PI*2);g.fill();
   }));
+  // opaque-looking water bubble at any centre / radius (grey, so tint colours it): enough body to really
+  // cover the screen when many overlap, darker toward the edge for roundness, bright rim + highlights
+  function drawDenseBubble(g,cx,cy,R){
+    var body=g.createRadialGradient(cx-R*0.17,cy-R*0.2,R*0.07,cx,cy,R);
+    body.addColorStop(0,'rgba(250,250,250,0.80)');
+    body.addColorStop(0.6,'rgba(225,225,225,0.86)');
+    body.addColorStop(0.88,'rgba(175,175,175,0.93)');
+    body.addColorStop(0.97,'rgba(235,235,235,0.97)');
+    body.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=body;g.beginPath();g.arc(cx,cy,R,0,Math.PI*2);g.fill();
+    g.strokeStyle='rgba(255,255,255,0.95)';g.lineWidth=Math.max(1,R*0.041);          // rim
+    g.beginPath();g.arc(cx,cy,R*0.957,0,Math.PI*2);g.stroke();
+    g.save();g.translate(cx-R*0.36,cy-R*0.4);g.rotate(-0.75);g.scale(1,0.55);        // main highlight
+    var hl=g.createRadialGradient(0,0,0,0,0,R*0.33);
+    hl.addColorStop(0,'rgba(255,255,255,1)');hl.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=hl;g.beginPath();g.arc(0,0,R*0.33,0,Math.PI*2);g.fill();g.restore();
+    var gx=cx+R*0.41,gy=cy+R*0.45,hl2=g.createRadialGradient(gx,gy,0,gx,gy,R*0.16);  // secondary glint
+    hl2.addColorStop(0,'rgba(255,255,255,0.75)');hl2.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle=hl2;g.beginPath();g.arc(gx,gy,R*0.16,0,Math.PI*2);g.fill();
+  }
+  arr.push(makeTex('bubble dense',function(g){drawDenseBubble(g,64,64,58);},128));
+  // bubble clusters: ONE image holding ~20 bubbles of mixed sizes (a few big, many small), packed in a
+  // tall blob like a rising bubble stream — so a handful of particles (e.g. 50 for a Spine export) can
+  // still fill the whole screen
+  (function(){
+    function cluster(name,seed){
+      var s=seed;function rnd(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;}
+      return makeTex(name,function(g){
+        // organic blob outline: a circle wobbled by 3 random harmonics (different per cluster), a bit taller
+        // than wide; bubbles are packed inside it, big ones toward the middle, small ones at the rim, plus a
+        // few stray tiny bubbles outside, so no square edge shows when many clusters overlap
+        var N=256,C=N/2,placed=[];
+        var h=[[2,0.22,rnd()*6.28],[3,0.16,rnd()*6.28],[5,0.10,rnd()*6.28]];
+        function edge(th){var r=1;h.forEach(function(q){r+=q[1]*Math.sin(q[0]*th+q[2]);});return N*0.36*r;}
+        function inBlob(x,y,R,slack){
+          var dx=x-C,dy=(y-C)/1.15,d=Math.hypot(dx,dy),th=Math.atan2(dy,dx);
+          return d+R*slack<=edge(th)&&Math.hypot(x-C,y-C)+R<=C-2;
+        }
+        function free(x,y,R){return placed.every(function(q){return Math.hypot(q[0]-x,q[1]-y)>(q[2]+R)*0.74;});}
+        var radii=[44,38,32,28];                                   // a few big ones…
+        for(var i=0;i<46;i++)radii.push(6+Math.pow(rnd(),1.7)*22); // …and many small
+        radii.forEach(function(R,ri){
+          var core=ri<4?0.55:1;                                    // big ones stay near the middle
+          for(var k=0;k<90;k++){
+            var a2=rnd()*6.2832,rr=Math.sqrt(rnd())*N*0.46*core;
+            var x=C+Math.cos(a2)*rr,y=C+Math.sin(a2)*rr*1.15;
+            if(inBlob(x,y,R,0.6)&&free(x,y,R)){placed.push([x,y,R]);return;}
+          }
+        });
+        for(var j=0;j<9;j++){                                       // strays just outside the outline
+          for(var k2=0;k2<60;k2++){
+            var R2=4+rnd()*7,a3=rnd()*6.2832,ex=edge(a3)+R2+4+rnd()*14;
+            var x2=C+Math.cos(a3)*ex,y2=C+Math.sin(a3)*ex*1.15;
+            if(Math.hypot(x2-C,y2-C)+R2<=C-2&&free(x2,y2,R2)){placed.push([x2,y2,R2]);break;}
+          }
+        }
+        placed.sort(function(a,b){return a[2]-b[2];});              // small ones first, big ones on top
+        placed.forEach(function(q){drawDenseBubble(g,q[0],q[1],q[2]);});
+      },256);
+    }
+    arr.push(cluster('bubble cluster A',11));
+    arr.push(cluster('bubble cluster B',47));
+    arr.push(cluster('bubble cluster C',83));
+  })();
   // ─ diamonds / gems ──────────────────────────────
   // realistic brilliant cut seen face-up: prismatic kite facets around a
   // pale table, thin white facet edges, soft glow + star glints
@@ -2775,6 +2912,892 @@ function builtinTextures(){
   arr[0].sel=true;
   return arr;
 }
+// helper: draw a single flake/particle into an arbitrary context
+function drawFlakeGeneric(g,cx,cy,radius,kind){
+  g.save();g.translate(cx,cy);
+  if(kind==='butterfly'){
+    // simple butterfly silhouette scaled to radius
+    var s=radius/32; g.scale(s,s); g.translate(0,0);
+    g.fillStyle='rgba(255,255,255,0.95)';
+    g.beginPath(); g.moveTo(2,-3); g.bezierCurveTo(8,-24,26,-28,29,-16); g.bezierCurveTo(31,-7,18,-1,3,0); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(2,1); g.bezierCurveTo(16,3,24,10,20,18); g.bezierCurveTo(16,25,5,20,2,6); g.closePath(); g.fill();
+    g.restore(); return;
+  }
+  // snowflake / flake style
+  var arms = kind==='snowflake'?6:(5+Math.floor(Math.random()*3));
+  var branches = kind==='snowflake'?3:2;
+  g.strokeStyle='rgba(255,255,255,'+(0.8+Math.random()*0.2)+')';
+  g.lineCap='round'; g.lineWidth=1.2; g.shadowColor='rgba(190,225,255,0.8)'; g.shadowBlur=2;
+  for(var a=0;a<arms;a++){
+    g.save(); g.rotate(a/arms*Math.PI*2);
+    g.beginPath(); g.moveTo(0,0); g.lineTo(0,-radius); g.stroke();
+    for(var b=1;b<=branches;b++){
+      var t=(b/(branches+1))*radius; var len=radius*(0.12+Math.random()*0.25);
+      var sp=0.4+Math.random()*0.6;
+      g.beginPath(); g.moveTo(0,-t); g.lineTo(Math.sin(sp)*len,-t-Math.cos(sp)*len); g.moveTo(0,-t); g.lineTo(-Math.sin(sp)*len,-t-Math.cos(sp)*len); g.stroke();
+    }
+    g.restore();
+  }
+  g.beginPath(); g.arc(0,0,Math.max(1,radius*0.06),0,Math.PI*2); g.fillStyle='rgba(255,255,255,0.9)'; g.fill();
+  g.restore();
+}
+
+// create a sheet image from the selected kind and options, add to textures
+function createSheetFromKind(){
+  var kind=document.getElementById('sheetKind').value;
+  var cell = Math.max(32,parseInt(document.getElementById('sheetCellSize').value,10)||256);
+  var cols = Math.max(1,parseInt(document.getElementById('sheetCols').value,10)||4);
+  var rows = Math.max(1,parseInt(document.getElementById('sheetRows').value,10)||4);
+  var scaleJ = (parseInt(document.getElementById('sheetScaleJitter').value,10)||0)/100;
+  var scaleJY = (parseInt(document.getElementById('sheetScaleJitterY').value,10)||0)/100;
+  var scaleLock = document.getElementById('sheetScaleLock').checked;
+  var itemPct = Math.max(5,parseFloat(document.getElementById('sheetItemSize').value)||90)/100;   // >1 = items overlap
+  var posJ = parseFloat(document.getElementById('sheetPosJitter').value)||0.2;
+  var rotJ = (parseInt(document.getElementById('sheetRotJitter').value,10)||45)*Math.PI/180;
+  // "gal:<name>" = one gallery image, "gal:*" = mixed from every selected gallery image
+  var srcImgs=null,label=kind;
+  if(kind.indexOf('gal:')===0){
+    var want=kind.slice(4);
+    var picks=textures.filter(function(t){return want==='*'?t.sel:t.name===want;});
+    srcImgs=picks.map(function(t){return t.img;}).filter(function(im){return im&&(im.naturalWidth||im.width);});
+    if(!srcImgs.length){alert(want==='*'?'Select one or more images in the gallery first.':'That gallery image is not available (not loaded yet?).');return;}
+    label=want==='*'?'mixed':want.replace(/[^\w\-]+/g,'_').slice(0,40);
+  }
+  var W = cols*cell, H = rows*cell;
+  var cv = document.createElement('canvas'); cv.width=W; cv.height=H;
+  var g = cv.getContext('2d'); g.clearRect(0,0,W,H);
+  // nothing may be cut: every item's real footprint (visible pixels, after rotation) is measured and the
+  // item is shifted back inside the sheet when the jitter pushed it over an edge (scaled down only if it
+  // could never fit, e.g. a big rotated image on a 1-cell sheet)
+  function visBox(im){                    // tight box of the visible pixels, relative to the image centre
+    if(im._visBox)return im._visBox;
+    var iw=im.naturalWidth||im.width||64,ih=im.naturalHeight||im.height||64,b=[-iw/2,-ih/2,iw/2,ih/2];
+    try{
+      var tc=document.createElement('canvas');tc.width=iw;tc.height=ih;
+      var tg=tc.getContext('2d');tg.drawImage(im,0,0);
+      var d=tg.getImageData(0,0,iw,ih).data,x0=iw,y0=ih,x1=-1,y1=-1;
+      for(var y=0;y<ih;y++)for(var x=0;x<iw;x++)if(d[(y*iw+x)*4+3]>6){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}
+      if(x1>=0)b=[x0-iw/2-1,y0-ih/2-1,x1+1-iw/2+1,y1+1-ih/2+1];
+    }catch(e){}
+    im._visBox=b;return b;
+  }
+  for(var r=0;r<rows;r++){
+    for(var c=0;c<cols;c++){
+      var cx = c*cell + cell/2 + (Math.random()*2-1)*cell*posJ;
+      var cy = r*cell + cell/2 + (Math.random()*2-1)*cell*posJ;
+      var rnX = Math.random(), rnY = scaleLock ? rnX : Math.random();
+      var sx = 1 - rnX*scaleJ, sy = 1 - rnY*scaleJY;      // width / height jitter (in the item's own axes)
+      var rr = cell*0.5*itemPct;
+      var ang=(Math.random()*2-1)*rotJ,ca=Math.cos(ang),sa=Math.sin(ang);
+      var si=null,k=1,box;
+      if(srcImgs){                         // gallery image: fit into the cell, aspect kept
+        si=srcImgs[(Math.random()*srcImgs.length)|0];
+        var iw=si.naturalWidth||si.width||64,ih=si.naturalHeight||si.height||64;k=rr*2/Math.max(iw,ih);
+        var vb=visBox(si);box=[vb[0]*k*sx,vb[1]*k*sy,vb[2]*k*sx,vb[3]*k*sy];
+      }else{
+        var ext=rr*(kind==='butterfly'?1.32:1)+4;   // drawn shapes stay inside their radius (+ glow)
+        box=[-ext*sx,-ext*sy,ext*sx,ext*sy];
+      }
+      // footprint after rotation (axis-aligned box of the 4 rotated corners)
+      var xs=[],ys=[];
+      [[box[0],box[1]],[box[2],box[1]],[box[2],box[3]],[box[0],box[3]]].forEach(function(q){
+        xs.push(q[0]*ca-q[1]*sa);ys.push(q[0]*sa+q[1]*ca);});
+      var mnx=Math.min.apply(null,xs),mxx=Math.max.apply(null,xs),mny=Math.min.apply(null,ys),mxy=Math.max.apply(null,ys);
+      var fit=Math.min(1,(W-2)/(mxx-mnx),(H-2)/(mxy-mny));   // shrink only if it can't fit at all
+      if(fit<1){mnx*=fit;mxx*=fit;mny*=fit;mxy*=fit;sx*=fit;sy*=fit;}
+      cx=Math.max(1-mnx,Math.min(W-1-mxx,cx));
+      cy=Math.max(1-mny,Math.min(H-1-mxy,cy));
+      g.save(); g.translate(cx,cy); g.rotate(ang); g.scale(sx,sy);
+      if(si){var iw2=si.naturalWidth||si.width||64,ih2=si.naturalHeight||si.height||64;g.drawImage(si,-iw2*k/2,-ih2*k/2,iw2*k,ih2*k);}
+      else drawFlakeGeneric(g,0,0,rr,kind);
+      g.restore();
+    }
+  }
+  var dataUrl = cv.toDataURL('image/png');
+  var name = 'sheet_'+label+'_'+Date.now();
+  var img = new Image();
+  img.onload = function(){
+    textures.push({img:img,sel:true,name:name,builtin:false});
+    try{libSave(name,dataUrl);}catch(e){}
+    rebuildGallery();
+    ensureOneSelected();
+    rebuildSpawnPool();
+  };
+  img.src = dataUrl;
+}
+// Kind list of the Make Sheet panel: the drawn kinds + every gallery image (rebuilt when the gallery
+// changes; only when the set of images actually changed, so an open dropdown is not reset)
+var _sheetKindSig='';
+function refreshSheetKinds(){
+  var sel=document.getElementById('sheetKind');if(!sel)return;
+  var names=textures.map(function(t){return t.name;});
+  var sig=names.join('');
+  if(sig===_sheetKindSig)return;
+  _sheetKindSig=sig;
+  var cur=sel.value;
+  sel.innerHTML='';
+  function opt(parent,v,t){var o=document.createElement('option');o.value=v;o.textContent=t;parent.appendChild(o);}
+  var g1=document.createElement('optgroup');g1.label='Drawn';sel.appendChild(g1);
+  opt(g1,'snowflake','Snowflake');opt(g1,'flake','Flake');opt(g1,'butterfly','Butterfly');
+  var g2=document.createElement('optgroup');g2.label='From gallery';sel.appendChild(g2);
+  opt(g2,'gal:*','✓ selected images (mixed)');
+  names.forEach(function(n){opt(g2,'gal:'+n,n);});
+  sel.value=cur;if(sel.value!==cur)sel.value='snowflake';
+}
+// ── Per-image mix: each image an emitter uses gets its own Size × and Amount (pick weight) ────────────
+// stored on the emitter that owns the Particle Image panel (em.texMix = {imageName:{size,amt}})
+function texMixOf(em,name){var o=emFor(em,'image');if(!o)return null;if(o.keys)return mixVal(o,name);return o.texMix?o.texMix[name]:null;}
+function pickPoolItem(em,pool){
+  if(pool.length<2)return pool[(rng()*pool.length)|0];
+  var w=pool.map(function(t){var c=texMixOf(em,t.name);return c&&c.amt!=null?Math.max(0,+c.amt):50;});
+  var tot=w.reduce(function(a,b){return a+b;},0),r=rng()*(tot||1);   // one rng() call either way: deterministic
+  if(!(tot>0))return pool[(r*pool.length/(tot||1))|0]||pool[0];
+  for(var i=0;i<pool.length;i++){r-=w[i];if(r<0)return pool[i];}
+  return pool[pool.length-1];
+}
+function rebuildTexMix(){
+  var box=document.getElementById('tex-mix');if(!box)return;
+  box.innerHTML='';
+  if(!emitters.length)return;
+  var em=emitters[emIdx],own=emFor(em,'image'),pool=own.pool||[];
+  rebuildKindPanel();
+  if(pool.length<1)return;
+  own.texMix=own.texMix||{};
+  var tot=pool.reduce(function(a,t){var c=own.texMix[t.name];return a+(c&&c.amt!=null?+c.amt:50);},0);
+  var head=document.createElement('div');head.className='mixhead';
+  head.innerHTML='<span style="flex:1">Image mix of this emitter</span><span style="width:46px">Size ×</span><span style="width:64px">Amount</span><span style="width:30px;text-align:right">share</span>';
+  box.appendChild(head);
+  pool.forEach(function(t){
+    var c=own.texMix[t.name]||{size:1,amt:50};
+    var row=document.createElement('div');row.className='mixrow';
+    var im=document.createElement('img');im.src=t.img.src;row.appendChild(im);
+    var nm=document.createElement('span');nm.className='mixname';
+    var b=seqBaseOf(t.name);nm.textContent=t.seq&&b?b.base+' (seq)':t.name;nm.title=nm.textContent;row.appendChild(nm);
+    var sz=document.createElement('input');sz.type='number';sz.min='0.05';sz.max='10';sz.step='0.05';sz.value=c.size;
+    sz.title='Size multiplier for this image only (on top of Size / Size ramp)';row.appendChild(sz);
+    var am=document.createElement('input');am.type='range';am.min='0';am.max='100';am.value=c.amt;
+    am.title='How often this image is picked, relative to the others (0 = never)';row.appendChild(am);
+    var pc=document.createElement('span');pc.className='mixpct';pc.textContent=(tot>0?Math.round(c.amt/tot*100):0)+'%';row.appendChild(pc);
+    function save(){own.texMix[t.name]={size:Math.max(0.05,+sz.value||1),amt:Math.max(0,+am.value)};}
+    sz.addEventListener('input',function(){save();keysMixAuto();kpRefreshValues();kindLive(t.name);});
+    sz.addEventListener('change',function(){save();kpRefreshValues();kindLive(t.name);if(typeof undoRecord==='function')undoRecord();});
+    am.addEventListener('input',function(){save();
+      var tt=pool.reduce(function(a,u){var q=own.texMix[u.name];return a+(q&&q.amt!=null?+q.amt:50);},0);
+      [].forEach.call(box.querySelectorAll('.mixrow'),function(r,i){var q=own.texMix[pool[i].name];
+        r.querySelector('.mixpct').textContent=(tt>0?Math.round((q&&q.amt!=null?+q.amt:50)/tt*100):0)+'%';});
+      keysMixAuto();kpRefreshValues();kindLive();
+    });
+    box.appendChild(row);
+  });
+}
+// ── Floating "Particle Mixer" panel (right side of the viewport) ─────────────────────────────────────
+// One card per image the selected emitter spawns: swap the image, Size ×, and its % share of all
+// particles (the other kinds rebalance so the shares always add up to 100). Same data as the sidebar
+// Image mix list (em.texMix), so both stay in sync.
+var _kpPickFor=null;   // null = closed, '' = adding a kind, name = replacing that kind
+// Kind settings show up live: while playing, a Size × change rescales the particles already on screen;
+// while paused, the current frame is re-simulated with the new settings (sizes AND shares), exactly as
+// the export will render it. Coalesced to one refresh per animation frame.
+var _klQ=false,_klNames={},_klCost=0,_klLast=0;
+function kindLive(name){
+  if(name)_klNames[name]=1;else _klNames['*']=1;
+  if(_klQ)return;_klQ=true;
+  requestAnimationFrame(function(){
+    _klQ=false;var names=_klNames;_klNames={};
+    if(!emitters.length)return;
+    if(paused&&typeof tlSeek==='function'){
+      // heavy scenes far into the timeline: don't fire re-sims back to back, wait as long as the last one took
+      var wait=_klLast+_klCost-performance.now();
+      if(wait>8){_klNames=names;_klQ=true;setTimeout(function(){_klQ=false;kindLive();},wait);return;}
+      var looping=document.getElementById('loopOn').checked,t0=performance.now();
+      tlSeek(Math.floor((looping?loopTime:simTime)*30+1e-6),true);
+      _klLast=performance.now();_klCost=_klLast-t0;
+      return;
+    }
+    var own=kpOwner();if(!own)return;
+    particles.forEach(function(q){                       // playing: rescale live particles of those kinds
+      if(!q._kind||emFor(q.em,'image')!==own||!(names['*']||names[q._kind]))return;
+      var c=own.texMix&&own.texMix[q._kind],m=c&&c.size>0?c.size:1;
+      if(q._kmul&&m!==q._kmul){q.size*=m/q._kmul;q._kmul=m;}
+    });
+  });
+}
+// Paused = live preview of edits: ANY setting change (sidebar, kinds panel, node panel, curve editors,
+// dragging on the canvas) re-simulates the frame you are standing on, so you see its effect without
+// pressing play. The timeline slider and file pickers are left out.
+(function(){
+  function onEdit(e){
+    if(!paused)return;
+    var t=e.target;
+    if(!t||t.type==='file'||t.id==='tlSlider'||(t.closest&&t.closest('#timeline')))return;
+    kindLive();
+  }
+  document.addEventListener('input',onEdit,true);
+  document.addEventListener('change',onEdit,true);
+  document.addEventListener('pointerup',function(e){
+    var t=e.target;
+    if(!paused||!t||t.tagName!=='CANVAS'||(t.closest&&t.closest('#timeline')))return;
+    kindLive();                                    // curve editors in the sidebar, gizmos on the viewport
+  },true);
+})();
+function kpOwner(){return emitters.length?emFor(emitters[emIdx],'image'):null;}
+function kpAmt(own,name){return mixVal(own,name).amt;}
+function kpShares(own,pool){
+  var tot=pool.reduce(function(a,t){return a+kpAmt(own,t.name);},0);
+  return pool.map(function(t){return tot>0?kpAmt(own,t.name)/tot*100:100/pool.length;});
+}
+function kpMembers(t){                    // a gallery entry = one image, or every frame of its sequence
+  var b=seqBaseOf(t.name);if(!b)return [t];
+  var g=seqGroups()[b.base];return g&&(g.length>1||seqEnabled[b.base])?g:[t];
+}
+function kpGalleryEntries(){              // what the gallery shows: sequences collapse to their first frame
+  var groups=seqGroups(),seen={},out=[];
+  textures.forEach(function(t){
+    var b=seqBaseOf(t.name),g=b&&groups[b.base];
+    if(g&&(g.length>1||seqEnabled[b.base])){if(seen[b.base])return;seen[b.base]=1;out.push(g[0]);}
+    else out.push(t);
+  });
+  return out;
+}
+function kpCommit(){
+  ensureOneSelected();rebuildGallery();kindLive();
+  if(typeof galleryRetexLive==='function')galleryRetexLive();
+  if(typeof undoRecord==='function')undoRecord();
+}
+function kpSetShare(i,pct){                // set one kind's %, scale the others to fill the rest
+  var own=kpOwner(),pool=own.pool||[];if(pool.length<2)return;
+  pct=Math.max(0,Math.min(100,pct));
+  var sh=kpShares(own,pool),rest=100-pct,others=sh.reduce(function(a,v,j){return j===i?a:a+v;},0);
+  own.texMix=own.texMix||{};
+  pool.forEach(function(t,j){
+    var c=own.texMix[t.name]||{size:1,amt:50};
+    c.amt=j===i?pct:(others>0?sh[j]*rest/others:rest/(pool.length-1));
+    own.texMix[t.name]=c;
+  });
+}
+function kpRefreshValues(){               // update the cards in place (keeps an active slider drag alive)
+  var own=kpOwner();if(!own)return;
+  var pool=own.pool||[],sh=kpShares(own,pool);
+  [].forEach.call(document.querySelectorAll('#kpBody .kprow'),function(r,i){
+    if(!pool[i])return;
+    var c=mixVal(own,pool[i].name);
+    var pr=r.querySelector('.kppct'),pn=r.querySelector('.kppctn');
+    if(document.activeElement!==pr)pr.value=Math.round(sh[i]);
+    if(document.activeElement!==pn)pn.value=Math.round(sh[i]*10)/10;
+    var sr=r.querySelector('.kpsz'),sn=r.querySelector('.kpszn');
+    if(document.activeElement!==sr)sr.value=c.size||1;
+    if(document.activeElement!==sn)sn.value=c.size||1;
+  });
+}
+function rebuildTexMixValues(){           // sidebar Image mix list: refresh numbers in place
+  var own=kpOwner();if(!own)return;
+  var pool=own.pool||[],sh=kpShares(own,pool);
+  [].forEach.call(document.querySelectorAll('#tex-mix .mixrow'),function(r,i){
+    if(!pool[i])return;var c=own.texMix[pool[i].name]||{size:1,amt:50};
+    r.querySelector('input[type=number]').value=c.size||1;
+    r.querySelector('input[type=range]').value=Math.round(c.amt!=null?c.amt:50);
+    r.querySelector('.mixpct').textContent=Math.round(sh[i])+'%';
+  });
+}
+function rebuildKindPanel(){
+  var body=document.getElementById('kpBody');if(!body)return;
+  var own=kpOwner();body.innerHTML='';
+  if(!own)return;
+  document.getElementById('kpTitle').textContent='Particle Mixer — '+emitters[emIdx].name;
+  var pool=own.pool||[];own.texMix=own.texMix||{};
+  var shares=kpShares(own,pool);
+  pool.forEach(function(t,i){
+    var row=document.createElement('div');row.className='kprow';
+    var top=document.createElement('div');top.className='kptop';
+    var im=document.createElement('img');im.src=t.img.src;im.title='Click to swap this image for another gallery image';
+    im.onclick=function(){kpOpenPick(t.name);};top.appendChild(im);
+    var b=seqBaseOf(t.name),nm=document.createElement('span');nm.className='kpname';
+    nm.textContent=t.seq&&b?b.base+' (sequence)':t.name;nm.title=nm.textContent;top.appendChild(nm);
+    var del=document.createElement('button');del.className='kpbtn';del.textContent='✕';
+    del.title='Remove this kind from the emitter';del.disabled=pool.length<2;
+    del.onclick=function(){
+      if(pool.length<2)return;
+      var tex=textures.find(function(u){return u.name===t.name;})||t;
+      kpMembers(tex).forEach(function(m){m.sel=false;});
+      delete own.texMix[t.name];kpCommit();
+    };
+    top.appendChild(del);row.appendChild(top);
+    var c=mixVal(own,t.name);
+    function line(lbl,cls,min,max,step,val,onIn){
+      var l=document.createElement('div');l.className='kpline';
+      var la=document.createElement('label');la.textContent=lbl;l.appendChild(la);
+      var r=document.createElement('input');r.type='range';r.className=cls;r.min=min;r.max=max;r.step=step;r.value=val;l.appendChild(r);
+      var n=document.createElement('input');n.type='number';n.className=cls+'n';n.min=min;n.max=max;n.step=step;n.value=val;l.appendChild(n);
+      r.addEventListener('input',function(){n.value=r.value;onIn(+r.value);});
+      n.addEventListener('change',function(){r.value=n.value;onIn(+n.value);if(typeof undoRecord==='function')undoRecord();});
+      r.addEventListener('change',function(){if(typeof undoRecord==='function')undoRecord();});
+      var kb=document.createElement('button');kb.className='kbtn';kb.setAttribute('data-kmix','mix:'+t.name+':'+(cls==='kpsz'?'size':'amt'));kb.textContent='\u25c7';
+      kb.title=cls==='kpsz'?'Keyframe this kind\u2019s Size \u00d7 at the current frame':'Keyframe the shares (all kinds together) at the current frame';
+      kb.onclick=function(e){e.stopPropagation();keyToggleMix(t.name,cls==='kpsz'?'size':'amt');if(paused)kindLive();};
+      l.appendChild(kb);
+      row.appendChild(l);
+      return [r,n];
+    }
+    line('Size ×','kpsz',0.05,4,0.05,c.size||1,function(v){
+      var cc=own.texMix[t.name]||{size:1,amt:50};cc.size=Math.max(0.05,v);own.texMix[t.name]=cc;rebuildTexMixValues();keysMixAuto();kindLive(t.name);});
+    var pc=line('%','kppct',0,100,1,Math.round(shares[i]),function(v){kpSetShare(i,v);kpRefreshValues();rebuildTexMixValues();keysMixAuto();kindLive();});
+    if(pool.length<2){pc[0].disabled=true;pc[1].disabled=true;pc[0].title=pc[1].title='Only one kind: it is 100% of the particles';}
+    body.appendChild(row);
+  });
+  if(!pool.length){var e=document.createElement('div');e.style.color='#777';e.textContent='No image selected.';body.appendChild(e);}
+}
+function kpOpenPick(forName){
+  var pk=document.getElementById('kpPick');
+  if(_kpPickFor===forName&&pk.style.display!=='none'){pk.style.display='none';_kpPickFor=null;return;}
+  _kpPickFor=forName;pk.innerHTML='';pk.style.display='grid';
+  var own=kpOwner(),inPool={};(own.pool||[]).forEach(function(t){inPool[t.name]=1;});
+  var hint=document.createElement('div');hint.style.cssText='grid-column:1/-1;color:#888;font-size:10px';
+  hint.textContent=forName?'Pick the image that replaces "'+forName+'":':'Pick an image to add as a new kind:';
+  pk.appendChild(hint);
+  kpGalleryEntries().forEach(function(t){
+    if(inPool[t.name])return;                       // already one of the kinds
+    var im=document.createElement('img');im.src=t.img.src;
+    var b=seqBaseOf(t.name);im.title=kpMembers(t).length>1&&b?b.base+' (sequence)':t.name;
+    im.onclick=function(){
+      var cfg=forName?own.texMix[forName]:null;
+      if(forName){
+        var old=textures.find(function(u){return u.name===forName;});
+        if(old)kpMembers(old).forEach(function(m){m.sel=false;});
+        delete own.texMix[forName];
+      }
+      kpMembers(t).forEach(function(m){m.sel=true;});
+      // a replacement keeps the old kind's size and share; a new kind joins with an equal share
+      var sh=kpShares(own,own.pool||[]),avg=sh.length?100/(sh.length+1):100;
+      own.texMix[kpMembers(t)[0].name]=cfg?{size:cfg.size,amt:cfg.amt}:{size:1,amt:avg};
+      pk.style.display='none';_kpPickFor=null;kpCommit();
+    };
+    pk.appendChild(im);
+  });
+  if(pk.children.length<2){var n=document.createElement('div');n.style.cssText='grid-column:1/-1;color:#777';n.textContent='All gallery images are already used.';pk.appendChild(n);}
+}
+(function(){
+  var panel=document.getElementById('kindPanel');if(!panel)return;
+  var fold=document.getElementById('kpFold');
+  try{
+    if(localStorage.getItem('psKindPanelFold')==='1')panel.classList.add('collapsed');
+    var pos=JSON.parse(localStorage.getItem('psKindPanelPos')||'null');
+    if(pos){panel.style.left=pos.x+'px';panel.style.top=pos.y+'px';panel.style.right='auto';}
+  }catch(e){}
+  fold.textContent=panel.classList.contains('collapsed')?'▸':'▾';
+  fold.onclick=function(ev){
+    ev.stopPropagation();panel.classList.toggle('collapsed');
+    fold.textContent=panel.classList.contains('collapsed')?'▸':'▾';
+    try{localStorage.setItem('psKindPanelFold',panel.classList.contains('collapsed')?'1':'0');}catch(e){}
+  };
+  document.getElementById('kpAdd').onclick=function(ev){
+    ev.stopPropagation();panel.classList.remove('collapsed');fold.textContent='▾';kpOpenPick('');
+  };
+  var drag=null;                                     // drag the panel by its header (inside the viewport)
+  document.getElementById('kpHead').addEventListener('pointerdown',function(e){
+    if(e.target.tagName==='BUTTON')return;
+    var r=panel.getBoundingClientRect(),st=panel.parentNode.getBoundingClientRect();
+    drag={dx:e.clientX-r.left,dy:e.clientY-r.top,st:st};panel.setPointerCapture(e.pointerId);e.preventDefault();
+  });
+  panel.addEventListener('pointermove',function(e){
+    if(!drag)return;
+    var x=Math.max(0,Math.min(drag.st.width-panel.offsetWidth,e.clientX-drag.st.left-drag.dx));
+    var y=Math.max(0,Math.min(drag.st.height-40,e.clientY-drag.st.top-drag.dy));
+    panel.style.left=x+'px';panel.style.top=y+'px';panel.style.right='auto';
+  });
+  panel.addEventListener('pointerup',function(){
+    if(!drag)return;drag=null;
+    try{localStorage.setItem('psKindPanelPos',JSON.stringify({x:parseInt(panel.style.left,10),y:parseInt(panel.style.top,10)}));}catch(e){}
+  });
+  // clicks / wheel on the panel must not reach the viewport (emitter drag, zoom) underneath
+  ['pointerdown','mousedown','wheel','dblclick','click'].forEach(function(ev){panel.addEventListener(ev,function(e){e.stopPropagation();});});
+})();
+// ── Keyframes: animate (almost) any setting over the animation ─────────────────────────────────────
+// Every keyable control gets a ◆ button. Keys live in frames (0 … Frames-1, 30 fps):
+//   • emitter settings (EM_IDS)  → owner.keys[id]           (per emitter / 🌐 panel owner, read via ES)
+//   • Particle Mixer             → owner.keys['mix:<image>:size' | ':amt']   (image panel owner)
+//   • scene settings (FX, lens…) → globalKeys[id]           (written into the control every frame, so all
+//                                                             code that reads the control sees the value)
+// Numbers and #rrggbb colours blend linearly between keys, checkboxes / dropdowns switch at a key.
+// keysTick(frame) runs from updateEmFollow(), which every frame loop calls (live, scrub, all exports),
+// so keys play identically everywhere. An animated setting auto-keys: editing it sets a key at the
+// current frame.
+var globalKeys={},_animF=0,_kCount=0,_kLastUIF=null;
+var KEY_SECTIONS={'Emitter':1,'Appearance':1,'Lightning':1,'Motion':1,'Randomness':1,'Attractor':1,'Deflector':1,
+  '3D Collider':1,'PSD Bodies':1,'Mesh Deformer':1,'Displacement Map':1,'Bulge Lens':1,'FX Filters':1,'Background':1};
+var KEY_SKIP={fxPreset:1,fxPreview:1,tintMode:1,tintColor:1,tintStopColor:1,tintStopPos:1,presetSel:1,presetLabel:1};
+function keyTotF(){return Math.max(1,Math.round(V('totFrames')));}
+function keyFrameNow(){return Math.max(0,Math.min(keyTotF()-1,Math.round(_animF)));}
+function keyHex(c){c=String(c).replace('#','');return [parseInt(c.slice(0,2),16),parseInt(c.slice(2,4),16),parseInt(c.slice(4,6),16)];}
+function keyVal(ks,f){                    // ks = [[frame,value],…] sorted by frame
+  if(!ks.length)return undefined;
+  if(f<=ks[0][0])return ks[0][1];
+  var n=ks.length-1;if(f>=ks[n][0])return ks[n][1];
+  for(var i=0;i<n;i++){
+    var a=ks[i],b=ks[i+1];
+    if(f>=a[0]&&f<=b[0]){
+      if(typeof a[1]==='number'&&typeof b[1]==='number'){var u=(f-a[0])/((b[0]-a[0])||1);return a[1]+(b[1]-a[1])*u;}
+      if(typeof a[1]==='string'&&/^#[0-9a-f]{6}$/i.test(a[1])&&/^#[0-9a-f]{6}$/i.test(b[1])){
+        var u2=(f-a[0])/((b[0]-a[0])||1),A=keyHex(a[1]),B=keyHex(b[1]);
+        return '#'+A.map(function(x,j){return ('0'+Math.round(x+(B[j]-x)*u2).toString(16)).slice(-2);}).join('');
+      }
+      return a[1];                        // stepped (checkbox / dropdown / text)
+    }
+  }
+  return ks[n][1];
+}
+function keySet(store,id,f,v){
+  var ks=store[id]||(store[id]=[]);
+  for(var i=0;i<ks.length;i++){if(ks[i][0]===f){ks[i][1]=v;return;}}
+  ks.push([f,v]);ks.sort(function(a,b){return a[0]-b[0];});
+}
+function keyDel(store,id,f){
+  var ks=store[id];if(!ks)return;
+  for(var i=0;i<ks.length;i++)if(ks[i][0]===f){ks.splice(i,1);break;}
+  if(!ks.length)delete store[id];
+}
+function keyHas(store,id,f){var ks=store&&store[id];if(!ks)return false;for(var i=0;i<ks.length;i++)if(ks[i][0]===f)return true;return false;}
+function elKeyValue(el){
+  if(el.type==='checkbox')return el.checked;
+  if(el.type==='range'||el.type==='number')return parseFloat(el.value);
+  return el.value;
+}
+function keyStoreFor(id){                 // where this control's keys live
+  if(EM_GRP[id]){var em=emitters[emIdx];if(!em)return null;var o=emOf(em,id);return o.keys||(o.keys={});}
+  return globalKeys;
+}
+function keysRecount(){
+  var n=0,k;for(k in globalKeys)n++;
+  emitters.forEach(function(em){if(em.keys)for(var k2 in em.keys)n++;});
+  _kCount=n;_kLastUIF=null;
+}
+function keysClearForPreset(){            // a preset sets the whole look: drop its emitter's keys and the scene keys
+  globalKeys={};
+  var em=emitters[emIdx];
+  if(em){em.keys={};for(var g in emGlobals)if(emGlobals[g])emGlobals[g].keys={};}
+  keysRecount();keysRefreshUI();
+}
+function mixVal(own,name){                // Particle Mixer values of one image at the current frame
+  var c=own&&own.texMix&&own.texMix[name]||{size:1,amt:50},size=c.size||1,amt=c.amt!=null?+c.amt:50;
+  if(own&&own.keys){
+    var ks=own.keys['mix:'+name+':size'];if(ks)size=keyVal(ks,_animF);
+    var ka=own.keys['mix:'+name+':amt'];if(ka)amt=keyVal(ka,_animF);
+  }
+  return {size:size,amt:amt};
+}
+function keysMixAuto(){                   // a Mixer edit on an animated value keys it at the current frame
+  var own=kpOwner();if(!own||!own.keys)return;
+  var f=keyFrameNow(),pool=own.pool||[],anyAmt=false;
+  pool.forEach(function(t){if(own.keys['mix:'+t.name+':amt'])anyAmt=true;});
+  // the values just edited are in texMix (the base); the keyed values still show the old animation
+  var baseTot=pool.reduce(function(a,t){var c=own.texMix[t.name];return a+(c&&c.amt!=null?+c.amt:50);},0);
+  var baseSh=pool.map(function(t){var c=own.texMix[t.name];return baseTot>0?(c&&c.amt!=null?+c.amt:50)/baseTot*100:100/pool.length;});
+  pool.forEach(function(t){
+    var c=own.texMix[t.name]||{size:1,amt:50};
+    if(own.keys['mix:'+t.name+':size'])keySet(own.keys,'mix:'+t.name+':size',f,+c.size||1);
+    if(anyAmt)keySet(own.keys,'mix:'+t.name+':amt',f,Math.round(baseSh[pool.indexOf(t)]*100)/100);   // shares rebalance together, as %
+  });
+  keysRecount();keysRefreshUI();
+}
+function keyToggleMix(name,prop){         // ◆ on a Mixer card
+  var own=kpOwner();if(!own)return;
+  own.keys=own.keys||{};var f=keyFrameNow(),pool=own.pool||[];
+  if(prop==='amt'){                       // shares are keyed together (they always add up to 100 %)
+    var on=keyHas(own.keys,'mix:'+name+':amt',f),shp=kpShares(own,pool);   // keyed as % so blends stay linear
+    pool.forEach(function(t,ti){
+      var id='mix:'+t.name+':amt',v=Math.round(shp[ti]*100)/100;
+      if(on){keyDel(own.keys,id,f);if(!own.keys[id]){own.texMix[t.name]=own.texMix[t.name]||{size:1};own.texMix[t.name].amt=v;}}
+      else keySet(own.keys,id,f,v);
+    });
+  }else{
+    var id='mix:'+name+':size',v=mixVal(own,name).size;
+    if(keyHas(own.keys,id,f)){keyDel(own.keys,id,f);if(!own.keys[id]){own.texMix[name]=own.texMix[name]||{amt:50};own.texMix[name].size=v;}}
+    else keySet(own.keys,id,f,v);
+  }
+  keysRecount();keysRefreshUI();if(typeof undoRecord==='function')undoRecord();
+}
+function keyToggle(id){                   // ◆ next to a sidebar control
+  var el=document.getElementById(id),st=keyStoreFor(id);if(!el||!st)return;
+  var f=keyFrameNow(),v=elKeyValue(el);
+  if(keyHas(st,id,f)){
+    keyDel(st,id,f);
+    if(!st[id]&&EM_GRP[id]){var em=emitters[emIdx];if(em)emOf(em,id).s[id]=el.type==='checkbox'?el.checked:el.value;}
+  }else keySet(st,id,f,v);
+  keysRecount();keysRefreshUI();if(typeof undoRecord==='function')undoRecord();
+  if(typeof kindLive==='function'&&paused)kindLive();
+}
+function keysTick(f){                     // called once per simulated frame by every frame loop
+  _animF=f;
+  if(!_kCount)return;
+  for(var id in globalKeys){
+    var el=document.getElementById(id);if(!el||el===document.activeElement)continue;
+    var v=keyVal(globalKeys[id],f);if(v===undefined)continue;
+    if(el.type==='checkbox')el.checked=!!v;
+    else{el.value=typeof v==='number'?Math.round(v*1000)/1000:v;if(el.type==='range')sync(el);}
+  }
+  keysRefreshUI(true);
+}
+function keysRefreshUI(fromTick){         // sliders follow their animated values, ◆ show key state, timeline marks
+  var em=emitters[emIdx],f=keyFrameNow();
+  if(em&&_kCount){
+    EM_IDS.forEach(function(id){
+      var o=emOf(em,id);if(!o.keys||!o.keys[id])return;
+      var el=document.getElementById(id);if(!el||el===document.activeElement)return;
+      var v=keyVal(o.keys[id],_animF);
+      if(el.type==='checkbox')el.checked=!!v;
+      else{el.value=typeof v==='number'?Math.round(v*1000)/1000:v;if(el.type==='range')sync(el);}
+    });
+    if(typeof kpRefreshValues==='function')kpRefreshValues();
+  }
+  if(!fromTick&&typeof dsRender==='function')dsRender();
+  if(fromTick&&f===_kLastUIF)return;      // buttons / marks only change when the whole frame changes
+  _kLastUIF=f;
+  [].forEach.call(document.querySelectorAll('.kbtn[data-kid]'),function(b){
+    var id=b.getAttribute('data-kid'),st=EM_GRP[id]?(em?emOf(em,id).keys:null):globalKeys;
+    var anim=!!(st&&st[id]),here=anim&&keyHas(st,id,f);
+    b.className='kbtn'+(here?' kon':anim?' kanim':'');
+    b.textContent=here?'◆':'◇';
+  });
+  [].forEach.call(document.querySelectorAll('.kbtn[data-kmix]'),function(b){
+    var own=kpOwner(),id=b.getAttribute('data-kmix'),anim=!!(own&&own.keys&&own.keys[id]),here=anim&&keyHas(own.keys,id,f);
+    b.className='kbtn'+(here?' kon':anim?' kanim':'');b.textContent=here?'◆':'◇';
+  });
+  keysDrawMarks();
+}
+function keysDrawMarks(){                 // diamonds above the timeline for every keyed frame (this emitter + scene)
+  var box=document.getElementById('tlKeys'),sl=document.getElementById('tlSlider');if(!box||!sl)return;
+  var frames={},em=emitters[emIdx],add=function(st){if(!st)return;for(var id in st)st[id].forEach(function(k){frames[k[0]]=1;});};
+  add(globalKeys);
+  if(em){var seen=[];EM_IDS.forEach(function(id){var o=emOf(em,id);if(seen.indexOf(o)<0){seen.push(o);add(o.keys);}});
+    var io=emFor(em,'image');if(seen.indexOf(io)<0)add(io.keys);}
+  box.innerHTML='';
+  var tl=document.getElementById('timeline').getBoundingClientRect(),r=sl.getBoundingClientRect(),T=keyTotF(),thumb=14;
+  Object.keys(frames).forEach(function(fs){
+    var f=+fs,x=r.left-tl.left+thumb/2+(T>1?f/(T-1):0)*(r.width-thumb);
+    var m=document.createElement('div');m.className='tlkey';m.style.left=(x-4)+'px';m.title='Key at frame '+f+' — click to go there';
+    m.onclick=function(e){e.stopPropagation();if(typeof tlSeek==='function')tlSeek(f,true);};
+    box.appendChild(m);
+  });
+}
+function keysInstallButtons(){            // add ◆ to every keyable row of the keyable panels
+  var heads=document.querySelectorAll('#sidebar h2');
+  [].forEach.call(heads,function(h){
+    var title=(h.firstChild&&h.firstChild.textContent||h.textContent).trim();
+    if(!KEY_SECTIONS[title])return;
+    var body=h.nextElementSibling;if(!body)return;
+    [].forEach.call(body.querySelectorAll('.row'),function(row){
+      if(row.querySelector('.kbtn'))return;
+      var el=row.querySelector('input[id],select[id]');
+      if(!el||KEY_SKIP[el.id]||el.type==='file'||el.type==='button'||el.type==='text'||el.type==='radio')return;
+      var b=document.createElement('button');b.className='kbtn';b.setAttribute('data-kid',el.id);b.textContent='◇';
+      b.title='Keyframe: set / remove a key for this setting at the current timeline frame. Once a setting has a key, editing it keys it automatically.';
+      b.onclick=function(e){e.preventDefault();e.stopPropagation();keyToggle(el.id);};
+      row.appendChild(b);
+      el.setAttribute('data-keyable','1');
+    });
+  });
+  keysRefreshUI();
+}
+// auto-key: editing an animated control writes a key at the current frame
+(function(){
+  function onEdit(e){
+    var el=e.target;if(!el||!el.getAttribute||el.getAttribute('data-keyable')!=='1')return;
+    var st=keyStoreFor(el.id);if(!st||!st[el.id])return;
+    keySet(st,el.id,keyFrameNow(),elKeyValue(el));
+    _kLastUIF=null;
+    if(typeof dsRender==='function'&&_dsOpen)dsRender();
+  }
+  document.addEventListener('input',onEdit,true);
+  document.addEventListener('change',onEdit,true);
+  window.addEventListener('resize',function(){_kLastUIF=null;keysDrawMarks();});
+  setTimeout(keysInstallButtons,0);
+})();
+// ── Spine version targets ────────────────────────────────────────────────────────────────────────
+// The exporters build Spine 4.2-style JSON; spineForVersion() rewrites it for the chosen editor version
+// (same rules as the spine_skel_downgrader project, for the subset the particle exports use):
+//   4.2 (also imports into 4.3) · 4.1 (identical data) · 4.0 (sequence attachments → one region per frame +
+//   attachment keys) · 3.8 (+ rotate value→angle, rgba/alpha→color, 4.x curves→linear keys, transform mixes)
+//   · 3.7 (+ skins as an object, curve arrays).
+var SPINE_VER_STR={'4.2':'4.2.43','4.1':'4.1.17','4.0':'4.0.64','3.8':'3.8.99','3.7':'3.7.94'};
+function spineVerSel(){var e=document.getElementById('spineVer');return e&&SPINE_VER_STR[e.value]?e.value:'4.2';}
+function spineVerString(){return SPINE_VER_STR[spineVerSel()];}
+function spineForVersion(json){
+  var v=spineVerSel();
+  json.skeleton=json.skeleton||{};json.skeleton.spine=SPINE_VER_STR[v];
+  if(v==='4.2'||v==='4.1')return json;
+  var r3=function(x){return Math.round(x*1000)/1000;};
+  // 4.1 → 4.0: expand sequence attachments into one region per frame, sequence keys into attachment keys
+  var seqs={};                                       // slot → attachment → {names, count, frames…}
+  (json.skins||[]).forEach(function(sk){
+    var by=sk.attachments||{};
+    for(var slot in by){
+      var atts=by[slot];
+      Object.keys(atts).forEach(function(an){
+        var a=atts[an];if(!a||!a.sequence)return;
+        var sq=a.sequence;delete a.sequence;
+        var count=+sq.count||1,start=+sq.start||0,digits=+sq.digits||0,setup=+sq.setup||0,base=a.path||an,names=[];
+        for(var i=0;i<count;i++){
+          var path=base+String(start+i).padStart(digits,'0');
+          if(i===setup){a.path=path;names.push(an);continue;}
+          var fn=an+String(start+i).padStart(digits,'0');while(atts[fn])fn+='_';
+          var fa={};for(var k in a)fa[k]=a[k];fa.path=path;atts[fn]=fa;names.push(fn);
+        }
+        (seqs[slot]=seqs[slot]||{})[an]={names:names,count:count};
+      });
+    }
+  });
+  for(var animName in json.animations||{}){
+    var anim=json.animations[animName],sqTl=anim.attachments&&anim.attachments['default'];
+    if(sqTl){
+      for(var sl in sqTl)for(var an2 in sqTl[sl]){
+        var info=seqs[sl]&&seqs[sl][an2],keys=(sqTl[sl][an2]||{}).sequence;
+        if(!info||!keys)continue;
+        var atl=((anim.slots=anim.slots||{})[sl]=anim.slots[sl]||{}).attachment||(anim.slots[sl].attachment=[]);
+        var end=0;for(var aa in anim)(function walk(o){if(Array.isArray(o))o.forEach(function(k){if(k&&k.time>end)end=k.time;});else if(o&&typeof o==='object')for(var q in o)walk(o[q]);})(anim[aa]);
+        var add=[];
+        keys.forEach(function(k){
+          var t0=+k.time||0;
+          // the sequence plays while its attachment is shown: until the slot's next attachment key
+          var tEnd=end;atl.forEach(function(ak){if(ak.time>t0+1e-6&&ak.time<tEnd&&ak.name!==an2)tEnd=ak.time;});
+          var delay=+k.delay||0,idx=+k.index||0,mode=k.mode||'hold';
+          for(var t=t0,j=0;t<tEnd-1e-6;j++,t=t0+j*(delay||1e9)){
+            var fi=idx+j;
+            if(mode==='once'||mode==='hold')fi=mode==='hold'?idx:Math.min(info.count-1,fi);
+            else fi=fi%info.count;
+            add.push({time:r3(t),name:info.names[fi]});
+            if(mode==='hold'||!(delay>0)||(mode==='once'&&fi===info.count-1))break;
+          }
+        });
+        // replace the plain "show <sequence>" keys by the per-frame ones (other attachments stay)
+        var kept=atl.filter(function(ak){return ak.name!==an2;});
+        anim.slots[sl].attachment=kept.concat(add).sort(function(a,b){return a.time-b.time;});
+      }
+      delete anim.attachments;
+    }
+  }
+  if(v==='4.0')return json;
+  // 4.0 → 3.8
+  (json.transform||[]).forEach(function(c){
+    c.rotateMix=c.mixRotate!=null?c.mixRotate:1;c.translateMix=c.mixX!=null?c.mixX:1;
+    c.scaleMix=c.mixScaleX!=null?c.mixScaleX:1;c.shearMix=c.mixShearY!=null?c.mixShearY:1;
+    ['mixRotate','mixX','mixY','mixScaleX','mixScaleY','mixShearY'].forEach(function(k){delete c[k];});
+  });
+  function curve3(key){                              // 3.x: linear unless stepped
+    if(key.curve==='stepped')return;
+    delete key.curve;
+  }
+  for(var an3 in json.animations||{}){
+    var a3=json.animations[an3];
+    for(var b in a3.bones||{}){
+      var tls=a3.bones[b];
+      if(tls.rotate)tls.rotate.forEach(function(k){if(k.value!=null){k.angle=k.value;delete k.value;}curve3(k);});
+      ['translate','scale','shear'].forEach(function(n){if(tls[n])tls[n].forEach(curve3);});
+    }
+    for(var s in a3.slots||{}){
+      var st=a3.slots[s],col=null;
+      if(st.rgba){col=st.rgba.map(function(k){var o={time:k.time,color:k.color};if(k.curve==='stepped')o.curve='stepped';return o;});delete st.rgba;}
+      else if(st.alpha){col=st.alpha.map(function(k){var aa2=Math.max(0,Math.min(255,Math.round((+k.value||0)*255)));
+        var o={time:k.time,color:'ffffff'+('0'+aa2.toString(16)).slice(-2)};if(k.curve==='stepped')o.curve='stepped';return o;});delete st.alpha;}
+      if(col)st.color=col;
+    }
+  }
+  if(v==='3.8')return json;
+  // 3.8 → 3.7: skins as an object keyed by name
+  if(Array.isArray(json.skins)){
+    var o2={};json.skins.forEach(function(sk){o2[sk.name||'default']=sk.attachments||{};});json.skins=o2;
+  }
+  return json;
+}
+// ── Dope sheet: one row per animated setting, keys selectable / deletable / movable ─────────────────
+// Rows come from globalKeys (scene) and every emitter's own keys (incl. Particle Mixer 'mix:' tracks).
+// Selection = set of 'track|frame'; a track is {store, id, label, group}.
+var _dsOpen=false,_dsSel={},_dsTracks=[],_dsDrag=null;
+function dsLabel(id){
+  if(id.indexOf('mix:')===0){
+    var p=id.split(':'),prop=p[p.length-1],img=p.slice(1,-1).join(':');
+    return 'Mixer · '+img+' · '+(prop==='size'?'Size ×':'%');
+  }
+  var el=document.getElementById(id),lab=id,sec='';
+  var row=el&&el.closest?el.closest('.row'):null;
+  if(row){var l=row.querySelector('label');if(l)lab=l.textContent.trim();}
+  var body=el&&el.closest?el.closest('.sec-body'):null,h=body&&body.previousElementSibling;
+  if(h&&h.tagName==='H2')sec=(h.firstChild&&h.firstChild.textContent||h.textContent).trim();
+  return (sec?sec+' · ':'')+lab;
+}
+function dsCollect(){
+  var tr=[];
+  Object.keys(globalKeys).sort().forEach(function(id){tr.push({store:globalKeys,id:id,label:dsLabel(id),group:'Scene',em:null});});
+  emitters.forEach(function(em){
+    if(!em.keys)return;
+    Object.keys(em.keys).sort(function(a,b){return dsLabel(a).localeCompare(dsLabel(b));}).forEach(function(id){
+      tr.push({store:em.keys,id:id,label:dsLabel(id),group:em.name,em:em});
+    });
+  });
+  tr.forEach(function(t,i){t.ix=i;});
+  return tr;
+}
+function dsKey(t,f){return t.ix+'|'+f;}
+function dsCount(){var n=0;for(var k in _dsSel)n++;return n;}
+function dsToggle(open){
+  _dsOpen=open==null?!_dsOpen:open;
+  document.getElementById('dopeSheet').style.display=_dsOpen?'flex':'none';
+  try{localStorage.setItem('psDopeOpen',_dsOpen?'1':'0');}catch(e){}
+  dsRender();
+}
+function dsFrameX(f,w){var T=keyTotF();return (T>1?f/(T-1):0)*(w-12)+6;}
+function dsXFrame(x,w){var T=keyTotF();return Math.max(0,Math.min(T-1,Math.round((x-6)/((w-12)||1)*(T-1))));}
+function dsRender(){
+  var btn=document.getElementById('dsBtn');
+  _dsTracks=dsCollect();
+  if(btn)btn.textContent='Keys '+(_dsTracks.length?'('+_dsTracks.length+') ':'')+(_dsOpen?'▾':'▴');
+  if(!_dsOpen)return;
+  var lanes=document.getElementById('dsRows');lanes.innerHTML='';
+  var empty=document.getElementById('dsEmpty');empty.style.display=_dsTracks.length?'none':'block';
+  // drop selections whose key no longer exists
+  var live={};_dsTracks.forEach(function(t){(t.store[t.id]||[]).forEach(function(k){live[dsKey(t,k[0])]=1;});});
+  for(var sk in _dsSel)if(!live[sk])delete _dsSel[sk];
+  var lastGroup=null;
+  _dsTracks.forEach(function(t){
+    if(t.group!==lastGroup){
+      lastGroup=t.group;
+      var gh=document.createElement('div');gh.className='dsgroup';gh.textContent=t.group;lanes.appendChild(gh);
+    }
+    var row=document.createElement('div');row.className='dsrow';
+    var lab=document.createElement('div');lab.className='dslabel';lab.textContent=t.label;lab.title=t.label+' — click: select this row’s keys (Shift/Ctrl: add)';
+    lab.onclick=function(e){
+      if(!(e.shiftKey||e.ctrlKey||e.metaKey))_dsSel={};
+      (t.store[t.id]||[]).forEach(function(k){_dsSel[dsKey(t,k[0])]=1;});dsRender();
+    };
+    row.appendChild(lab);
+    var lane=document.createElement('div');lane.className='dslane';lane.setAttribute('data-tr',t.ix);
+    row.appendChild(lane);lanes.appendChild(row);
+  });
+  dsPlaceKeys();
+  document.getElementById('dsInfo').textContent=dsCount()?dsCount()+' key'+(dsCount()>1?'s':'')+' selected':'';
+}
+function dsPlaceKeys(){                    // (re)position diamonds + ruler + playhead to the lane width
+  var lanes=document.querySelectorAll('#dsRows .dslane');if(!lanes.length&&!_dsOpen)return;
+  var w=lanes.length?lanes[0].clientWidth:(document.getElementById('dsRuler').clientWidth||300);
+  [].forEach.call(lanes,function(lane){
+    var t=_dsTracks[+lane.getAttribute('data-tr')];lane.innerHTML='';if(!t)return;
+    (t.store[t.id]||[]).forEach(function(k){
+      var d=document.createElement('div'),sel=!!_dsSel[dsKey(t,k[0])];
+      d.className='dskey'+(sel?' sel':'');d.style.left=(dsFrameX(k[0],w)-5)+'px';
+      var v=k[1];d.title='Frame '+k[0]+' = '+(typeof v==='number'?Math.round(v*1000)/1000:v)+'\nclick: select · Shift/Ctrl: add · drag: move · double-click: go to frame';
+      d.setAttribute('data-f',k[0]);d.setAttribute('data-tr',t.ix);
+      lane.appendChild(d);
+    });
+  });
+  var ru=document.getElementById('dsRuler');ru.innerHTML='';
+  var T=keyTotF(),step=T>200?50:T>80?10:5;
+  for(var f=0;f<T;f+=step){var tk=document.createElement('div');tk.className='dstick';tk.style.left=dsFrameX(f,w)+'px';tk.textContent=f;ru.appendChild(tk);}
+  var ph=document.getElementById('dsPlayhead'),off=document.getElementById('dsRuler').offsetLeft;
+  ph.style.left=(off+dsFrameX(keyFrameNow(),w))+'px';
+}
+function dsDeleteSel(){
+  if(!dsCount())return;
+  _dsTracks.forEach(function(t){
+    var ks=t.store[t.id];if(!ks)return;
+    var last=ks[ks.length-1];
+    t.store[t.id]=ks.filter(function(k){return !_dsSel[dsKey(t,k[0])];});
+    if(!t.store[t.id].length){
+      delete t.store[t.id];
+      // a setting with no keys left keeps the value of its last key as its fixed value
+      if(t.em&&t.id.indexOf('mix:')!==0&&EM_GRP[t.id])t.em.s[t.id]=typeof last[1]==='number'?String(last[1]):last[1];
+      else if(t.em&&t.id.indexOf('mix:')===0){var p=t.id.split(':'),prop=p[p.length-1],img=p.slice(1,-1).join(':');
+        t.em.texMix=t.em.texMix||{};var c=t.em.texMix[img]||(t.em.texMix[img]={size:1,amt:50});c[prop]=last[1];}
+    }
+  });
+  _dsSel={};dsAfterEdit();
+}
+function dsAfterEdit(){
+  keysRecount();_kLastUIF=null;keysRefreshUI();dsRender();
+  if(typeof undoRecord==='function')undoRecord();
+  if(paused&&typeof kindLive==='function')kindLive();
+}
+function dsMoveSel(df){                    // shift selected keys by df frames (overwrites keys they land on)
+  if(!df)return;
+  var T=keyTotF(),newSel={};
+  _dsTracks.forEach(function(t){
+    var ks=t.store[t.id];if(!ks)return;
+    var moving=ks.filter(function(k){return _dsSel[dsKey(t,k[0])];});if(!moving.length)return;
+    var staying=ks.filter(function(k){return !_dsSel[dsKey(t,k[0])];});
+    moving.forEach(function(k){k[0]=Math.max(0,Math.min(T-1,k[0]+df));});
+    staying=staying.filter(function(s){return !moving.some(function(m){return m[0]===s[0];});});
+    var seen={};moving=moving.filter(function(m){if(seen[m[0]])return false;seen[m[0]]=1;return true;});
+    t.store[t.id]=staying.concat(moving).sort(function(a,b){return a[0]-b[0];});
+    moving.forEach(function(m){newSel[dsKey(t,m[0])]=1;});
+  });
+  _dsSel=newSel;dsAfterEdit();
+}
+(function(){
+  var box=document.getElementById('dsRows');if(!box)return;
+  try{if(localStorage.getItem('psDopeOpen')==='1')_dsOpen=true;}catch(e){}
+  document.getElementById('dopeSheet').style.display=_dsOpen?'flex':'none';
+  document.getElementById('dsBtn').onclick=function(e){e.stopPropagation();dsToggle();};
+  document.getElementById('dsDel').onclick=function(e){e.stopPropagation();dsDeleteSel();};
+  document.getElementById('dsRuler').addEventListener('pointerdown',function(e){
+    e.stopPropagation();var r=this.getBoundingClientRect();if(typeof tlSeek==='function')tlSeek(dsXFrame(e.clientX-r.left,r.width),true);dsPlaceKeys();});
+  var sheet=document.getElementById('dopeSheet'),marq=document.getElementById('dsMarq');
+  sheet.addEventListener('pointerdown',function(e){
+    e.stopPropagation();
+    var kd=e.target.classList&&e.target.classList.contains('dskey')?e.target:null;
+    if(kd){
+      var t=_dsTracks[+kd.getAttribute('data-tr')],f=+kd.getAttribute('data-f'),key=dsKey(t,f);
+      if(e.shiftKey||e.ctrlKey||e.metaKey){if(_dsSel[key])delete _dsSel[key];else _dsSel[key]=1;dsRender();return;}
+      if(!_dsSel[key]){_dsSel={};_dsSel[key]=1;dsRender();}
+      var lane=document.querySelector('#dsRows .dslane');   // the clicked key may have been redrawn: measure a live row
+      _dsDrag={mode:'move',x0:e.clientX,w:lane?lane.clientWidth:300,df:0};try{sheet.setPointerCapture(e.pointerId);}catch(_e){}return;
+    }
+    if(e.target.classList&&(e.target.classList.contains('dslane')||e.target.id==='dsRows')){
+      var r=sheet.getBoundingClientRect();
+      _dsDrag={mode:'marq',x0:e.clientX,y0:e.clientY,add:e.shiftKey||e.ctrlKey||e.metaKey,base:JSON.parse(JSON.stringify(_dsSel))};
+      if(!_dsDrag.add){_dsSel={};}
+      marq.style.display='block';marq.style.left=(e.clientX-r.left)+'px';marq.style.top=(e.clientY-r.top)+'px';
+      marq.style.width='0px';marq.style.height='0px';try{sheet.setPointerCapture(e.pointerId);}catch(_e){}
+    }
+  });
+  sheet.addEventListener('pointermove',function(e){
+    if(!_dsDrag)return;
+    if(_dsDrag.mode==='move'){
+      var T=keyTotF(),df=Math.round((e.clientX-_dsDrag.x0)/((_dsDrag.w-12)||1)*(T-1));
+      if(df!==_dsDrag.df){_dsDrag.df=df;
+        [].forEach.call(document.querySelectorAll('#dsRows .dskey.sel'),function(d){
+          var f2=Math.max(0,Math.min(T-1,+d.getAttribute('data-f')+df));d.style.left=(dsFrameX(f2,_dsDrag.w)-5)+'px';});
+        document.getElementById('dsInfo').textContent=(df>0?'+':'')+df+' frames';}
+      return;
+    }
+    var r=sheet.getBoundingClientRect(),x0=Math.min(_dsDrag.x0,e.clientX),x1=Math.max(_dsDrag.x0,e.clientX),y0=Math.min(_dsDrag.y0,e.clientY),y1=Math.max(_dsDrag.y0,e.clientY);
+    marq.style.left=(x0-r.left)+'px';marq.style.top=(y0-r.top)+'px';marq.style.width=(x1-x0)+'px';marq.style.height=(y1-y0)+'px';
+    var sel=_dsDrag.add?JSON.parse(JSON.stringify(_dsDrag.base)):{};
+    [].forEach.call(document.querySelectorAll('#dsRows .dskey'),function(d){
+      var b=d.getBoundingClientRect(),cx=(b.left+b.right)/2,cy=(b.top+b.bottom)/2;
+      var on=cx>=x0&&cx<=x1&&cy>=y0&&cy<=y1,key=dsKey(_dsTracks[+d.getAttribute('data-tr')],+d.getAttribute('data-f'));
+      if(on)sel[key]=1;d.classList.toggle('sel',!!sel[key]);
+    });
+    _dsSel=sel;
+  });
+  sheet.addEventListener('pointerup',function(e){
+    if(!_dsDrag)return;var dr=_dsDrag;_dsDrag=null;
+    if(dr.mode==='move'){if(dr.df)dsMoveSel(dr.df);else dsRender();return;}
+    marq.style.display='none';dsRender();
+  });
+  sheet.addEventListener('dblclick',function(e){
+    var kd=e.target.classList&&e.target.classList.contains('dskey')?e.target:null;
+    if(kd&&typeof tlSeek==='function'){tlSeek(+kd.getAttribute('data-f'),true);dsPlaceKeys();}
+  });
+  ['wheel','click','mousedown'].forEach(function(ev){sheet.addEventListener(ev,function(e){e.stopPropagation();});});
+  document.addEventListener('keydown',function(e){
+    if(!_dsOpen)return;
+    var t=e.target,tag=(t&&t.tagName||'').toLowerCase();
+    if(tag==='input'||tag==='textarea'||tag==='select'||(t&&t.isContentEditable))return;
+    if((e.key==='Delete'||e.key==='Backspace')&&dsCount()){e.preventDefault();e.stopPropagation();dsDeleteSel();}
+    else if(e.key==='Escape'&&dsCount()){_dsSel={};dsRender();}
+    else if((e.ctrlKey||e.metaKey)&&(e.key==='a'||e.key==='A')&&_dsTracks.length){
+      e.preventDefault();_dsTracks.forEach(function(tt){(tt.store[tt.id]||[]).forEach(function(k){_dsSel[dsKey(tt,k[0])]=1;});});dsRender();}
+  },true);
+  window.addEventListener('resize',function(){if(_dsOpen)dsPlaceKeys();});
+  setTimeout(dsRender,0);
+})();
 function rebuildGallery(){
   var gal=document.getElementById('tex-gallery');gal.innerHTML='';
   // a wired 🖼 image node overrides the emitter's own selection — say so instead of ignoring clicks silently
@@ -2843,6 +3866,8 @@ function rebuildGallery(){
   }
   rebuildSeqList(groups);
   rebuildSpawnPool(groups);
+  refreshSheetKinds();
+  rebuildTexMix();
 }
 function ensureOneSelected(){
   if(textures.length&&!textures.some(function(t){return t.sel;}))textures[0].sel=true;
@@ -3233,6 +4258,19 @@ var PRESETS={
     turbAmp:250,turbScale:140,turbSpeed:2,
     tintMode:'life',tintStops:[{p:0,c:'#ffffff'},{p:0.25,c:'#ffd040'},{p:0.6,c:'#ff6010'},{p:1,c:'#802020'}],
     loopOn:true,totFrames:90},
+  // short burst that blows out of the screen at the viewer: the 3D camera is on and Wind Z pulls every
+  // particle toward it, so they swell with perspective (close ones turn into big soft blobs) and many fly past the camera
+  camblow:{mode:'burst',maxCount:300,emitShape:'circle',emitW:30,emitH:30,life:1.1,
+    speed:260,speedVar:120,angle:270,spread:360,gravY:0,gravX:0,gravZ:-1000,drag:0.3,
+    size:14,sizeVar:8,endScale:2.2,spin:120,fade:0.6,blend:'lighter',
+    alignRot:false,stretch:1,speedStretch:0,
+    randAll:18,randLife:30,randSpin:60,randGrav:45,randScale:40,randFade:30,randOpacity:25,
+    turbAmp:60,turbScale:140,turbSpeed:1.6,
+    tintMode:'life',tintStops:[{p:0,c:'#ffffff'},{p:0.25,c:'#fff1b8'},{p:0.6,c:'#ffb347'},{p:1,c:'#ff5a1f'}],
+    alphaCurveOn:true,alphaPts:[0,0.9,1,1,1,0.95,0.8,0.5,0],
+    cam3dOn:true,camYaw:0,camPitch:0,camPersp:500,camOrbit:0,emitDepth:150,
+    texName:'glow',
+    loopOn:true,totFrames:60},
   magicblast:{mode:'burst',maxCount:260,emitShape:'point',emitW:10,emitH:10,life:1.1,
     speed:540,speedVar:220,angle:270,spread:36,gravY:430,gravX:0,drag:0.9,
     size:12,sizeVar:6,endScale:0.05,spin:280,fade:0.55,blend:'lighter',
@@ -3454,6 +4492,21 @@ var PRESETS={
     defRel:[[0.05,0.9],[0.95,0.9]],
     texName:['diamond','gem pink','gem blue','gem green'],
     loopOn:true,totFrames:180},
+  // teardrop flame (no image sequence): streaky 'flame' tongues rise from a wide base, an attractor
+  // above pulls them together into one tall licking tip, turbulence makes them lick and flicker
+  flame:{mode:'cont',rate:400,maxCount:1200,emitShape:'circle',emitW:250,emitH:130,life:0.95,
+    speed:300,speedVar:100,angle:270,spread:175,gravY:-360,gravX:0,drag:1.4,
+    size:125,sizeVar:40,endScale:0.25,spin:0,fade:0.5,blend:'lighter',
+    alignRot:true,stretch:1.3,speedStretch:0.25,
+    randAll:15,randLife:50,randSpin:0,randGrav:30,randScale:35,randFade:25,randOpacity:45,
+    turbAmp:240,turbScale:90,turbSpeed:3.0,
+    attractOn:true,attractForce:1150,attractRadius:0,attractFalloff:'linear',attRel:[0.5,0.12],
+    tintMode:'life',tintStops:[{p:0,c:'#3a0600'},{p:0.2,c:'#b83206'},{p:0.42,c:'#ffb428'},{p:0.6,c:'#ff9416'},{p:0.82,c:'#c23c08'},{p:1,c:'#4a0800'}],
+    alphaCurveOn:true,alphaPts:[0,0.12,0.38,0.56,0.6,0.56,0.44,0.24,0],
+    texName:'flame',
+    // FX: heat warp bends the tongues and lets them flow into each other, glow + a little blur fuse them
+    fx:{fxWarp:16,fxWarpScale:320,fxWarpSpeed:1.5,fxGlow:30,fxGlowSize:12,fxBlur:1},
+    loopOn:true,totFrames:120},
   fire:{mode:'cont',rate:120,maxCount:400,emitShape:'circle',emitW:80,emitH:20,life:1.2,
     speed:120,speedVar:50,angle:270,spread:20,gravY:-250,gravX:0,drag:0.5,
     size:40,sizeVar:18,endScale:0.15,spin:40,fade:0.6,blend:'lighter',
@@ -3501,6 +4554,18 @@ var PRESETS={
     texName:'bolt',
     loopOn:true,totFrames:90,
     _scene:lightningScene},
+  // 50-frame transition with at most 50 particles (light Spine export): each particle is a whole cluster of
+  // bubbles; they stream up from below the screen, small at first and bigger and bigger (Size ramp), pile up
+  // until they cover the whole screen, then the last big ones rise out. Wobble + squash = bubble physics.
+  bubbletrans:{mode:'cont',rate:72,maxCount:50,emitShape:'line',emitWRel:1.1,emitH:0,emitBottom:120,life:1.4,
+    speed:2100,speedVar:250,angle:270,spread:6,gravY:-1000,gravX:0,drag:0.05,
+    size:165,sizeVar:35,sizeRamp:5.8,endScale:1.6,wobAmp:18,squash:6,wobHz:2.2,spin:0,fade:0.08,blend:'source-over',
+    randAll:8,randLife:20,randSpin:0,randGrav:15,randScale:30,randFade:10,randOpacity:10,
+    turbAmp:200,turbScale:200,turbSpeed:2,
+    tintMode:'rand',tintStops:[{p:0,c:'#eaf8ff'},{p:0.5,c:'#a6ddff'},{p:1,c:'#62b6ee'}],
+    rateCurveOn:true,ratePts:[0.3,0.7,1,1,0.65,0,0,0,0],
+    texName:['bubble cluster A','bubble cluster B','bubble cluster C'],
+    loopOn:true,totFrames:50},
   bubbles:{mode:'cont',rate:25,maxCount:150,emitShape:'box',emitW:300,emitH:20,life:5,
     speed:60,speedVar:30,angle:90,spread:20,gravY:-50,gravX:0,drag:0.2,
     size:22,sizeVar:14,endScale:1.4,spin:0,fade:0.3,blend:'source-over',
@@ -3528,18 +4593,61 @@ var PRESETS={
     bodiesOn:true,bodyBounce:0.75,bodyFriction:0.05,bodyGravity:1600,bodySpeed:1,
     bodyStartSpeed:1100,bodyMutual:true,bodyLoopReset:true,
     loopOn:true,totFrames:300,emitCenter:true,
-    _scene:bingoScene}
+    _scene:bingoScene},
+  winevents:{mode:'cont',rate:40,maxCount:20,emitShape:'point',emitW:10,emitH:10,life:2.2,
+    speed:580,speedVar:250,angle:270,spread:360,gravY:0,gravX:0,drag:0.7,
+    size:8,sizeVar:4,endScale:12,spin:120,fade:0.55,blend:'lighter',
+    alignRot:false,stretch:1.0,speedStretch:0,
+    randAll:20,randLife:30,randSpin:60,randGrav:0,randScale:35,randFade:35,randOpacity:30,
+    turbAmp:90,turbScale:110,turbSpeed:1.5,
+    tintMode:'rand',tintStops:[{p:0,c:'#ffff88'},{p:0.25,c:'#ffdd00'},{p:0.6,c:'#ffaa00'},{p:1,c:'#ff7700'}],
+    glareOn:true,glareStrength:1.5,
+    cam3dOn:true,camYaw:0,camPitch:0,camPersp:900,camOrbit:0,
+    emitDepth:500,
+    defOn:true,defAction:'bounce',defBounce:0.9,defFriction:0.8,defScatter:0,
+    defRel:[[0.9,0.5],[0.8,0.16],[0.5,0.02],[0.2,0.16],[0.1,0.5],[0.2,0.84],[0.5,0.98],[0.8,0.84]],
+    loopOn:true,totFrames:100},
+  magical_explosion:{mode:'burst',maxCount:500,emitShape:'point',emitW:8,emitH:8,life:1.8,
+    speed:620,speedVar:280,angle:270,spread:360,gravY:200,gravX:0,drag:0.95,
+    size:16,sizeVar:8,endScale:0.08,spin:240,fade:0.65,blend:'lighter',
+    alignRot:true,stretch:1.4,speedStretch:0.6,
+    randAll:22,randLife:45,randSpin:75,randGrav:35,randScale:45,randFade:38,randOpacity:35,
+    turbAmp:180,turbScale:130,turbSpeed:2.2,
+    tintMode:'life',tintStops:[{p:0,c:'#ffffff'},{p:0.15,c:'#7fd9ff'},{p:0.4,c:'#b070ff'},{p:0.7,c:'#ff3d82'},{p:1,c:'#330055'}],
+    alphaCurveOn:true,alphaPts:[0,0.5,0.8,1,1,0.95,0.65,0.3,0],
+    texName:'sparkle_core',
+    loopOn:true,totFrames:100},
+  magical_wisps:{mode:'burst',maxCount:180,emitShape:'circle',emitW:40,emitH:40,life:2.2,
+    speed:280,speedVar:140,angle:270,spread:180,gravY:100,gravX:0,drag:0.7,
+    size:85,sizeVar:35,endScale:1.8,spin:60,fade:0.8,blend:'lighter',
+    randAll:18,randLife:50,randSpin:50,randGrav:30,randScale:50,randFade:40,randOpacity:45,
+    turbAmp:220,turbScale:160,turbSpeed:1.8,
+    tintMode:'life',tintStops:[{p:0,c:'#c0a8ff'},{p:0.3,c:'#8060ff'},{p:0.6,c:'#ff3070'},{p:1,c:'#550033'}],
+    alphaCurveOn:true,alphaPts:[0,0.3,0.65,0.9,1,0.88,0.55,0.2,0],
+    texName:'whisp_soft',
+    loopOn:true,totFrames:120},
+  magical_glow:{mode:'burst',maxCount:280,emitShape:'point',emitW:6,emitH:6,life:1.3,
+    speed:450,speedVar:200,angle:270,spread:360,gravY:150,gravX:0,drag:1.1,
+    size:8,sizeVar:3,endScale:0.1,spin:180,fade:0.55,blend:'lighter',
+    randAll:25,randLife:40,randSpin:60,randGrav:40,randScale:35,randFade:35,randOpacity:40,
+    turbAmp:160,turbScale:100,turbSpeed:2.5,
+    tintMode:'rand',tintStops:[{p:0,c:'#ffd9ff'},{p:0.4,c:'#b0d9ff'},{p:1,c:'#c080ff'}],
+    alphaCurveOn:true,alphaPts:[0,0.6,0.9,1,0.98,0.85,0.5,0.2,0],
+    texName:'glow_dot',
+    loopOn:true,totFrames:80}
 };
 // everything a preset may not mention returns to neutral
-var PRESET_NEUTRAL={gravX:0,windDir:0,drag:0,turbAmp:0,turbScale:120,turbSpeed:1,fireflyBias:0,emitDepth:0,emDelay:0,
+var PRESET_NEUTRAL={gravX:0,gravZ:0,windDir:0,drag:0,turbAmp:0,turbScale:120,turbSpeed:1,fireflyBias:0,emitDepth:0,emDelay:0,
   inheritVel:0,emitMeshShape:'ball',emitMeshMode:'surface',emitMeshRX:-20,emitMeshRY:0,emitMeshSpin:30,
   vortexAmp:0,pFollowPath:'',pFollowW:50,emFollowPath:'',emFollowSpeed:1,attractPath:'',defPath:'',
   bulgeOn:false,bulgeScale:1.8,bulgeRange:320,bulgeX:50,bulgeY:50,
   col3dOn:false,col3dShape:'sphere',col3dMode:'contain',col3dBounce:0.4,speedStretch:0,
   attractOn:false,attractForce:600,attractRadius:0,attractFalloff:'linear',
   defOn:false,defAction:'bounce',defBounce:0.6,defFriction:0.1,defRandBounce:0,defRandFriction:0,defScatter:0,defXformLife:0.6,
-  tintMode:'off',randOpacity:0,emitDensity:0,rateCurveOn:false,alphaCurveOn:false,alignRot:false,faceCam:false,stretch:1,flapHz:7,flapVar:25};
+  tintMode:'off',sizeRamp:1,wobAmp:0,squash:0,wobHz:1.5,randOpacity:0,emitDensity:0,rateCurveOn:false,alphaCurveOn:false,alignRot:false,faceCam:false,stretch:1,flapHz:7,flapVar:25};
+var _presetFx=false;   // the last applied preset switched FX filters on
 function applyPreset(){
+  if(PRESETS[document.getElementById('presetSel').value])keysClearForPreset();
   var key=document.getElementById('presetSel').value;
   var p=PRESETS[key];
   if(!p)return;
@@ -3552,8 +4660,15 @@ function applyPreset(){
   }
   for(var k0 in PRESET_NEUTRAL)setEl(k0,PRESET_NEUTRAL[k0]);
   for(var k in p){
-    if(k.charAt(0)==='_'||k==='tintStops'||k==='defRel'||k==='attRel'||k==='emitTop'||k==='emitCenter'||k==='alphaPts'||k==='texName')continue;
+    if(k.charAt(0)==='_'||k==='fx'||k==='tintStops'||k==='defRel'||k==='attRel'||k==='emitTop'||k==='emitBottom'||k==='emitWRel'||k==='ratePts'||k==='emitCenter'||k==='alphaPts'||k==='texName'||k==='texMix'||k==='keys'||k==='globalKeys')continue;
     setEl(k,p[k]);
+  }
+  // emitter width as a share of the canvas (full-screen lines, e.g. the bubble transition)
+  if(p.emitWRel)setEl('emitW',Math.round(cv.width*p.emitWRel));
+  // spawn-rate-over-time curve (9 points over the animation length) on the emitter panel's owner
+  if(p.ratePts&&emitters[emIdx]){
+    var _rOw=emFor(emitters[emIdx],'emitter');
+    _rOw.ratePts=p.ratePts.slice();ratePts=_rOw.ratePts;drawRateCurve();
   }
   // tint gradient stops — setEl() doesn't fire 'change', so push the
   // mode/colour into the tint owner explicitly (tintFor reads the owner)
@@ -3569,8 +4684,16 @@ function applyPreset(){
   // alpha-over-lifetime curve (fade in/out)
   if(p.alphaPts){alphaCurve.pts=p.alphaPts.slice();}
   alphaCurve.draw();
+  // whole-frame FX a preset asks for (e.g. the flame's heat warp + glow); FX a preset turned on is
+  // reset again by the next preset that doesn't ask for any, so it never leaks into other presets
+  if(p.fx){
+    for(var fk in FX_NEUTRAL){var fe=document.getElementById(fk);if(!fe)continue;
+      fe.value=(p.fx[fk]!==undefined)?p.fx[fk]:FX_NEUTRAL[fk];if(fe.type==='range')sync(fe);}
+    document.getElementById('fxOn').checked=true;_presetFx=true;
+  }else if(_presetFx){fxApplyPreset('reset');_presetFx=false;}
   // texture selection (e.g. fog picks its own puff) — texName may be a
   // string or an array (snow mixes crystals with soft flakes)
+  if(p.texName&&emitters[emIdx]){var _mo=emFor(emitters[emIdx],'image');_mo.texMix=JSON.parse(JSON.stringify(p.texMix||{}));}
   if(p.texName){
     var wanted=Array.isArray(p.texName)?p.texName:[p.texName];
     textures.forEach(function(t){t.sel=wanted.indexOf(t.name)>=0;});
@@ -3585,6 +4708,7 @@ function applyPreset(){
   var emP=emitters[emIdx];
   if(emP){
     if(p.emitTop){emP.x=cv.width/2;emP.y=-10;}
+    else if(p.emitBottom){emP.x=cv.width/2;emP.y=cv.height+p.emitBottom;}
     else if(p.emitCenter){emP.x=cv.width/2;emP.y=cv.height/2;}
     else if(p.mode==='cont'){emP.x=cv.width/2;emP.y=cv.height*0.65;}
     else{emP.x=cv.width/2;emP.y=cv.height/2;}
@@ -3593,6 +4717,13 @@ function applyPreset(){
     // preset changed the sidebar → push the values into each panel's owner
     EM_IDS.forEach(function(id){var el=document.getElementById(id);if(el)emOf(emP,id).s[id]=el.type==='checkbox'?el.checked:el.value;});
   }else if(typeof p._scene==='function')p._scene();
+  // Show glow background for win events preset
+  var glowBg=document.getElementById('glowBg');
+  if(glowBg)glowBg.style.opacity=(key==='winevents')?'1':'0';
+  // animated presets: keyframes for emitter settings (incl. 'mix:<image>:size|amt') and scene settings
+  if(p.keys&&emitters[emIdx]){var _ke=emitters[emIdx];for(var _kid in p.keys){var _ko=_kid.indexOf('mix:')===0?emFor(_ke,'image'):emOf(_ke,_kid);_ko.keys=_ko.keys||{};_ko.keys[_kid]=p.keys[_kid].map(function(k){return [k[0],k[1]];});}}
+  if(p.globalKeys)for(var _gk in p.globalKeys)globalKeys[_gk]=p.globalKeys[_gk].map(function(k){return [k[0],k[1]];});
+  if(p.keys||p.globalKeys){keysRecount();keysRefreshUI();}
   restartLoop();
   if(p.mode==='burst'&&!document.getElementById('loopOn').checked)doBurst();
   undoRecord();
@@ -3768,6 +4899,30 @@ var STREAK_NEAR_SCALE=2.2,STREAK_MAX_PX=2000,STREAK_MAX_STRETCH=200;
 // align-to-motion. Deterministic — driven by p.age and the particle's seed,
 // so preview, loops and every export bake the exact same flapping.
 var FLAP_TEX={butterfly:1,morpho:1,monarch:1};
+// ── Wobble: per-particle sideways sway + width squash (each particle on its own rhythm from its seed).
+// Pure functions of age, applied to the position after every physics step and to the sprite size when
+// drawn, so the preview and every export (PNG, Spine sequence, Spine bones) wobble identically.
+// particle images keep their proportions: the longer side = particle size (square images unchanged)
+function imgAspect(img){
+  if(!img)return [1,1];
+  if(img._ar)return img._ar;
+  var w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(!(w>0&&h>0))return [1,1];                       // not loaded yet: don't cache
+  return (img._ar=w>=h?[1,h/w]:[w/h,1]);
+}
+function _wobHz(q,mul){return (EV(q.em,'wobHz')||1.5)*mul*(0.75+0.5*(q.seed==null?0.5:q.seed));}
+function wobbleStep(q){
+  var A=EV(q.em,'wobAmp');
+  if(!(A>0)){if(q._wbx){q.x-=q._wbx;q._wbx=0;}return;}
+  var env=Math.min(1,q.age*3);                       // ease in, no jump at birth
+  var off=A*env*Math.sin(_wobHz(q,1)*Math.PI*2*q.age+(q.seed||0)*6.2832);
+  q.x+=off-(q._wbx||0);q._wbx=off;
+}
+function squashK(q){
+  var S=(EV(q.em,'squash')||0)/100;
+  if(!(S>0))return 1;
+  return 1+S*Math.sin(_wobHz(q,2)*Math.PI*2*q.age+(q.seed||0)*9.1);   // twice the sway rate, like a real bubble
+}
 function flapMul(p){
   if(!FLAP_TEX[p.texName])return 1;
   var base=+EV(p.em,'flapHz');
@@ -4463,6 +5618,7 @@ function pathNearest(pa,x,y){
 }
 // emitter path-follow: em._fx/_fy override the emitter position (see emX/emY)
 function updateEmFollow(prog){
+  keysTick((prog||0)*Math.max(1,Math.round(V('totFrames'))));
   for(var i=0;i<emitters.length;i++){
     var em=emitters[i];
     var id=ES(em,'emFollowPath'),pa=id?pathById(id):null;
@@ -4586,7 +5742,7 @@ function ballR(b){return (b.w+b.h)/4*((V('bodyColScale')||92)/100);}
 // Spine sequence-mode exports. Alpha is preserved so transparent exports work.
 var _fxT=null,_fxS=null,_fxNoise=null,_fxO=null;
 // ─ FX presets: one-click looks — every value not listed falls back to neutral
-var FX_NEUTRAL={fxBlur:0,fxEcho:0,fxGlow:0,fxGlowSize:12,fxStar:0,fxStarLen:48,
+var FX_NEUTRAL={fxBlur:0,fxEcho:0,fxWarp:0,fxWarpScale:120,fxWarpSpeed:1.2,fxGlow:0,fxGlowSize:12,fxStar:0,fxStarLen:48,
   fxStarPts:'4',fxStarAng:45,fxHue:0,fxSat:100,fxBright:100,fxContrast:100,
   fxCA:0,fxPixel:1,fxNoise:0,fxVign:0,fxFade:0};
 var FX_PRESETS={
@@ -4624,7 +5780,7 @@ function fxApplyPreset(name){
 function fxActive(){
   var on=document.getElementById('fxOn');
   if(!on||!on.checked)return false;
-  return V('fxBlur')>0||V('fxEcho')>0||V('fxGlow')>0||V('fxStar')>0||
+  return V('fxBlur')>0||V('fxEcho')>0||V('fxWarp')>0||V('fxGlow')>0||V('fxStar')>0||
          V('fxHue')!==0||V('fxSat')!==100||
          V('fxBright')!==100||V('fxContrast')!==100||V('fxCA')>0||
          V('fxPixel')>1||V('fxNoise')>0||V('fxVign')>0||V('fxFade')>0;
@@ -4641,7 +5797,7 @@ function fxActive(){
     });
   });
 })();
-function applyFX(c){
+function applyFX(c,tSec){
   if(!fxActive())return;
   var w=c.width,h=c.height;
   if(!w||!h)return;
@@ -4698,6 +5854,31 @@ function applyFX(c){
   }else if(c._fxEcho){
     var eg0=c._fxEcho.getContext('2d');
     eg0.clearRect(0,0,c._fxEcho.width,c._fxEcho.height);
+  }
+  // 1c. heat warp: the frame is cut into thin rows that sway sideways and thin columns that bob up and
+  // down on two drifting sine waves each, so flames / smoke bend and ripple and neighbouring sprites
+  // flow into one another. Driven by the loop clock (tSec) and locked to whole cycles per loop, so the
+  // preview and every export match and looping stays seamless.
+  var wA=V('fxWarp');
+  if(wA>0){
+    var wL=Math.max(8,V('fxWarpScale')),wHz=V('fxWarpSpeed')||1,wT=tSec||0;
+    if(document.getElementById('loopOn').checked){
+      var wLoop=Math.max(1,V('totFrames'))/30;
+      wHz=Math.max(1,Math.round(wHz*wLoop))/wLoop;           // whole cycles per loop
+    }
+    var w1=wT*wHz*Math.PI*2,K=3;
+    resetCtx(tg);tg.clearRect(0,0,w,h);tg.drawImage(c,0,0);
+    g.clearRect(0,0,w,h);
+    for(var wy=0;wy<h;wy+=K){                                 // rows sway sideways
+      var dx=wA*(0.7*Math.sin(wy/wL*Math.PI*2-w1)+0.3*Math.sin(wy/(wL*0.53)*Math.PI*2+w1*2+1.3));
+      g.drawImage(t,0,wy,w,K,dx,wy,w,K);
+    }
+    resetCtx(tg);tg.clearRect(0,0,w,h);tg.drawImage(c,0,0);
+    g.clearRect(0,0,w,h);
+    for(var wx=0;wx<w;wx+=K){                                 // columns bob up and down
+      var dy=wA*0.5*(0.6*Math.sin(wx/(wL*1.3)*Math.PI*2+w1+0.7)+0.4*Math.sin(wx/(wL*0.61)*Math.PI*2-w1*2));
+      g.drawImage(t,wx,0,K,h,wx,dy,K,h);
+    }
   }
   // 2. blur + colour grade in one native filter pass
   var fp=[];
@@ -7644,7 +8825,7 @@ function faceCapOpen(){
     var trisR=[];
     for(i=0;i<T.length;i++)trisR.push(remap[T[i]]);
     var verSel=document.getElementById('spineVer');
-    var spineVer=(verSel&&verSel.value==='4.1')?'4.1.17':'4.2.43';
+    var spineVer=spineVerString();
     var nm=(ui.name.value.trim()||'face').replace(/[^\w\- ]+/g,'').replace(/[ ]+/g,'_')||'face';
     // ── bone-controlled rig ──
     // control bones sit on key facial landmarks; the mesh is skinned to them
@@ -7805,7 +8986,7 @@ function faceCapOpen(){
       width:texPhoto.width,height:texPhoto.height
     };
     var files=[
-      {name:nm+'.json',data:strBytes(JSON.stringify(json))},
+      {name:nm+'.json',data:strBytes(JSON.stringify(spineForVersion(json)))},
       {name:'images/'+nm+'.png',data:dataURLBytes(texPhoto.toDataURL('image/png'))}
     ];
     downloadZip(nm+'_spine_mesh.zip',files);
@@ -8374,9 +9555,52 @@ function restartLoop(soft){
   updateEmFollow(0);
   if(document.getElementById('loopOn').checked)doBurst();
 }
+// ── Timeline (bottom of the preview): shows the current frame, drag to scrub ────────────────
+// The simulation can't jump: scrubbing re-runs it from the loop start up to the chosen frame in
+// fixed 1/30 s steps (like the exports), continuing forward from the current frame when possible.
+var _tlDrag=false,_simOnly=false;
+function tlShow(f,totF,looping){
+  var sl=document.getElementById('tlSlider');if(!sl)return;
+  if(+sl.max!==totF-1)sl.max=Math.max(0,totF-1);
+  if(!_tlDrag)sl.value=looping?f:(f%totF);
+  document.getElementById('tlLabel').textContent=looping?(f+' / '+totF):(f+' (loop off)');
+  if(typeof _dsOpen!=='undefined'&&_dsOpen){var ph=document.getElementById('dsPlayhead'),ru=document.getElementById('dsRuler');
+    if(ph&&ru)ph.style.left=(ru.offsetLeft+dsFrameX(Math.min(f,totF-1),ru.clientWidth))+'px';}
+}
+function tlSeek(F,force){
+  var totF=Math.round(V('totFrames')),looping=document.getElementById('loopOn').checked;
+  F=Math.max(0,Math.min(totF-1,Math.round(F)));
+  var cur=Math.floor((looping?loopTime:simTime)*30+1e-6);
+  var raf=window.requestAnimationFrame;
+  window.requestAnimationFrame=function(){return 0;};      // the stepped loop() calls must not queue frames
+  paused=false;
+  try{
+    if(force||F<cur||!looping&&cur>=totF){restartLoop();cur=0;}
+    var t=performance.now();last=t;
+    _simOnly=true;
+    for(var i=cur;i<F;i++){t+=1000/30;loop(t);}
+  }finally{
+    _simOnly=false;
+    window.requestAnimationFrame=raf;
+    paused=true;last=performance.now();
+    document.getElementById('pauseBtn').textContent='▶ Play';
+    document.getElementById('tlPlay').textContent='▶';
+  }
+  tlShow(F,totF,looping);
+}
+(function(){
+  var sl=document.getElementById('tlSlider'),pend=null;
+  sl.addEventListener('pointerdown',function(){_tlDrag=true;});
+  window.addEventListener('pointerup',function(){_tlDrag=false;});
+  sl.addEventListener('input',function(){                   // coalesce fast drags to one seek per frame
+    pend=+sl.value;
+    if(!sl._q){sl._q=true;requestAnimationFrame(function(){sl._q=false;if(pend!=null){var f=pend;pend=null;tlSeek(f);}});}
+  });
+})();
 function togglePause(){
   paused=!paused;
   document.getElementById('pauseBtn').textContent=paused?'▶ Play':'⏸ Pause';
+  var tp=document.getElementById('tlPlay');if(tp)tp.textContent=paused?'▶':'⏸';
 }
 // ── 3D mesh emitter: spawn particles on a 3D primitive or loaded OBJ ──
 var _emGeoCache={},_emObjGeo=null,_emFaceGeo=null,_emFaceSrc=null;
@@ -8455,7 +9679,7 @@ function spawn(em){
   if(!em)return;
   var sel=emFor(em,'image').pool;
   if(!sel.length)return;
-  var to=sel[(rng()*sel.length)|0];
+  var to=pickPoolItem(em,sel);
   var tex=to.img;
   // jitter helper: ±pct% variation, boosted by Master randomness
   var master=EV(em,'randAll')/100;
@@ -8463,6 +9687,9 @@ function spawn(em){
   var a=(EV(em,'angle')+ (rng()-0.5)*(EV(em,'spread')+master*180))*Math.PI/180;
   var sp=jit(EV(em,'speed'),0)+(rng()-0.5)*2*EV(em,'speedVar');
   var sz=Math.max(1,jit(EV(em,'size'),0)+(rng()-0.5)*2*EV(em,'sizeVar'));
+  // Size ramp ×: newborn size grows from ×1 at the start of the animation to ×ramp at its end
+  var _sr=EV(em,'sizeRamp');if(_sr>0&&_sr!==1&&em._prog!=null)sz*=1+(_sr-1)*Math.max(0,Math.min(1,em._prog));
+  var _tc=texMixOf(em,to.name),_km=_tc&&_tc.size>0?_tc.size:1;sz*=_km;   // per-image Size ×
   // emitter shape offset (Density biases where inside the shape:
   // + → concentrated at centre, − → pushed to the edges, 0 → uniform)
   var ox=0,oy=0,ew=EV(em,'emitW'),eh=EV(em,'emitH');
@@ -8523,7 +9750,7 @@ function spawn(em){
     x:emX(em)+ox, y:emY(em)+oy, z:oz,
     vx:Math.cos(a)*sp*cb3+_ihx, vy:Math.sin(a)*sp*cb3+_ihy, vz:c3?Math.sin(b3)*sp:0,
     rot:rot0, spin:jit(EV(em,'spin'),EV(em,'randSpin'))*(rng()<0.5?-1:1),
-    size:sz, age:0, life:Math.max(0.05,jit(EV(em,'life'),EV(em,'randLife'))),
+    size:sz, _kind:to.name, _kmul:_km, age:0, life:Math.max(0.05,jit(EV(em,'life'),EV(em,'randLife'))),
     gravMul:Math.max(0,jit(1,EV(em,'randGrav'))),
     endScaleMul:Math.max(0,jit(1,EV(em,'randScale'))),
     fadeMul:Math.max(0.01,jit(1,EV(em,'randFade'))),
@@ -8584,7 +9811,8 @@ function exportSpine(){
       emitters.forEach(function(em3){
         if(!em3.on||ES(em3,'mode')!=='cont')return;
         if((curF%totF)/30<(EV(em3,'emDelay')||0)){em3.acc=0;return;}
-        em3.acc+=EV(em3,'rate')*emRateCurve(em3,(curF%totF)/totF)*dt;
+        em3._prog=(curF%totF)/totF;
+        em3.acc+=EV(em3,'rate')*emRateCurve(em3,em3._prog)*dt;
         var cap3=Math.round(EV(em3,'maxCount')),live3=0;
         for(var li=0;li<particles.length;li++)if(particles[li].em===em3)live3++;
         while(em3.acc>=1){em3.acc--;if(live3<cap3){spawn(em3);live3++;}}
@@ -8642,7 +9870,8 @@ function exportSpine(){
           }
         }
         var _blE=bulgeLens(fx,fy,fsz);fx=_blE.x;fy=_blE.y;fsz=_blE.s;
-        return {x:fx-emX(p.em),y:-(fy-emY(p.em)),rot:-frot,s:fsz,sx:fstx,a:fa,tex:p.texName,t:lightTint(tintFor(p,t),p.x,p.y)};
+        var _sqE=squashK(p);
+        return {x:fx-emX(p.em),y:-(fy-emY(p.em)),rot:-frot,s:fsz,sx:fstx*_sqE,sy:1/_sqE,a:fa,tex:p.texName,t:lightTint(tintFor(p,t),p.x,p.y)};
       })());
     }
     for(var i2=particles.length-1;i2>=0;i2--){
@@ -8661,6 +9890,7 @@ function exportSpine(){
       var _ox=q.x,_oy=q.y;
       q.x+=q.vx*dt;q.y+=q.vy*dt;q.z=(q.z||0)+(q.vz||0)*dt;
       applyDeflector(q,_ox,_oy);
+      wobbleStep(q);
       applyCollider3D(q);
       q.rot+=q.spin*dt;
       alignRotUpdate(q);
@@ -8675,7 +9905,7 @@ function exportSpine(){
   tracks.forEach(function(tr){tr.born-=L;});
 
   // build skeleton json
-  var spineVer=document.getElementById('spineVer').value==='4.1'?'4.1.17':'4.2.43';
+  var spineVer=spineVerString();
   var json={
     skeleton:{spine:spineVer,images:'./images/',fps:expFps,
       hash:'simpleparticles',width:cv.width,height:cv.height},
@@ -8689,7 +9919,7 @@ function exportSpine(){
   var lightsActive=_lightsOnEl&&_lightsOnEl.checked&&lights.some(function(L){return L.on;});
   var tintActive=document.getElementById('tintMode').value!=='off'||lightsActive;
   var hex8=function(r,g,b,a){
-    function h(v){v=Math.max(0,Math.min(255,Math.round(v*255)));return ('0'+v.toString(16)).slice(-2);}
+    function h(v){if(!isFinite(v))v=1;v=Math.max(0,Math.min(255,Math.round(v*255)));return ('0'+v.toString(16)).slice(-2);}
     return h(r)+h(g)+h(b)+h(a);
   };
 
@@ -8709,6 +9939,8 @@ function exportSpine(){
     }
   }
   function reduceIdx(times,chans,tols,maxK){
+    // Spine 3.x has no per-channel curves: keys must be exact under linear blending, so no key cap
+    if(spineVerSel().charAt(0)==='3')maxK=1e9;
     var n=times.length;
     if(n<=2){var all=[];for(var a2=0;a2<n;a2++)all.push(a2);return all;}
     var tolMul=V('optTol');
@@ -8878,7 +10110,7 @@ function exportSpine(){
         else attachMap[bn][nm]={width:d0.w,height:d0.h};
         times.push((tr.born+f)/30);
         xs.push(fr.x);ys.push(fr.y);rots.push(fr.rot);
-        sxs.push(fr.s*(fr.sx||1)/d0.w);sys.push(fr.s/d0.h);as.push(fr.a);
+        var _dm=Math.max(d0.w,d0.h)||1;sxs.push(fr.s*(fr.sx||1)/_dm);sys.push(fr.s*(fr.sy||1)/_dm);as.push(fr.a);   // scale keeps the image's proportions
         var tc0=fr.t;
         crs.push(tc0?tc0[0]/255:1);cgs.push(tc0?tc0[1]/255:1);cbs.push(tc0?tc0[2]/255:1);
       }
@@ -9070,7 +10302,7 @@ function exportSpine(){
   }
   var files=[];
   var name=(document.getElementById('expName').value||'particles').trim();
-  files.push({name:name+'.json',data:strBytes(JSON.stringify(json))});
+  files.push({name:name+'.json',data:strBytes(JSON.stringify(spineForVersion(json)))});
   textures.forEach(function(t){
     if(!usedNames[t.name])return;
     var b=dataURLBytes(t.img.src);
@@ -9209,10 +10441,12 @@ function exportSpineSeq(){
       og.rotate(rotD2*Math.PI/180);
       var timg2=q.tex,tc2=lightTint(tintFor(q,t),q.x,q.y);
       if(tc2&&(tc2[0]<248||tc2[1]<248||tc2[2]<248))timg2=tintedSprite(q.tex,q.texName,tc2);
-      og.drawImage(timg2,-s*stx/2,-s/2,s*stx,s);
+      var _sqX=squashK(q);
+      var _arX=imgAspect(q.tex),_wX=s*stx*_sqX*_arX[0],_hX=s/_sqX*_arX[1];
+      og.drawImage(timg2,-_wX/2,-_hX/2,_wX,_hX);
       og.restore();
     }
-    applyFX(oc);   // FX filters bake into the Spine sequence frames too
+    applyFX(oc,idx/30);   // FX filters bake into the Spine sequence frames too
     var b=dataURLBytes(oc.toDataURL('image/png'));
     if(b)files.push({name:'images/'+name+'_'+pad(idx)+'.png',data:b});
   }
@@ -9231,7 +10465,8 @@ function exportSpineSeq(){
       emitters.forEach(function(em4){
         if(!em4.on||ES(em4,'mode')!=='cont')return;
         if((g%totF)/30<(EV(em4,'emDelay')||0)){em4.acc=0;return;}
-        em4.acc+=EV(em4,'rate')*emRateCurve(em4,(g%totF)/totF)*dt;
+        em4._prog=(g%totF)/totF;
+        em4.acc+=EV(em4,'rate')*emRateCurve(em4,em4._prog)*dt;
         var cap4=Math.round(EV(em4,'maxCount')),live4=0;
         for(var li=0;li<particles.length;li++)if(particles[li].em===em4)live4++;
         while(em4.acc>=1){em4.acc--;if(live4<cap4){spawn(em4);live4++;}}
@@ -9255,6 +10490,7 @@ function exportSpineSeq(){
       var _ox2=q2.x,_oy2=q2.y;
       q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.z=(q2.z||0)+(q2.vz||0)*dt;
       applyDeflector(q2,_ox2,_oy2);
+      wobbleStep(q2);
       applyCollider3D(q2);
       q2.rot+=q2.spin*dt;
       alignRotUpdate(q2);
@@ -9267,7 +10503,7 @@ function exportSpineSeq(){
   var nFrames=files.length;
   if(!nFrames){alert('Nothing to export — no frames rendered.');return;}
   // skeleton: one bone + one slot, attachment = native sequence
-  var spineVer=document.getElementById('spineVer').value==='4.1'?'4.1.17':'4.2.43';
+  var spineVer=spineVerString();
   var attName=name;
   var json={
     skeleton:{spine:spineVer,images:'./images/',fps:30,hash:'simpleparticles',width:cr.w,height:cr.h},
@@ -9285,7 +10521,7 @@ function exportSpineSeq(){
   json.skins[0].attachments.fx[attName]=att;
   json.animations.animation.attachments['default'].fx[attName]={
     sequence:[{time:0,mode:looping?'loop':'once',index:0,delay:Math.round(1000/30)/1000}]};
-  files.unshift({name:name+'.json',data:strBytes(JSON.stringify(json))});
+  files.unshift({name:name+'.json',data:strBytes(JSON.stringify(spineForVersion(json)))});
   downloadZip(name+'_seq.zip',files);
   var hintEl=document.getElementById('hint');
   if(!window._hintDefault)window._hintDefault=hintEl.textContent;
@@ -9373,10 +10609,12 @@ function exportPNGSeq(){
       og.rotate(rotD3*Math.PI/180);
       var timg2=q.tex,tc2=lightTint(tintFor(q,t),q.x,q.y);
       if(tc2&&(tc2[0]<248||tc2[1]<248||tc2[2]<248))timg2=tintedSprite(q.tex,q.texName,tc2);
-      og.drawImage(timg2,-s*stx/2,-s/2,s*stx,s);
+      var _sqX=squashK(q);
+      var _arX=imgAspect(q.tex),_wX=s*stx*_sqX*_arX[0],_hX=s/_sqX*_arX[1];
+      og.drawImage(timg2,-_wX/2,-_hX/2,_wX,_hX);
       og.restore();
     }
-    applyFX(oc);   // FX filters baked into every exported frame
+    applyFX(oc,idx/30);   // FX filters baked into every exported frame
     var b=dataURLBytes(oc.toDataURL('image/png'));
     if(b)files.push({name:name+(prefix?'_'+prefix:'')+'_'+pad(idx)+'.png',data:b});
   }
@@ -9399,7 +10637,8 @@ function exportPNGSeq(){
       emitters.forEach(function(em4){
         if(!em4.on||ES(em4,'mode')!=='cont')return;
         if((g%totF)/30<(EV(em4,'emDelay')||0)){em4.acc=0;return;}
-        em4.acc+=EV(em4,'rate')*emRateCurve(em4,(g%totF)/totF)*dt;
+        em4._prog=(g%totF)/totF;
+        em4.acc+=EV(em4,'rate')*emRateCurve(em4,em4._prog)*dt;
         var cap4=Math.round(EV(em4,'maxCount')),live4=0;
         for(var li=0;li<particles.length;li++)if(particles[li].em===em4)live4++;
         while(em4.acc>=1){em4.acc--;if(live4<cap4){spawn(em4);live4++;}}
@@ -9429,6 +10668,7 @@ function exportPNGSeq(){
       var _ox2=q2.x,_oy2=q2.y;
       q2.x+=q2.vx*dt;q2.y+=q2.vy*dt;q2.z=(q2.z||0)+(q2.vz||0)*dt;
       applyDeflector(q2,_ox2,_oy2);
+      wobbleStep(q2);
       applyCollider3D(q2);
       q2.rot+=q2.spin*dt;
       alignRotUpdate(q2);
@@ -9526,7 +10766,7 @@ function buildProject(){
     emitY:emitters.length?emY(emitters[emIdx]):null,
     emitters:emitters.map(function(em){
       return {name:em.name,on:em.on,x:em.x,y:em.y,s:em.s,
-              ratePts:em.ratePts.slice(),texSel:em.texSel,
+              ratePts:em.ratePts.slice(),texSel:em.texSel,texMix:em.texMix||{},keys:em.keys||{},
               meshPts:em.meshPts?em.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
               meshRect:em.meshRect?{x:em.meshRect.x,y:em.meshRect.y,w:em.meshRect.w,h:em.meshRect.h,n:em.meshRect.n}:null,
               attX:em.attX,attY:em.attY,
@@ -9549,6 +10789,7 @@ function buildProject(){
     paths:paths.map(function(pa){return {id:pa.id,name:pa.name,closed:pa.closed,pts:pa.pts.map(function(q){return {x:q.x,y:q.y};})};}),
     pathSeq:pathSeq,
     camKeys:camKeys.map(function(k){return {p:k.p,yaw:k.yaw,pitch:k.pitch,persp:k.persp};}),
+    globalKeys:globalKeys,
     lights:lights.map(function(L){return {id:L.id,name:L.name,type:L.type,x:L.x,y:L.y,ang:L.ang,cone:L.cone,range:L.range,int:L.int,color:L.color,on:L.on};}),
     lightSeq:lightSeq,
     m3Saved:m3Saved,
@@ -9627,7 +10868,7 @@ function applyProject(proj){
                 x:rec.x==null?null:rec.x,y:rec.y==null?null:rec.y,
                 s:rec.s||emSnapshot(),
                 ratePts:(rec.ratePts&&rec.ratePts.slice())||ratePts.slice(),
-                texSel:rec.texSel||{},pool:[],acc:0,
+                texSel:rec.texSel||{},texMix:rec.texMix||{},keys:rec.keys||{},pool:[],acc:0,
                 meshPts:rec.meshPts?rec.meshPts.map(function(p){return {x:p.x,y:p.y};}):null,
                 meshRect:rec.meshRect?{x:rec.meshRect.x,y:rec.meshRect.y,w:rec.meshRect.w,h:rec.meshRect.h,n:rec.meshRect.n}:null,
                 attX:rec.attX==null?null:rec.attX,attY:rec.attY==null?null:rec.attY,
@@ -9680,6 +10921,7 @@ function applyProject(proj){
     camKeys.length=0;
     (proj.camKeys||[]).forEach(function(k){camKeys.push({p:+k.p||0,yaw:+k.yaw||0,pitch:+k.pitch||0,persp:+k.persp||900});});
     camKeys.sort(function(a,b){return a.p-b.p;});
+    globalKeys=JSON.parse(JSON.stringify(proj.globalKeys||{}));setTimeout(function(){keysRecount();keysRefreshUI();},0);
     refreshCamKeyList();
     lights.length=0;
     (proj.lights||[]).forEach(function(L){lights.push({id:L.id||('L'+(lightSeq++)),name:L.name||'Light',type:L.type||'point',x:+L.x||0,y:+L.y||0,ang:+L.ang||0,cone:+L.cone||30,range:+L.range||420,int:L.int==null?1:+L.int,color:L.color||'#ffffff',on:L.on!==false});});
@@ -9836,6 +11078,13 @@ function applySimpleMode(){
   var kids=sb.children,show=true,seenH2=false;
   for(var i=0;i<kids.length;i++){
     var el=kids[i];
+    if(el.classList&&el.classList.contains('grp')){
+      var any=!simpleMode;
+      for(var j=i+1;j<kids.length&&!any&&!(kids[j].classList&&kids[j].classList.contains('grp'));j++)
+        if(kids[j].tagName==='H2'&&SIMPLE_SECTIONS.indexOf((kids[j].firstChild&&kids[j].firstChild.textContent||kids[j].textContent).trim())>=0)any=true;
+      el.style.display=any?'':'none';
+      continue;
+    }
     if(el.tagName==='H2'){
       seenH2=true;
       var title=(el.firstChild&&el.firstChild.textContent||el.textContent).trim();
@@ -9900,6 +11149,7 @@ function resetScene(){
   if(nodePanelOpen())nodePanelToggle();
   paths.length=0;pathSel=-1;pathSeq=1;rebuildPathList();refreshPathSelects();
   camKeys.length=0;refreshCamKeyList();
+  globalKeys={};emitters.forEach(function(e){e.keys={};});keysRecount();keysRefreshUI();
   lights.length=0;lightSel=-1;rebuildLightList();
   bodies.length=0;rebuildBodyList();
   bgImg=null;bgData=null;
@@ -9907,6 +11157,7 @@ function resetScene(){
   cropRect=null;
   var cOn=document.getElementById('cropOn');if(cOn)cOn.checked=false;
   var pSel=document.getElementById('presetSel');if(pSel)pSel.value='';
+  var glowBg=document.getElementById('glowBg');if(glowBg)glowBg.style.opacity='0';
   // lightning scene state (preset-driven; particles carry _lgt flags)
   if(typeof lgtDisable==='function')lgtDisable();
   // face capture panel + everything it published
@@ -9983,6 +11234,7 @@ function loop(now){
     }else{
       document.getElementById('frameInfo').textContent='\u2013';
     }
+    tlShow(looping?curF:Math.floor(simTime*30),totF,looping);
     // progress through animation for the rate curve
     var prog=looping?loopTime/animLen:(simTime%animLen)/animLen;
     if(document.getElementById('rateCurveOn').checked&&document.getElementById('mode').value==='cont')drawRateCurve(prog);
@@ -10006,6 +11258,7 @@ function loop(now){
     emitters.forEach(function(emL){
       if(!emL.on||ES(emL,'mode')!=='cont')return;
       if((looping?loopTime:simTime)<(EV(emL,'emDelay')||0)){emL.acc=0;return;}
+      emL._prog=prog;
       emL.acc+=EV(emL,'rate')*emRateCurve(emL,prog)*dt;
       var capL=Math.round(EV(emL,'maxCount')),liveL=0;
       for(var li=0;li<particles.length;li++)if(particles[li].em===emL)liveL++;
@@ -10033,6 +11286,7 @@ function loop(now){
       var _ox=p.x,_oy=p.y;
       p.x+=p.vx*dt;p.y+=p.vy*dt;p.z=(p.z||0)+(p.vz||0)*dt;
       applyDeflector(p,_ox,_oy);
+      wobbleStep(p);
       applyCollider3D(p);
       collideBodiesParticle(p);
       p.rot+=p.spin*dt;
@@ -10041,6 +11295,7 @@ function loop(now){
     }
     updateLightning(looping?loopTime:simTime);
   }
+  if(_simOnly)return;      // fast-forward (scrubbing / paused re-sim): only the final frame gets drawn
   // draw
   ctx.setTransform(1,0,0,1,0,0);
   ctx.globalCompositeOperation='source-over';
@@ -10181,14 +11436,16 @@ function loop(now){
     var timg=q.tex,tc=tintFor(q,t);
     tc=lightTint(tc,q.x,q.y);
     if(tc&&(tc[0]<248||tc[1]<248||tc[2]<248))timg=tintedSprite(q.tex,q.texName,tc);
-    ctx.drawImage(timg,-s*stxL/2,-s/2,s*stxL,s);
+    var _sqL=squashK(q);
+    var _arL=imgAspect(q.tex),_wL=s*stxL*_sqL*_arL[0],_hL=s/_sqL*_arL[1];
+    ctx.drawImage(timg,-_wL/2,-_hL/2,_wL,_hL);
     ctx.restore();
   }
   // FX filters live preview — filter the particle layer, then composite it
   // over the untouched background before gizmos are drawn
   if(_fxRedir){
     ctx=_fxRealCtx;
-    applyFX(window._fxLayerCv);
+    applyFX(window._fxLayerCv,document.getElementById('loopOn').checked?loopTime:simTime);
     ctx.setTransform(1,0,0,1,0,0);
     ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
     ctx.drawImage(window._fxLayerCv,0,0);
@@ -10579,7 +11836,7 @@ requestAnimationFrame(loop);
   heads.forEach(function(h){
     var body=document.createElement('div');
     body.className='sec-body';
-    while(h.nextSibling&&!(h.nextSibling.tagName==='H2'))body.appendChild(h.nextSibling);
+    while(h.nextSibling&&!(h.nextSibling.tagName==='H2')&&!(h.nextSibling.classList&&h.nextSibling.classList.contains('grp')))body.appendChild(h.nextSibling);
     h.parentNode.insertBefore(body,h.nextSibling);
     var key=h.textContent.trim();
     function apply(c){h.classList.toggle('collapsed',c);body.classList.toggle('collapsed',c);}
@@ -10596,6 +11853,12 @@ requestAnimationFrame(loop);
 
 // ── Tooltips ──────────────────────────────────────────────
 var TIPS={
+  wobAmp:'Wobble: every particle sways from side to side by up to this many px, each on its own rhythm (Wobble Hz ± a bit per particle). Baked into all exports.',
+  squash:'Squash: the particle’s width pulses by ± this % while its height does the opposite (volume kept) — the jelly wobble of a rising bubble. Runs at twice the Wobble Hz.',
+  wobHz:'How fast the wobble sways (cycles per second, varied ±25% per particle). Squash pulses twice as fast.',
+  fxWarp:'Heat warp: the whole frame ripples on drifting waves — rows sway sideways, columns bob up and down — so flames, smoke and glows bend and flow into each other instead of looking like separate sprites. Amount in px. Baked into the PNG / Spine sequence exports and loops seamlessly.',
+  fxWarpScale:'Wavelength of the heat-warp ripples in px: small = fine shimmer, large = big slow bends.',
+  fxWarpSpeed:'How fast the heat-warp waves drift, in cycles per second (rounded to whole cycles per loop when Loop is on, so the loop stays seamless).',
   presetSel:'Ready-made starting points. Pick one and press Apply Preset — you can tweak everything afterwards.',
   inheritVel:'How much of the EMITTER’s own motion newborn particles carry with them (%): 0 = born still, 100 = they move exactly with the emitter, 200 = flung ahead of it. Works with dragged emitters, path-following and captured strokes — great for trails, and for 🎭 Face Dust where static particles ride the moving face mesh.',
   presetLabel:'Rename the currently selected preset label in this UI. This changes the displayed name only — preset behavior stays the same.',
@@ -10734,7 +11997,7 @@ var TIPS={
   animMode:'Single: exports one animation (seamlessly looping if Loop is on). Intro + Loop + Outro: three animations sharing one skeleton \u2014 intro builds up, loop repeats seamlessly, outro dies out. Play them back to back with 0 mix duration. Trio needs Loop enabled.',
   introFrames:'Intro length in frames (30 fps, trio only). The intro ends exactly at the loop start state. Make it at least Lifetime \u00d7 30 so it can build up from empty \u2014 shorter intros start already populated.',
   outroFrames:'Outro length in frames (30 fps, trio only). Surviving particles play out and die. Make it at least Lifetime \u00d7 30 to let everything die naturally \u2014 shorter outros cut particles off at the end.',
-  spineVer:'Spine requires the JSON version to match your editor\u2019s major.minor version. Pick 4.2 for Spine 4.2.x, 4.1 for Spine 4.1.x. The data format is identical.',
+  spineVer:'Spine version the exported JSON is written for \u2014 pick your editor\u2019s major.minor version. 4.2 also imports into 4.3. 4.0 and older have no sequence attachments: image sequences are written as one image per frame with attachment keys. 3.8 / 3.7: colour goes into one colour timeline and keys blend linearly (the key reduction is already measured against linear blending, so the motion is the same).',
   expSeqMode:'How image sequences export. Spine sequence (native): one attachment with the Sequence checkbox set, playing via a sequence timeline (loop at Seq FPS \u2014 or once over lifetime with Fit life). Attachment keys: the old way, one attachment per frame keyed at every swap.',
   cropOn:'A crop rectangle for the Spine Sequence export — only what\u2019s inside is rendered. Drag its edges to move it, its corners to resize.',
   expName:'File name for exports: name.zip, name.json, name_0000.png\u2026'
