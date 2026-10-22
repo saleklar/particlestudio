@@ -189,6 +189,7 @@ canvas{display:block;width:100%;height:100%;cursor:crosshair}
   <button class="btn" onclick="applyPreset()">Apply Preset</button>
   <button class="btn" onclick="resetScene()">↻ Reset</button>
   <button class="btn" onclick="savePreset()">💾 Save</button>
+  <button class="btn" onclick="openCausticsTool()" title="Perspective water floor from a seamless caustic map: weighted meshes + bones, seamless loop, Spine export">🌊 Water Caustics (Spine meshes)…</button>
 
   <h2>Emitters</h2>
   <div id="emList" style="margin-bottom:4px"></div>
@@ -12058,5 +12059,294 @@ var BTN_TIPS=[
   });
 })();
 </script>
+<!-- 🌊 Water Caustics: perspective water floor from a seamless caustic map → weighted Spine meshes + bones, seamless loop -->
+<div id="csModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:9999;align-items:center;justify-content:center">
+  <div style="display:flex;width:94%;height:92%;background:#141416;border:1px solid #333;border-radius:8px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
+    <div id="csSide" style="width:300px;flex:none;overflow-y:auto;padding:10px 12px;border-right:1px solid #2a2a2a;font-size:12px;color:#ccc">
+      <h2 style="margin:0 0 8px">🌊 Water Caustics</h2>
+      <div style="font-size:10px;color:#888;margin-bottom:8px">Tiles a seamless caustic map over a water floor seen in perspective. Each tile is a subdivided mesh weighted to a bone lattice: row bones carry the drift towards the camera, their child bones the ripple. One tile per loop, so the animation loops seamlessly.</div>
+      <div class="row"><label>Caustic map</label><input type="file" id="csFile" accept="image/*" style="width:150px"></div>
+      <div id="csImgInfo" style="font-size:10px;color:#888;margin:-2px 0 6px">built-in sample map (load your seamless map above)</div>
+      <div id="csCtl"></div>
+      <div class="row"><label>Cover view</label><input type="checkbox" id="csAuto" checked style="accent-color:#6cf"><span style="color:#888;font-size:10px">add columns so the far rows fill the width</span></div>
+      <div class="row"><label>Haze colour</label><input type="color" id="csHazeC" value="#c8f6ff"></div>
+      <div class="row"><label>Preview bg</label><input type="color" id="csBg" value="#34363d"></div>
+      <div class="row"><label>Name</label><input type="text" id="csName" value="water_caustics" style="width:150px"></div>
+      <div id="csStats" style="font-size:10px;color:#9c6;margin:6px 0"></div>
+      <button class="btn accent" id="csExport">⬇ Export Spine ZIP</button>
+      <button class="btn" id="csClose">✕ Close</button>
+      <div id="csStatus" style="font-size:10px;color:#aaa;margin-top:6px"></div>
+    </div>
+    <div style="flex:1;position:relative;background:#0b0b0c"><canvas id="csCv" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+      <div style="position:absolute;left:8px;bottom:6px;font-size:10px;color:#777">dashed frame = exported Spine size · <label style="cursor:pointer"><input type="checkbox" id="csWire"> mesh wireframe</label></div></div>
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+var SPEC=[  // id, label, min, max, step, default
+  ['cols','Columns',2,40,1,10],['rows','Rows',2,16,1,7],['sub','Mesh subdivisions',1,12,1,6],['bones','Bones per tile',1,4,1,2],
+  ['hp','Horizon (% from top)',20,95,1,62],['h','Camera height (tiles)',0.1,3,0.05,0.5],['fov','Field of view (°)',20,110,1,60],
+  ['W','Width (px)',256,4096,16,1280],['H','Height (px)',256,4096,16,864],
+  ['L','Loop length (s)',1,20,0.5,6],['k','Tiles per loop',1,4,1,1],
+  ['amp','Ripple (% of tile)',0,15,0.5,4],['bob','Height bob (% of tile)',0,10,0.5,1.5],['wspd','Ripple speed',1,4,1,1],['wden','Ripple density',1,2,1,1],
+  ['l2','2nd layer opacity %',0,100,1,45],['haze','Horizon haze %',0,100,1,85],['glint','Sun glint %',0,100,1,70],['kps','Keys per second',2,30,1,4]
+];
+var $=function(id){return document.getElementById(id);};
+var CS={img:null,imgName:'caustic',geo:null,t0:0,gl:null,raf:0,open:false,dirty:true};
+
+// ── controls ──
+(function(){
+  var h='';
+  SPEC.forEach(function(s){h+='<div class="row"><label>'+s[1]+'</label><input type="range" id="cs_'+s[0]+'" min="'+s[2]+'" max="'+s[3]+'" step="'+s[4]+'" value="'+s[5]+'"><span class="val">'+s[5]+'</span></div>';});
+  $('csCtl').innerHTML=h;
+  SPEC.forEach(function(s){$('cs_'+s[0]).addEventListener('input',function(){this.parentNode.querySelector('.val').textContent=this.value;CS.dirty=true;});});
+  ['csAuto','csHazeC'].forEach(function(id){$(id).addEventListener('input',function(){CS.dirty=true;});});
+})();
+function P(){
+  var p={};SPEC.forEach(function(s){p[s[0]]=parseFloat($('cs_'+s[0]).value);});
+  p.wden=Math.min(p.wden,Math.max(1,Math.floor(p.bones/2)));          // a wave needs ≥2 bones per wavelength
+  p.F=(p.W/2)/Math.tan(p.fov*Math.PI/360);
+  var yh=p.H/2-p.hp/100*p.H;p.yh=yh;
+  p.th=Math.atan2(yh,p.F);p.sn=Math.sin(p.th);p.cs=Math.cos(p.th);
+  var a=-p.H/2/p.F,zb=p.h*(a*p.sn+p.cs)/(p.sn-a*p.cs);                 // ground distance at the bottom edge
+  if(!isFinite(zb)||zb<=0)zb=p.h;
+  var zmin=(0.15*p.h-p.h*p.sn)/p.cs;                                     // nearest Z still well in front of the camera
+  p.z0=Math.max(zb-1,zmin+p.k);                                          // front row hides below the frame while it fades
+  if(+$('csAuto').checked){var df=p.h*p.sn+(p.z0+p.rows)*p.cs;p.cols=Math.min(40,Math.max(p.cols,Math.ceil(p.W*df/p.F)+1));}
+  p.l2/=100;p.haze/=100;p.glint/=100;p.amp/=100;p.bob/=100;
+  p.N=Math.max(1,Math.round(p.L*p.kps));
+  return p;
+}
+// ── ripple: integer wave numbers per tile + whole cycles per loop → identical tiles and a seamless loop ──
+function waves(layer,p){
+  var w=layer?[[1,1,2,0.3,1],[1,-1,1,1.9,.8],[0,1,3,4.1,.6],[1,0,2,2.7,.7]]:[[1,0,1,0,1],[0,1,2,1.3,.9],[1,1,3,2.2,.6],[-1,1,1,3.6,.8]];
+  return w.map(function(v){var px=v[0]*p.wden,nz=v[1]*p.wden,l=Math.hypot(px,nz)||1;return {px:px,nz:nz,m:v[2]*p.wspd,ph:v[3],a:v[4],ux:px/l,uz:nz/l};});
+}
+function project(p,X,Y,Z){var d=(p.h-Y)*p.sn+Z*p.cs,u=(Y-p.h)*p.cs+Z*p.sn;return [p.F*X/d,p.F*u/d,d];}
+function surf(p,W,X,s,t,ripple){             // surface point (X across, s along the floor in tiles) at time t → screen
+  var Z=p.z0+s-p.k*t/p.L,dx=0,dz=0,dy=0;
+  if(ripple)for(var i=0;i<W.length;i++){var w=W[i],f=2*Math.PI*(w.px*X+w.nz*s-w.m*t/p.L)+w.ph,sv=Math.sin(f)*w.a;
+    dx+=sv*w.ux;dz+=sv*w.uz;dy+=Math.cos(f)*w.a;}
+  var n=W.length/2;
+  return project(p,X+dx*p.amp/n,dy*p.bob/n,Z+dz*p.amp/n);
+}
+function lineY(p,j,t){return project(p,0,0,p.z0+j/p.bones-p.k*t/p.L)[1];}
+function lineScale(p,j,t){var s=j/p.bones;return project(p,0,0,p.z0+s)[2]/project(p,0,0,p.z0+s-p.k*t/p.L)[2];}
+function rowAlpha(p,r,t){var pc=r+0.5-p.k*t/p.L,sm=function(x){x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);};return sm(pc+0.5)*sm(p.rows-0.5-pc);}
+
+// ── geometry: bone lattice + tile meshes (shared by preview and export) ──
+function build(){
+  var p=P(),b=p.bones,S=p.sub,nl=p.rows*b+1,nc=p.cols*b+1,layers=p.l2>0?2:1,g={p:p,layers:[]};
+  var order=[],k;                                                       // hull first (Spine wants the outline first), then the inside
+  for(k=0;k<=S;k++)order.push([k,0]);for(k=1;k<=S;k++)order.push([S,k]);for(k=S-1;k>=0;k--)order.push([k,S]);for(k=S-1;k>=1;k--)order.push([0,k]);
+  for(var iv=1;iv<S;iv++)for(var iu=1;iu<S;iu++)order.push([iu,iv]);
+  var idx={};order.forEach(function(o,n){idx[o[0]+','+o[1]]=n;});
+  var tris=[];
+  for(iv=0;iv<S;iv++)for(iu=0;iu<S;iu++){var a=idx[iu+','+iv],bb=idx[(iu+1)+','+iv],c=idx[(iu+1)+','+(iv+1)],d=idx[iu+','+(iv+1)];tris.push(a,bb,c,a,c,d);}
+  g.order=order;g.tris=tris;g.hull=4*S;g.nl=nl;g.nc=nc;
+  for(var L=0;L<layers;L++){
+    var W=waves(L,p),bset=new Float32Array(nl*nc*2),bnr=new Float32Array(nl*nc*2);
+    for(var j=0;j<nl;j++)for(var i=0;i<nc;i++){var X=i/b-p.cols/2,s=j/b,q=(j*nc+i)*2,
+      v1=surf(p,W,X,s,0,true),v0=surf(p,W,X,s,0,false);bset[q]=v1[0];bset[q+1]=v1[1];bnr[q]=v0[0];bnr[q+1]=v0[1];}
+    var tiles=[];
+    for(var r=0;r<p.rows;r++)for(var c=0;c<p.cols;c++){
+      var verts=[],uvs=[];
+      order.forEach(function(o){
+        var u=o[0]/S,v=o[1]/S,ci=Math.min(b-1,Math.floor(u*b)),cj=Math.min(b-1,Math.floor(v*b)),fu=u*b-ci,fv=v*b-cj,
+          gi=c*b+ci,gj=r*b+cj,
+          bw=[[gi,gj,(1-fu)*(1-fv)],[gi+1,gj,fu*(1-fv)],[gi,gj+1,(1-fu)*fv],[gi+1,gj+1,fu*fv]].filter(function(e){return e[2]>1e-6;}),
+          X=c-p.cols/2+u,s=r+v,base=surf(p,W,X,s,0,false),vx=base[0],vy=base[1];
+        bw.forEach(function(e){var q=(e[1]*nc+e[0])*2;vx+=e[2]*(bset[q]-bnr[q]);vy+=e[2]*(bset[q+1]-bnr[q+1]);});  // the bones' ripple at t=0
+        verts.push(bw.map(function(e){var q=(e[1]*nc+e[0])*2;return {i:e[0],j:e[1],w:e[2],bx:vx-bset[q],by:vy-bset[q+1]};}));
+        uvs.push(L?1-u:u,L?v:1-v);                                       // 2nd layer: the map turned 180° (still seamless)
+      });
+      tiles.push({r:r,c:c,verts:verts,uvs:uvs});
+    }
+    g.layers.push({W:W,bset:bset,tiles:tiles,alpha:L?p.l2:1});
+  }
+  return g;
+}
+// bones of one layer at time t: line y + x-scale (perspective), children in their line's (scaled) space
+function pose(g,L,t){
+  var p=g.p,lay=g.layers[L],nl=g.nl,nc=g.nc,ly=new Float32Array(nl),ls=new Float32Array(nl),cw=new Float32Array(nl*nc*2);
+  for(var j=0;j<nl;j++){ly[j]=lineY(p,j,t);ls[j]=lineScale(p,j,t);
+    for(var i=0;i<nc;i++){var v=surf(p,lay.W,i/p.bones-p.cols/2,j/p.bones,t,true),q=(j*nc+i)*2;cw[q]=v[0];cw[q+1]=v[1];}}
+  return {ly:ly,ls:ls,cw:cw};
+}
+
+// ── textures ──
+function genCaustic(){                                                  // tileable Worley ridges as a stand-in map
+  var n=256,N=7,cv=document.createElement('canvas');cv.width=cv.height=n;
+  var x=cv.getContext('2d'),im=x.createImageData(n,n),seed=11,rnd=function(){seed=(seed*16807)%2147483647;return seed/2147483647;},pts=[];
+  for(var i=0;i<N*N;i++)pts.push([(i%N+0.15+0.7*rnd())/N,(Math.floor(i/N)+0.15+0.7*rnd())/N]);
+  for(var py=0;py<n;py++)for(var px=0;px<n;px++){
+    var u=px/n,v=py/n,f1=9,f2=9;
+    for(i=0;i<pts.length;i++)for(var oy=-1;oy<=1;oy++)for(var ox=-1;ox<=1;ox++){
+      var dx=u-pts[i][0]-ox,dy=v-pts[i][1]-oy,d=Math.sqrt(dx*dx+dy*dy);if(d<f1){f2=f1;f1=d;}else if(d<f2)f2=d;}
+    var e=Math.pow(Math.max(0,1-(f2-f1)*N*2.6),3),c=0.55+0.45*Math.min(1,f1*N*1.4),o=(py*n+px)*4;
+    im.data[o]=Math.min(255,30*c+225*e);im.data[o+1]=Math.min(255,170*c+60+50*e);im.data[o+2]=Math.min(255,215*c+40+20*e);im.data[o+3]=255;}
+  x.putImageData(im,0,0);return cv;
+}
+function avgColour(img){var c=document.createElement('canvas');c.width=c.height=8;var x=c.getContext('2d');x.drawImage(img,0,0,8,8);
+  var d=x.getImageData(0,0,8,8).data,s=[0,0,0];for(var i=0;i<d.length;i+=4){s[0]+=d[i];s[1]+=d[i+1];s[2]+=d[i+2];}return s.map(function(v){return Math.round(v/64);});}
+function gradTex(hex,img){                                              // haze = the distant water: fades in over the far rows, then
+  var cv=document.createElement('canvas');cv.width=4;cv.height=128;var x=cv.getContext('2d'),gr=x.createLinearGradient(0,128,0,0);   // the map's colour turning into the haze colour
+  var h=[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)],w=avgColour(img);
+  for(var k=0;k<=10;k++){var f=k/10,m=Math.max(0,(f-0.35)/0.65),a=Math.min(1,f/0.35);m=m*m;
+    gr.addColorStop(f,'rgba('+Math.round(w[0]+(h[0]-w[0])*m)+','+Math.round(w[1]+(h[1]-w[1])*m)+','+Math.round(w[2]+(h[2]-w[2])*m)+','+(a*a*(3-2*a)).toFixed(3)+')');}
+  x.fillStyle=gr;x.fillRect(0,0,4,128);return cv;
+}
+function glintTex(){                                                    // a soft vertical streak, brightest at the top
+  var cv=document.createElement('canvas');cv.width=64;cv.height=256;var x=cv.getContext('2d'),im=x.createImageData(64,256);
+  for(var y=0;y<256;y++)for(var xx=0;xx<64;xx++){var dx=(xx-31.5)/32,fy=y/256,w=0.18+0.5*fy,
+    a=Math.exp(-dx*dx/(w*w)*3)*Math.pow(1-fy,1.6),o=(y*64+xx)*4;
+    im.data[o]=255;im.data[o+1]=255;im.data[o+2]=255;im.data[o+3]=Math.round(255*Math.max(0,Math.min(1,a)));}
+  x.putImageData(im,0,0);return cv;
+}
+function hazeRect(p){var yTop=p.yh+2,yBot=project(p,0,0,p.z0+p.rows*0.55)[1];return {x:0,y:(yTop+yBot)/2,w:p.W,h:Math.max(8,yTop-yBot)};}
+function glintRect(p){var hgt=(p.yh+p.H/2)*0.55;return {x:0,y:p.yh-hgt/2+2,w:p.W*0.12,h:hgt};}
+function glintAlpha(p,t){return p.glint*(0.82+0.18*Math.sin(2*Math.PI*2*t/p.L));}
+
+$('csFile').addEventListener('change',function(){
+  var f=this.files&&this.files[0];if(!f)return;var img=new Image();
+  img.onload=function(){var cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;cv.getContext('2d').drawImage(img,0,0);
+    CS.img=cv;CS.dirty=true;CS.imgName=(f.name.replace(/\.[^.]+$/,'').replace(/[^\w\-]+/g,'_')||'caustic');CS.texDirty=true;CS.dirty=true;
+    $('csImgInfo').textContent=f.name+' — '+cv.width+'×'+cv.height;URL.revokeObjectURL(img.src);};
+  img.src=URL.createObjectURL(f);
+});
+
+// ── preview (WebGL) ──
+function glInit(){
+  var cv=$('csCv'),gl=cv.getContext('webgl',{premultipliedAlpha:false,alpha:false});if(!gl)return null;
+  function sh(t,src){var s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);return s;}
+  var pr=gl.createProgram();
+  gl.attachShader(pr,sh(gl.VERTEX_SHADER,'attribute vec2 p;attribute vec2 uv;attribute float a;uniform vec4 m;varying vec2 v;varying float al;void main(){v=uv;al=a;gl_Position=vec4(p.x*m.x+m.z,p.y*m.y+m.w,0.,1.);}'));
+  gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,'precision mediump float;uniform sampler2D tx;uniform float wire;varying vec2 v;varying float al;void main(){vec4 c=texture2D(tx,v);gl_FragColor=wire>.5?vec4(1.,.6,.1,.5):vec4(c.rgb,c.a*al);}'));
+  gl.linkProgram(pr);gl.useProgram(pr);
+  var o={gl:gl,pr:pr,bufP:gl.createBuffer(),bufU:gl.createBuffer(),bufA:gl.createBuffer(),bufI:gl.createBuffer(),
+    aP:gl.getAttribLocation(pr,'p'),aU:gl.getAttribLocation(pr,'uv'),aA:gl.getAttribLocation(pr,'a'),uM:gl.getUniformLocation(pr,'m'),uW:gl.getUniformLocation(pr,'wire'),tex:{}};
+  gl.getExtension('OES_element_index_uint');
+  return o;
+}
+function texOf(G,key,canvas){var gl=G.gl;if(G.tex[key]&&G.tex[key].src===canvas)return G.tex[key].t;
+  var t=G.tex[key]?G.tex[key].t:gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,canvas);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+  G.tex[key]={t:t,src:canvas};return t;}
+function drawBatch(G,pos,uv,al,ind,tex,additive,wire){
+  var gl=G.gl;
+  gl.bindBuffer(gl.ARRAY_BUFFER,G.bufP);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(G.aP);gl.vertexAttribPointer(G.aP,2,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,G.bufU);gl.bufferData(gl.ARRAY_BUFFER,uv,gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(G.aU);gl.vertexAttribPointer(G.aU,2,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ARRAY_BUFFER,G.bufA);gl.bufferData(gl.ARRAY_BUFFER,al,gl.DYNAMIC_DRAW);gl.enableVertexAttribArray(G.aA);gl.vertexAttribPointer(G.aA,1,gl.FLOAT,false,0,0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,G.bufI);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,ind,gl.DYNAMIC_DRAW);
+  gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1f(G.uW,wire?1:0);
+  gl.blendFunc(gl.SRC_ALPHA,additive?gl.ONE:gl.ONE_MINUS_SRC_ALPHA);
+  if(wire){var li=[];for(var q=0;q<ind.length;q+=3)li.push(ind[q],ind[q+1],ind[q+1],ind[q+2]);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint32Array(li),gl.DYNAMIC_DRAW);gl.drawElements(gl.LINES,li.length,gl.UNSIGNED_INT,0);}
+  else gl.drawElements(gl.TRIANGLES,ind.length,gl.UNSIGNED_INT,0);
+}
+function quad(G,r,tex,alpha,additive){
+  var x0=r.x-r.w/2,x1=r.x+r.w/2,y0=r.y-r.h/2,y1=r.y+r.h/2;
+  drawBatch(G,new Float32Array([x0,y0,x1,y0,x1,y1,x0,y1]),new Float32Array([0,1,1,1,1,0,0,0]),new Float32Array([alpha,alpha,alpha,alpha]),new Uint32Array([0,1,2,0,2,3]),tex,additive,false);
+}
+function frame(){
+  if(!CS.open)return;CS.raf=requestAnimationFrame(frame);
+  if(CS.dirty){CS.dirty=false;CS.geo=build();stats();CS.hazeCv=gradTex($('csHazeC').value,CS.img||(CS.img=genCaustic()));}
+  var G=CS.gl||(CS.gl=glInit());if(!G)return;
+  var gl=G.gl,cv=$('csCv'),dpr=window.devicePixelRatio||1,w=Math.round(cv.clientWidth*dpr),h=Math.round(cv.clientHeight*dpr);
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  var g=CS.geo,p=g.p,t=((performance.now()-CS.t0)/1000)%p.L,sc=Math.min(w/p.W,h/p.H)*0.94;
+  gl.viewport(0,0,w,h);gl.disable(gl.SCISSOR_TEST);gl.clearColor(0.043,0.043,0.047,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  var bg=$('csBg').value,fx=Math.round((w-p.W*sc)/2),fy=Math.round((h-p.H*sc)/2);
+  gl.enable(gl.SCISSOR_TEST);gl.scissor(fx,fy,Math.round(p.W*sc),Math.round(p.H*sc));
+  gl.clearColor(parseInt(bg.slice(1,3),16)/255,parseInt(bg.slice(3,5),16)/255,parseInt(bg.slice(5,7),16)/255,1);gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniform4f(G.uM,2*sc/w,2*sc/h,0,0);gl.enable(gl.BLEND);
+  var mainTex=texOf(G,'main',CS.img||(CS.img=genCaustic())),wire=$('csWire').checked;
+  g.layers.forEach(function(lay,L){
+    var ps=pose(g,L,t),nv=g.order.length,nt=lay.tiles.length,pos=new Float32Array(nt*nv*2),uv=new Float32Array(nt*nv*2),al=new Float32Array(nt*nv),ind=new Uint32Array(nt*g.tris.length),n=0;
+    var tiles=lay.tiles.slice().sort(function(a,b){return b.r-a.r;});            // far rows first
+    tiles.forEach(function(tl,ti){
+      var A=rowAlpha(p,tl.r,t)*lay.alpha;
+      for(var vi=0;vi<nv;vi++){var x=0,y=0;tl.verts[vi].forEach(function(e){var q=(e.j*g.nc+e.i)*2;x+=e.w*(ps.cw[q]+e.bx*ps.ls[e.j]);y+=e.w*(ps.cw[q+1]+e.by);});
+        pos[n*2]=x;pos[n*2+1]=y;uv[n*2]=tl.uvs[vi*2];uv[n*2+1]=tl.uvs[vi*2+1];al[n]=A;n++;}
+      for(var k=0;k<g.tris.length;k++)ind[ti*g.tris.length+k]=ti*nv+g.tris[k];
+    });
+    drawBatch(G,pos,uv,al,ind,mainTex,L===1,false);
+    if(wire&&L===0)drawBatch(G,pos,uv,al,ind,mainTex,false,true);
+  });
+  if(p.haze>0)quad(G,hazeRect(p),texOf(G,'haze',CS.hazeCv),p.haze,false);
+  if(p.glint>0)quad(G,glintRect(p),texOf(G,'glint',CS.glintCv||(CS.glintCv=glintTex())),glintAlpha(p,t),true);
+  gl.disable(gl.SCISSOR_TEST);
+}
+function stats(){
+  var g=CS.geo,p=g.p,nb=1+g.nl+g.nl*g.nc*g.layers.length,slots=g.layers.length*p.rows*p.cols,keys=(g.nl+(p.amp>0||p.bob>0?g.nl*g.nc*g.layers.length:0))*(p.N+1);
+  $('csStats').innerHTML=p.cols+'×'+p.rows+' tiles'+(+$('csAuto').checked?' (columns cover the view)':'')+' · '+slots+' meshes · '+nb+' bones · ≈'+keys+' bone keys';
+}
+function open(){$('csModal').style.display='flex';CS.open=true;CS.t0=performance.now();CS.dirty=true;cancelAnimationFrame(CS.raf);frame();}
+function close(){$('csModal').style.display='none';CS.open=false;cancelAnimationFrame(CS.raf);}
+$('csClose').onclick=close;
+window.openCausticsTool=open;
+
+// ── Spine export ──
+function exportSpineCaustics(){
+  var g=build(),p=g.p,nm=($('csName').value.trim()||'water_caustics').replace(/[^\w\-]+/g,'_'),img=CS.img||(CS.img=genCaustic()),tex=CS.imgName;
+  var r2=function(v){return Math.round(v*100)/100;},r4=function(v){return Math.round(v*1e4)/1e4;},r5=function(v){return Math.round(v*1e5)/1e5;};
+  var bones=[{name:'root'}],bi={},LN=function(j){return nm+'_row'+j;},CH=function(L,i,j){return nm+(L?'_b':'_a')+'_'+j+'_'+i;};
+  for(var j=0;j<g.nl;j++){bi[LN(j)]=bones.length;bones.push({name:LN(j),parent:'root',y:r2(lineY(p,j,0)),color:'4fb3ffff'});}
+  g.layers.forEach(function(lay,L){for(var j=0;j<g.nl;j++)for(var i=0;i<g.nc;i++){var q=(j*g.nc+i)*2;
+    bi[CH(L,i,j)]=bones.length;bones.push({name:CH(L,i,j),parent:LN(j),x:r2(lay.bset[q]),y:r2(lay.bset[q+1]-lineY(p,j,0)),length:0});}});
+  // keys sampled from the exact motion; Bézier handles from the true slope keep them smooth between samples
+  var times=[];for(var q=0;q<=p.N;q++)times.push(q*p.L/p.N);
+  function curveKeys(f,round,skipConst){
+    var vals=times.map(f),eps=1e-3,der=times.map(function(t){var a=f(t-eps),b=f(t+eps);return [(b[0]-a[0])/(2*eps),(b[1]-a[1])/(2*eps)];});
+    if(skipConst){var mx=0;vals.forEach(function(v){mx=Math.max(mx,Math.abs(v[0]-vals[0][0]),Math.abs(v[1]-vals[0][1]));});if(mx<0.01)return null;}
+    return vals.map(function(v,q){var k={time:r4(times[q]),x:round(v[0]),y:round(v[1])};
+      if(q<times.length-1){var dt=times[q+1]-times[q],v2=vals[q+1],d1=der[q],d2=der[q+1];
+        k.curve=[r4(times[q]+dt/3),round(v[0]+d1[0]*dt/3),r4(times[q+1]-dt/3),round(v2[0]-d2[0]*dt/3),
+                 r4(times[q]+dt/3),round(v[1]+d1[1]*dt/3),r4(times[q+1]-dt/3),round(v2[1]-d2[1]*dt/3)];}
+      return k;});
+  }
+  var ab={},nkeys=0;
+  for(j=0;j<g.nl;j++)(function(j){
+    var y0=lineY(p,j,0),tr=curveKeys(function(t){return [0,lineY(p,j,t)-y0];},r2),scl=curveKeys(function(t){return [lineScale(p,j,t),1];},r5);
+    ab[LN(j)]={translate:tr,scale:scl};nkeys+=tr.length+scl.length;})(j);
+  if(p.amp>0||p.bob>0)g.layers.forEach(function(lay,L){for(var j=0;j<g.nl;j++)for(var i=0;i<g.nc;i++)(function(i,j){
+    var q=(j*g.nc+i)*2,lx0=lay.bset[q],ly0=lay.bset[q+1]-lineY(p,j,0),X=i/p.bones-p.cols/2,s=j/p.bones;
+    var tr=curveKeys(function(t){var v=surf(p,lay.W,X,s,t,true);return [v[0]/lineScale(p,j,t)-lx0,v[1]-lineY(p,j,t)-ly0];},r2,true);
+    if(tr){ab[CH(L,i,j)]={translate:tr};nkeys+=tr.length;}})(i,j);});
+  // slots: far rows drawn first; 2nd layer additive on top
+  var slots=[],skin={},st={},hexA=function(a){return 'ffffff'+('0'+Math.round(Math.max(0,Math.min(1,a))*255).toString(16)).slice(-2);};
+  g.layers.forEach(function(lay,L){
+    lay.tiles.slice().sort(function(a,b){return b.r-a.r||a.c-b.c;}).forEach(function(tl){
+      var sn=nm+(L?'_b':'_a')+'_r'+tl.r+'_c'+tl.c,s0={name:sn,bone:'root',attachment:tex,color:hexA(rowAlpha(p,tl.r,0)*lay.alpha)};
+      if(L)s0.blend='additive';slots.push(s0);
+      var vf=[];tl.verts.forEach(function(vs){vf.push(vs.length);vs.forEach(function(e){vf.push(bi[CH(L,e.i,e.j)],r2(e.bx),r2(e.by),r5(e.w));});});
+      skin[sn]={};skin[sn][tex]={type:'mesh',path:tex,uvs:tl.uvs.map(r5),triangles:g.tris.slice(),vertices:vf,hull:g.hull,width:img.width,height:img.height};
+      var al=times.map(function(t){return rowAlpha(p,tl.r,t)*lay.alpha;});
+      if(Math.max.apply(null,al)-Math.min.apply(null,al)>0.004)st[sn]={rgba:al.map(function(a,q){return {time:r4(times[q]),color:hexA(a)};})};
+    });
+  });
+  var files=[],hz,gr;
+  if(p.haze>0){hz=hazeRect(p);var hcv=gradTex($('csHazeC').value,img);slots.push({name:nm+'_haze',bone:'root',attachment:'haze',color:hexA(p.haze)});
+    skin[nm+'_haze']={haze:{x:r2(hz.x),y:r2(hz.y),scaleX:r4(hz.w/hcv.width),scaleY:r4(hz.h/hcv.height),width:hcv.width,height:hcv.height}};
+    files.push({name:'images/haze.png',data:dataURLBytes(hcv.toDataURL('image/png'))});}
+  if(p.glint>0){gr=glintRect(p);var gcv=CS.glintCv||(CS.glintCv=glintTex());slots.push({name:nm+'_glint',bone:'root',attachment:'glint',blend:'additive',color:hexA(glintAlpha(p,0))});
+    skin[nm+'_glint']={glint:{x:r2(gr.x),y:r2(gr.y),scaleX:r4(gr.w/gcv.width),scaleY:r4(gr.h/gcv.height),width:gcv.width,height:gcv.height}};
+    st[nm+'_glint']={rgba:times.map(function(t){return {time:r4(t),color:hexA(glintAlpha(p,t))};})};
+    files.push({name:'images/glint.png',data:dataURLBytes(gcv.toDataURL('image/png'))});}
+  var json={skeleton:{hash:'caustics',spine:'4.2',x:-p.W/2,y:-p.H/2,width:p.W,height:p.H,fps:30,images:'./images/'},
+    bones:bones,slots:slots,skins:[{name:'default',attachments:skin}],animations:{loop:{bones:ab,slots:st}}};
+  files.unshift({name:'images/'+tex+'.png',data:dataURLBytes(img.toDataURL('image/png'))});
+  files.unshift({name:nm+'.json',data:strBytes(JSON.stringify(spineForVersion(json)))});
+  downloadZip(nm+'_spine.zip',files);
+  $('csStatus').textContent='⬇ Exported '+nm+'_spine.zip — '+(g.layers.length*p.rows*p.cols)+' weighted meshes, '+bones.length+' bones, '+nkeys+' bone keys, loop '+p.L+' s (Spine '+spineVerString()+', set under Export).';
+  return json;
+}
+$('csExport').onclick=function(){try{exportSpineCaustics();}catch(e){$('csStatus').textContent='⚠ Export failed: '+e.message;console.error(e);}};
+window._csTest={build:build,pose:pose,P:P,exportJson:function(){var d=window.downloadZip,out;window.downloadZip=function(){};try{out=exportSpineCaustics();}finally{window.downloadZip=d;}return out;}};
+})();
+</script>
+
 </body>
 </html>
