@@ -1,0 +1,4 @@
+caust00.png – caust31.png: "Caustic textures" by Calinou, OpenGameArt.org
+https://opengameart.org/node/36559 (e.g. https://opengameart.org/node/36566)
+License: CC0 1.0 (public domain) – https://creativecommons.org/publicdomain/zero/1.0/
+Seamless 256x256 caustics; the 32 files are the frames of one looping animation.

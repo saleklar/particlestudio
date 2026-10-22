@@ -12064,9 +12064,20 @@ var BTN_TIPS=[
   <div style="display:flex;width:94%;height:92%;background:#141416;border:1px solid #333;border-radius:8px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.6)">
     <div id="csSide" style="width:300px;flex:none;overflow-y:auto;padding:10px 12px;border-right:1px solid #2a2a2a;font-size:12px;color:#ccc">
       <h2 style="margin:0 0 8px">🌊 Water Caustics</h2>
-      <div style="font-size:10px;color:#888;margin-bottom:8px">Tiles a seamless caustic map over a water floor seen in perspective. Each tile is a subdivided mesh weighted to a bone lattice: row bones carry the drift towards the camera, their child bones the ripple. One tile per loop, so the animation loops seamlessly.</div>
-      <div class="row"><label>Caustic map</label><input type="file" id="csFile" accept="image/*" style="width:150px"></div>
-      <div id="csImgInfo" style="font-size:10px;color:#888;margin:-2px 0 6px">built-in sample map (load your seamless map above)</div>
+      <div style="font-size:10px;color:#888;margin-bottom:8px">Tiles a seamless caustic map over a water floor seen in perspective. Each tile is a subdivided mesh weighted to a bone lattice: row bones carry the drift towards the camera, their child bones the ripple. One tile per loop, so the animation loops seamlessly. An animated map (frames) plays on the meshes as a Spine sequence. Each layer has its own bone (…_layer_a, …_layer_b, …_haze, …_glint) to move it in Spine.</div>
+      <div style="font-size:11px;color:#aaa;margin-bottom:4px">Caustic map</div>
+      <div id="csGal" style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:4px"></div>
+      <input type="file" id="csFile" accept="image/*" multiple style="display:none">
+      <div id="csGenBox" style="display:none;border:1px solid #2f3f4f;border-radius:5px;padding:6px 6px 2px;margin:2px 0 6px;background:#161c22">
+        <div style="font-size:10px;color:#8bc;margin-bottom:4px">Generator — tiles seamlessly; with frames it loops seamlessly too.
+          Start from: <a href="#" data-style="cells" style="color:#6cf">cells</a> · <a href="#" data-style="sharp" style="color:#6cf">sharp</a> · <a href="#" data-style="soft" style="color:#6cf">soft</a></div>
+        <div id="csGenCtl"></div>
+        <button class="btn" id="csGenSave" style="margin:2px 0 4px">⬇ Save map as PNG(s)</button>
+      </div>
+      <div id="csImgInfo" style="font-size:10px;color:#888;margin:0 0 6px"></div>
+      <div class="row"><label>Tint map</label><input type="checkbox" id="csTint" checked style="accent-color:#6cf"><span style="color:#888;font-size:10px">colours a grey map: dark → deep, bright → light</span></div>
+      <div class="row"><label>Deep / light</label><input type="color" id="csDeep" value="#0b9bd6"><input type="color" id="csLight" value="#f2fdff" style="margin-left:6px"></div>
+      <div class="row"><label>Line contrast</label><input type="range" id="csCon" min="0.5" max="5" step="0.1" value="2.4"><span class="val">2.4</span></div>
       <div id="csCtl"></div>
       <div class="row"><label>Cover view</label><input type="checkbox" id="csAuto" checked style="accent-color:#6cf"><span style="color:#888;font-size:10px">add columns so the far rows fill the width</span></div>
       <div class="row"><label>Haze colour</label><input type="color" id="csHazeC" value="#c8f6ff"></div>
@@ -12090,10 +12101,25 @@ var SPEC=[  // id, label, min, max, step, default
   ['W','Width (px)',256,4096,16,1280],['H','Height (px)',256,4096,16,864],
   ['L','Loop length (s)',1,20,0.5,6],['k','Tiles per loop',1,4,1,1],
   ['amp','Ripple (% of tile)',0,15,0.5,4],['bob','Height bob (% of tile)',0,10,0.5,1.5],['wspd','Ripple speed',1,4,1,1],['wden','Ripple density',1,2,1,1],
-  ['l2','2nd layer opacity %',0,100,1,45],['haze','Horizon haze %',0,100,1,85],['glint','Sun glint %',0,100,1,70],['kps','Keys per second',2,30,1,4]
+  ['l2','2nd layer opacity %',0,100,1,45],['haze','Horizon haze %',0,100,1,85],['glint','Sun glint %',0,100,1,70],['kps','Keys per second',2,30,1,4],
+  ['mfps','Map frames per second',2,30,1,10]
 ];
 var $=function(id){return document.getElementById(id);};
-var CS={img:null,imgName:'caustic',geo:null,t0:0,gl:null,raf:0,open:false,dirty:true};
+// CS.src: the chosen map as loaded (frames, base name); CS.frames: what is drawn and exported (tinted when asked)
+var CS={src:null,frames:null,geo:null,t0:0,gl:null,raf:0,open:false,dirty:true,texDirty:true,galId:'cc0anim'};
+function pad2(i){return (i<10?'0':'')+i;}
+var GAL=[   // CC0 maps: "Caustic textures" by Calinou, OpenGameArt (opengameart.org/node/36559), stored next to this page
+  {id:'cc0anim',name:'Caustics, animated',note:'CC0 · 32 frames',base:'caust',frames:32,url:function(i){return 'caustics/caust'+pad2(i)+'.png';}},
+  {id:'cc0',name:'Caustics, still',note:'CC0 · 1 frame',base:'caust00',frames:1,url:function(){return 'caustics/caust00.png';}},
+  {id:'gen',name:'Generator',note:'make your own: seamless, still or animated',base:'caustic_gen',gen:true},
+  {id:'custom',name:'Your map(s)',note:'click to load · several files = frames',custom:true}
+];
+// generator settings: id, label, min, max, step, default — and three starting points
+var GEN=[['cells','Cells across',3,14,1,6],['width','Line width',0.4,4,0.05,1.4],['sharp','Line sharpness',0.5,8,0.1,2.6],
+  ['glow','Cell glow',0,0.6,0.01,0.22],['warp','Wobble',0,0.6,0.01,0.22],['frames','Frames',1,48,1,24],['motion','Motion',0,1,0.01,0.5],
+  ['seed','Seed',1,999,1,7],['size','Size (px)',128,512,128,256]];
+var GEN_STYLES={cells:{cells:7,width:1.5,sharp:3,glow:0.25,warp:0.08},sharp:{cells:6,width:2.6,sharp:5,glow:0.12,warp:0.18},
+  soft:{cells:5,width:0.8,sharp:1.6,glow:0.3,warp:0.3}};
 
 // ── controls ──
 (function(){
@@ -12102,6 +12128,8 @@ var CS={img:null,imgName:'caustic',geo:null,t0:0,gl:null,raf:0,open:false,dirty:
   $('csCtl').innerHTML=h;
   SPEC.forEach(function(s){$('cs_'+s[0]).addEventListener('input',function(){this.parentNode.querySelector('.val').textContent=this.value;CS.dirty=true;});});
   ['csAuto','csHazeC'].forEach(function(id){$(id).addEventListener('input',function(){CS.dirty=true;});});
+  ['csTint','csDeep','csLight','csCon'].forEach(function(id){$(id).addEventListener('input',function(){
+    var v=this.parentNode.querySelector('.val');if(v)v.textContent=this.value;CS.texDirty=true;CS.dirty=true;});});
 })();
 function P(){
   var p={};SPEC.forEach(function(s){p[s[0]]=parseFloat($('cs_'+s[0]).value);});
@@ -12176,17 +12204,124 @@ function pose(g,L,t){
 }
 
 // ── textures ──
-function genCaustic(){                                                  // tileable Worley ridges as a stand-in map
-  var n=256,N=7,cv=document.createElement('canvas');cv.width=cv.height=n;
-  var x=cv.getContext('2d'),im=x.createImageData(n,n),seed=11,rnd=function(){seed=(seed*16807)%2147483647;return seed/2147483647;},pts=[];
-  for(var i=0;i<N*N;i++)pts.push([(i%N+0.15+0.7*rnd())/N,(Math.floor(i/N)+0.15+0.7*rnd())/N]);
-  for(var py=0;py<n;py++)for(var px=0;px<n;px++){
-    var u=px/n,v=py/n,f1=9,f2=9;
-    for(i=0;i<pts.length;i++)for(var oy=-1;oy<=1;oy++)for(var ox=-1;ox<=1;ox++){
-      var dx=u-pts[i][0]-ox,dy=v-pts[i][1]-oy,d=Math.sqrt(dx*dx+dy*dy);if(d<f1){f2=f1;f1=d;}else if(d<f2)f2=d;}
-    var e=Math.pow(Math.max(0,1-(f2-f1)*N*2.6),3),c=0.55+0.45*Math.min(1,f1*N*1.4),o=(py*n+px)*4;
-    im.data[o]=Math.min(255,30*c+225*e);im.data[o+1]=Math.min(255,170*c+60+50*e);im.data[o+2]=Math.min(255,215*c+40+20*e);im.data[o+3]=255;}
-  x.putImageData(im,0,0);return cv;
+// ── caustic generator: Worley cells on a wrapping grid. Every cell's point circles once over the frames and the
+// wobble waves use whole numbers of cycles across the tile and over the frames, so it tiles and loops seamlessly.
+function genFrames(o){
+  var n=o.size|0,N=o.cells|0,F=Math.max(1,o.frames|0),s=(o.seed|0)*7919+13,rnd=function(){s=(s*16807)%2147483647;return s/2147483647;};
+  var bx=[],by=[],ph=[],rr=[],i;
+  for(i=0;i<N*N;i++){bx.push(0.5+(rnd()-0.5)*0.55);by.push(0.5+(rnd()-0.5)*0.55);ph.push(rnd()*Math.PI*2);rr.push(0.5+0.5*rnd());}
+  var W=[];for(i=0;i<6;i++)W.push({kx:1+Math.floor(rnd()*3),ky:Math.floor(rnd()*3)-1,m:1+Math.floor(rnd()*2),p:rnd()*Math.PI*2});
+  var out=[],TAU=Math.PI*2,amp=o.warp*0.35,mot=o.motion*0.17;   // motion stays inside the cell, so 3×3 neighbours are enough
+  for(var f=0;f<F;f++){
+    var t=f/F,px=new Float32Array(N*N),py=new Float32Array(N*N);
+    for(i=0;i<N*N;i++){var a=TAU*t+ph[i];px[i]=bx[i]+mot*rr[i]*Math.cos(a);py[i]=by[i]+mot*rr[i]*Math.sin(a*(i%2?1:-1));}
+    var cv=document.createElement('canvas');cv.width=cv.height=n;var cx=cv.getContext('2d'),im=cx.createImageData(n,n),d=im.data;
+    for(var y=0;y<n;y++)for(var x=0;x<n;x++){
+      var u=x/n,v=y/n,du=0,dv=0;
+      for(i=0;i<3;i++){var w=W[i];du+=Math.sin(TAU*(w.kx*u+w.ky*v+w.m*t)+w.p);}
+      for(i=3;i<6;i++){var w2=W[i];dv+=Math.sin(TAU*(w2.ky*u+w2.kx*v-w2.m*t)+w2.p);}
+      var gu=u*N+amp*du/3,gv=v*N+amp*dv/3,gx=Math.floor(gu),gy=Math.floor(gv),f1=9,f2=9;
+      for(var oy=-1;oy<=1;oy++)for(var ox=-1;ox<=1;ox++){
+        var cx2=gx+ox,cy2=gy+oy,k=((cy2%N+N)%N)*N+((cx2%N+N)%N),dx=gu-(cx2+px[k]),dy=gv-(cy2+py[k]),dd=dx*dx+dy*dy;
+        if(dd<f1){f2=f1;f1=dd;}else if(dd<f2)f2=dd;}
+      var e=Math.sqrt(f2)-Math.sqrt(f1),line=Math.pow(Math.max(0,1-e*o.width),o.sharp),g=0.32+o.glow*Math.min(1,Math.sqrt(f1)*1.6)+0.68*line,q=(y*n+x)*4;
+      d[q]=d[q+1]=d[q+2]=Math.round(255*Math.min(1,g));d[q+3]=255;}
+    cx.putImageData(im,0,0);out.push(cv);
+  }
+  return out;
+}
+function genOpts(){var o={};GEN.forEach(function(g){o[g[0]]=parseFloat($('csg_'+g[0]).value);});return o;}
+function genCaustic(st){return genFrames(Object.assign({cells:7,width:1.5,sharp:3,glow:0.25,warp:0.08,frames:1,motion:0,seed:7,size:256},st||{}))[0];}
+var genTimer=0;
+function regenerate(){
+  clearTimeout(genTimer);
+  genTimer=setTimeout(function(){
+    var o=genOpts();$('csImgInfo').textContent='generating '+o.frames+' frame'+(o.frames>1?'s':'')+'…';
+    setTimeout(function(){var t0=performance.now(),fr=genFrames(o);
+      useSource({frames:fr,base:'caustic_gen',label:'Generated (seed '+o.seed+')',gen:true});
+      $('csImgInfo').textContent+=' · made in '+Math.round(performance.now()-t0)+' ms';},20);
+  },250);
+}
+(function(){
+  $('csGenCtl').innerHTML=GEN.map(function(g){return '<div class="row"><label>'+g[1]+'</label><input type="range" id="csg_'+g[0]+'" min="'+g[2]+'" max="'+g[3]+'" step="'+g[4]+'" value="'+g[5]+'"><span class="val">'+g[5]+'</span></div>';}).join('');
+  GEN.forEach(function(g){$('csg_'+g[0]).addEventListener('input',function(){this.parentNode.querySelector('.val').textContent=this.value;if(CS.galId==='gen')regenerate();});});
+  Array.prototype.forEach.call(document.querySelectorAll('#csGenBox [data-style]'),function(a){a.onclick=function(e){e.preventDefault();
+    var st=GEN_STYLES[a.getAttribute('data-style')];for(var k in st){var el=$('csg_'+k);el.value=st[k];el.parentNode.querySelector('.val').textContent=st[k];}
+    CS.galId='gen';regenerate();};});
+  $('csGenSave').onclick=function(){                      // the generated map as PNG file(s), e.g. to reuse elsewhere
+    if(!CS.src||!CS.src.gen)return;var fr=CS.src.frames,files=fr.map(function(c,i){return {name:'caustic_gen'+(fr.length>1?pad2(i):'')+'.png',data:dataURLBytes(c.toDataURL('image/png'))};});
+    downloadZip('caustic_gen_seed'+genOpts().seed+'.zip',files);};
+})();
+// ── the map: gallery, your own files, tint ──
+function toCanvas(img){var c=document.createElement('canvas');c.width=img.naturalWidth||img.width;c.height=img.naturalHeight||img.height;c.getContext('2d').drawImage(img,0,0);return c;}
+function useSource(src){CS.src=src;CS.texDirty=true;CS.dirty=true;showInfo();drawGallery();}
+function showInfo(){var s=CS.src;if(!s)return;
+  $('csImgInfo').textContent=s.label+' — '+s.frames.length+' frame'+(s.frames.length>1?'s':'')+', '+s.frames[0].width+'×'+s.frames[0].height;}
+function loadGallery(id){
+  var it=GAL.filter(function(g){return g.id===id;})[0];if(!it)return;
+  if(it.custom){$('csFile').click();return;}
+  CS.galId=id;$('csGenBox').style.display=it.gen?'block':'none';
+  if(it.gen){drawGallery();regenerate();return;}
+  $('csImgInfo').textContent='loading '+it.name+'…';
+  var imgs=[],left=it.frames,failed=false;
+  var fail=function(why){if(failed)return;failed=true;
+    $('csImgInfo').textContent='⚠ '+it.name+' '+why+' — open the editor from its web address (or run server.py) to use it. Showing the generator instead.';
+    var msg=$('csImgInfo').textContent;loadGallery('gen');setTimeout(function(){$('csImgInfo').textContent=msg;},400);};
+  for(var i=0;i<it.frames;i++)(function(i){var im=new Image();
+    im.onload=function(){
+      imgs[i]=toCanvas(im);
+      try{imgs[i].getContext('2d').getImageData(0,0,1,1);}catch(e){return fail('cannot be read when the editor is opened as a file');}   // file:// taints images
+      if(--left===0&&!failed)useSource({frames:imgs,base:it.base,label:it.name+' (CC0, Calinou)'});};
+    im.onerror=function(){fail('could not be loaded');};
+    im.src=it.url(i);})(i);
+}
+$('csFile').addEventListener('change',function(){
+  var fs=Array.prototype.slice.call(this.files||[]).sort(function(a,b){return a.name.localeCompare(b.name,undefined,{numeric:true});});
+  if(!fs.length)return;
+  var imgs=[],left=fs.length;
+  fs.forEach(function(f,i){var im=new Image();
+    im.onload=function(){imgs[i]=toCanvas(im);URL.revokeObjectURL(im.src);
+      if(--left===0){CS.galId='custom';$('csGenBox').style.display='none';
+        var base=fs[0].name.replace(/\.[^.]+$/,'');if(fs.length>1)base=base.replace(/[\d_\-]+$/,'')||'frame';   // frames: caust00.png → "caust"
+        useSource({frames:imgs,base:base.replace(/[^\w\-]+/g,'_')||'caustic',label:fs.length>1?fs.length+' files ('+fs[0].name+' …)':fs[0].name});}};
+    im.src=URL.createObjectURL(f);});
+  this.value='';
+});
+function isGrey(c){var d=c.getContext('2d').getImageData(0,0,c.width,c.height).data,diff=0;
+  for(var i=0;i<d.length;i+=4*97)diff=Math.max(diff,Math.abs(d[i]-d[i+1]),Math.abs(d[i+1]-d[i+2]));return diff<12;}
+function tinted(){                                                       // the frames as drawn and exported
+  var s=CS.src,tint=$('csTint').checked;
+  if(!tint)return s.frames;
+  var hex=function(h){return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];},A=hex($('csDeep').value),B=hex($('csLight').value);
+  var con=parseFloat($('csCon').value)||2.4,lo=255,hi=0,datas=s.frames.map(function(c){return c.getContext('2d').getImageData(0,0,c.width,c.height);});
+  datas.forEach(function(im){for(var i=0;i<im.data.length;i+=4){var l=(im.data[i]*0.3+im.data[i+1]*0.59+im.data[i+2]*0.11);if(l<lo)lo=l;if(l>hi)hi=l;}});
+  return datas.map(function(im,k){                                       // one stretch for all frames, so they stay alike
+    var c=document.createElement('canvas');c.width=im.width;c.height=im.height;var out=c.getContext('2d').createImageData(im.width,im.height);
+    for(var i=0;i<im.data.length;i+=4){var l=((im.data[i]*0.3+im.data[i+1]*0.59+im.data[i+2]*0.11)-lo)/Math.max(1,hi-lo);l=Math.pow(Math.max(0,Math.min(1,l)),con);   // higher: only the brightest lines reach the light colour
+      out.data[i]=A[0]+(B[0]-A[0])*l;out.data[i+1]=A[1]+(B[1]-A[1])*l;out.data[i+2]=A[2]+(B[2]-A[2])*l;out.data[i+3]=im.data[i+3];}
+    c.getContext('2d').putImageData(out,0,0);return c;});
+}
+function frames(){
+  if(!CS.src)useSource({frames:[genCaustic()],base:'caustic_gen',label:'Generated',gen:true});   // until the chosen map has loaded
+  if(CS.texDirty||!CS.frames){CS.texDirty=false;
+    try{CS.frames=tinted();}catch(e){CS.frames=CS.src.frames;$('csImgInfo').textContent='⚠ this map cannot be tinted here (open the editor from its web address)';}}
+  return CS.frames;
+}
+// a sequence loops a whole number of times in the loop, as close to the chosen speed as that allows
+function seq(p){var n=frames().length;if(n<2)return {n:1,delay:0,cycles:0};
+  var cycles=Math.max(1,Math.round(p.L*p.mfps/n));return {n:n,delay:p.L/(n*cycles),cycles:cycles};}
+function frameAt(p,t,layer){var s=seq(p);if(s.n<2)return 0;return (Math.floor(t/s.delay+1e-6)+(layer?Math.floor(s.n/2):0))%s.n;}
+function drawGallery(){
+  $('csGal').innerHTML=GAL.map(function(g){return '<div data-g="'+g.id+'" title="'+g.name+' — '+g.note+'" style="cursor:pointer;border:2px solid '+(CS.galId===g.id?'#6cf':'#333')+
+    ';border-radius:5px;padding:2px;text-align:center;font-size:9px;color:#aaa;line-height:1.15"><canvas width="72" height="48" style="width:100%;display:block;border-radius:3px;background:#222"></canvas>'+g.name.replace('Generated: ','')+'</div>';}).join('');
+  Array.prototype.forEach.call($('csGal').querySelectorAll('[data-g]'),function(el){
+    el.onclick=function(){loadGallery(el.getAttribute('data-g'));};
+    var g=GAL.filter(function(x){return x.id===el.getAttribute('data-g');})[0],cv=el.querySelector('canvas'),cx=cv.getContext('2d');
+    var paint=function(src){try{var pat=cx.createPattern(src,'repeat');cx.save();cx.scale(72/src.width*1.4,72/src.width*1.4);cx.fillStyle=pat;cx.fillRect(0,0,cv.width*4,cv.height*4);cx.restore();}catch(e){}};
+    if(g.custom){if(CS.galId==='custom'&&CS.src)paint(CS.src.frames[0]);else{cx.fillStyle='#555';cx.font='22px sans-serif';cx.textAlign='center';cx.fillText('+',36,32);}}
+    else if(g.gen)paint(CS.galId==='gen'&&CS.src&&CS.src.gen?CS.src.frames[0]:(g.thumb||(g.thumb=genCaustic())));
+    else{var im=new Image();im.onload=function(){paint(im);};im.src=g.url(0);}
+  });
 }
 function avgColour(img){var c=document.createElement('canvas');c.width=c.height=8;var x=c.getContext('2d');x.drawImage(img,0,0,8,8);
   var d=x.getImageData(0,0,8,8).data,s=[0,0,0];for(var i=0;i<d.length;i+=4){s[0]+=d[i];s[1]+=d[i+1];s[2]+=d[i+2];}return s.map(function(v){return Math.round(v/64);});}
@@ -12207,14 +12342,6 @@ function glintTex(){                                                    // a sof
 function hazeRect(p){var yTop=p.yh+2,yBot=project(p,0,0,p.z0+p.rows*0.55)[1];return {x:0,y:(yTop+yBot)/2,w:p.W,h:Math.max(8,yTop-yBot)};}
 function glintRect(p){var hgt=(p.yh+p.H/2)*0.55;return {x:0,y:p.yh-hgt/2+2,w:p.W*0.12,h:hgt};}
 function glintAlpha(p,t){return p.glint*(0.82+0.18*Math.sin(2*Math.PI*2*t/p.L));}
-
-$('csFile').addEventListener('change',function(){
-  var f=this.files&&this.files[0];if(!f)return;var img=new Image();
-  img.onload=function(){var cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;cv.getContext('2d').drawImage(img,0,0);
-    CS.img=cv;CS.dirty=true;CS.imgName=(f.name.replace(/\.[^.]+$/,'').replace(/[^\w\-]+/g,'_')||'caustic');CS.texDirty=true;CS.dirty=true;
-    $('csImgInfo').textContent=f.name+' — '+cv.width+'×'+cv.height;URL.revokeObjectURL(img.src);};
-  img.src=URL.createObjectURL(f);
-});
 
 // ── preview (WebGL) ──
 function glInit(){
@@ -12252,7 +12379,7 @@ function quad(G,r,tex,alpha,additive){
 }
 function frame(){
   if(!CS.open)return;CS.raf=requestAnimationFrame(frame);
-  if(CS.dirty){CS.dirty=false;CS.geo=build();stats();CS.hazeCv=gradTex($('csHazeC').value,CS.img||(CS.img=genCaustic()));}
+  if(CS.dirty){var fr0=frames()[0];CS.dirty=false;CS.geo=build();stats();CS.hazeCv=gradTex($('csHazeC').value,fr0);}
   var G=CS.gl||(CS.gl=glInit());if(!G)return;
   var gl=G.gl,cv=$('csCv'),dpr=window.devicePixelRatio||1,w=Math.round(cv.clientWidth*dpr),h=Math.round(cv.clientHeight*dpr);
   if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
@@ -12262,8 +12389,9 @@ function frame(){
   gl.enable(gl.SCISSOR_TEST);gl.scissor(fx,fy,Math.round(p.W*sc),Math.round(p.H*sc));
   gl.clearColor(parseInt(bg.slice(1,3),16)/255,parseInt(bg.slice(3,5),16)/255,parseInt(bg.slice(5,7),16)/255,1);gl.clear(gl.COLOR_BUFFER_BIT);
   gl.uniform4f(G.uM,2*sc/w,2*sc/h,0,0);gl.enable(gl.BLEND);
-  var mainTex=texOf(G,'main',CS.img||(CS.img=genCaustic())),wire=$('csWire').checked;
+  var fr=frames(),wire=$('csWire').checked;
   g.layers.forEach(function(lay,L){
+    var fi=frameAt(p,t,L),mainTex=texOf(G,'f'+fi,fr[fi]);
     var ps=pose(g,L,t),nv=g.order.length,nt=lay.tiles.length,pos=new Float32Array(nt*nv*2),uv=new Float32Array(nt*nv*2),al=new Float32Array(nt*nv),ind=new Uint32Array(nt*g.tris.length),n=0;
     var tiles=lay.tiles.slice().sort(function(a,b){return b.r-a.r;});            // far rows first
     tiles.forEach(function(tl,ti){
@@ -12280,22 +12408,30 @@ function frame(){
   gl.disable(gl.SCISSOR_TEST);
 }
 function stats(){
-  var g=CS.geo,p=g.p,nb=1+g.nl+g.nl*g.nc*g.layers.length,slots=g.layers.length*p.rows*p.cols,keys=(g.nl+(p.amp>0||p.bob>0?g.nl*g.nc*g.layers.length:0))*(p.N+1);
-  $('csStats').innerHTML=p.cols+'×'+p.rows+' tiles'+(+$('csAuto').checked?' (columns cover the view)':'')+' · '+slots+' meshes · '+nb+' bones · ≈'+keys+' bone keys';
+  var g=CS.geo,p=g.p,nL=g.layers.length,nb=1+nL*(1+g.nl+g.nl*g.nc)+(p.haze>0?1:0)+(p.glint>0?1:0),slots=nL*p.rows*p.cols,
+    keys=nL*(g.nl+(p.amp>0||p.bob>0?g.nl*g.nc:0))*(p.N+1),s=seq(p);
+  $('csStats').innerHTML=p.cols+'×'+p.rows+' tiles'+(+$('csAuto').checked?' (columns cover the view)':'')+' · '+slots+' meshes · '+nb+' bones · ≈'+keys+' bone keys'+
+    (s.n>1?'<br>map: '+s.n+' frames, '+s.cycles+'× per loop ('+(1/s.delay).toFixed(1)+' fps)':'');
 }
-function open(){$('csModal').style.display='flex';CS.open=true;CS.t0=performance.now();CS.dirty=true;cancelAnimationFrame(CS.raf);frame();}
+function open(){$('csModal').style.display='flex';CS.open=true;CS.t0=performance.now();CS.dirty=true;cancelAnimationFrame(CS.raf);
+  if(!CS.src&&!CS.loading){CS.loading=true;loadGallery(CS.galId);}else drawGallery();frame();}
 function close(){$('csModal').style.display='none';CS.open=false;cancelAnimationFrame(CS.raf);}
 $('csClose').onclick=close;
 window.openCausticsTool=open;
 
 // ── Spine export ──
 function exportSpineCaustics(){
-  var g=build(),p=g.p,nm=($('csName').value.trim()||'water_caustics').replace(/[^\w\-]+/g,'_'),img=CS.img||(CS.img=genCaustic()),tex=CS.imgName;
+  var g=build(),p=g.p,nm=($('csName').value.trim()||'water_caustics').replace(/[^\w\-]+/g,'_'),fr=frames(),img=fr[0],sq=seq(p);
+  var tex=CS.src.base,digits=String(fr.length-1).length<2?2:String(fr.length-1).length,path=sq.n>1?'caustics/'+tex:tex;
   var r2=function(v){return Math.round(v*100)/100;},r4=function(v){return Math.round(v*1e4)/1e4;},r5=function(v){return Math.round(v*1e5)/1e5;};
-  var bones=[{name:'root'}],bi={},LN=function(j){return nm+'_row'+j;},CH=function(L,i,j){return nm+(L?'_b':'_a')+'_'+j+'_'+i;};
-  for(var j=0;j<g.nl;j++){bi[LN(j)]=bones.length;bones.push({name:LN(j),parent:'root',y:r2(lineY(p,j,0)),color:'4fb3ffff'});}
-  g.layers.forEach(function(lay,L){for(var j=0;j<g.nl;j++)for(var i=0;i<g.nc;i++){var q=(j*g.nc+i)*2;
-    bi[CH(L,i,j)]=bones.length;bones.push({name:CH(L,i,j),parent:LN(j),x:r2(lay.bset[q]),y:r2(lay.bset[q+1]-lineY(p,j,0)),length:0});}});
+  // each layer under its own bone (move, scale or hide it in Spine): layer → its rows (perspective) → ripple bones
+  var LB=function(L){return nm+(L?'_layer_b':'_layer_a');},LN=function(L,j){return nm+(L?'_b':'_a')+'_row'+j;},CH=function(L,i,j){return nm+(L?'_b':'_a')+'_'+j+'_'+i;};
+  var bones=[{name:'root'}],bi={},j;
+  g.layers.forEach(function(lay,L){
+    bones.push({name:LB(L),parent:'root',length:60,color:L?'ff9a55ff':'4fb3ffff'});
+    for(var j=0;j<g.nl;j++){bi[LN(L,j)]=bones.length;bones.push({name:LN(L,j),parent:LB(L),y:r2(lineY(p,j,0)),color:'4fb3ffff'});}
+    for(j=0;j<g.nl;j++)for(var i=0;i<g.nc;i++){var q=(j*g.nc+i)*2;
+      bi[CH(L,i,j)]=bones.length;bones.push({name:CH(L,i,j),parent:LN(L,j),x:r2(lay.bset[q]),y:r2(lay.bset[q+1]-lineY(p,j,0)),length:0});}});
   // keys sampled from the exact motion; Bézier handles from the true slope keep them smooth between samples
   var times=[];for(var q=0;q<=p.N;q++)times.push(q*p.L/p.N);
   function curveKeys(f,round,skipConst){
@@ -12308,43 +12444,57 @@ function exportSpineCaustics(){
       return k;});
   }
   var ab={},nkeys=0;
-  for(j=0;j<g.nl;j++)(function(j){
+  g.layers.forEach(function(lay,L){for(var j=0;j<g.nl;j++)(function(j){
     var y0=lineY(p,j,0),tr=curveKeys(function(t){return [0,lineY(p,j,t)-y0];},r2),scl=curveKeys(function(t){return [lineScale(p,j,t),1];},r5);
-    ab[LN(j)]={translate:tr,scale:scl};nkeys+=tr.length+scl.length;})(j);
+    ab[LN(L,j)]={translate:tr,scale:scl};nkeys+=tr.length+scl.length;})(j);});
   if(p.amp>0||p.bob>0)g.layers.forEach(function(lay,L){for(var j=0;j<g.nl;j++)for(var i=0;i<g.nc;i++)(function(i,j){
     var q=(j*g.nc+i)*2,lx0=lay.bset[q],ly0=lay.bset[q+1]-lineY(p,j,0),X=i/p.bones-p.cols/2,s=j/p.bones;
     var tr=curveKeys(function(t){var v=surf(p,lay.W,X,s,t,true);return [v[0]/lineScale(p,j,t)-lx0,v[1]-lineY(p,j,t)-ly0];},r2,true);
     if(tr){ab[CH(L,i,j)]={translate:tr};nkeys+=tr.length;}})(i,j);});
   // slots: far rows drawn first; 2nd layer additive on top
-  var slots=[],skin={},st={},hexA=function(a){return 'ffffff'+('0'+Math.round(Math.max(0,Math.min(1,a))*255).toString(16)).slice(-2);};
+  var slots=[],skin={},st={},att={},hexA=function(a){return 'ffffff'+('0'+Math.round(Math.max(0,Math.min(1,a))*255).toString(16)).slice(-2);};
   g.layers.forEach(function(lay,L){
+    var first=L?Math.floor(sq.n/2):0;                                     // layer B runs half a loop behind, so the two never flicker in step
     lay.tiles.slice().sort(function(a,b){return b.r-a.r||a.c-b.c;}).forEach(function(tl){
-      var sn=nm+(L?'_b':'_a')+'_r'+tl.r+'_c'+tl.c,s0={name:sn,bone:'root',attachment:tex,color:hexA(rowAlpha(p,tl.r,0)*lay.alpha)};
+      var sn=nm+(L?'_b':'_a')+'_r'+tl.r+'_c'+tl.c,s0={name:sn,bone:LB(L),attachment:tex,color:hexA(rowAlpha(p,tl.r,0)*lay.alpha)};
       if(L)s0.blend='additive';slots.push(s0);
       var vf=[];tl.verts.forEach(function(vs){vf.push(vs.length);vs.forEach(function(e){vf.push(bi[CH(L,e.i,e.j)],r2(e.bx),r2(e.by),r5(e.w));});});
-      skin[sn]={};skin[sn][tex]={type:'mesh',path:tex,uvs:tl.uvs.map(r5),triangles:g.tris.slice(),vertices:vf,hull:g.hull,width:img.width,height:img.height};
+      skin[sn]={};skin[sn][tex]={type:'mesh',path:path,uvs:tl.uvs.map(r5),triangles:g.tris.slice(),vertices:vf,hull:g.hull,width:img.width,height:img.height};
+      if(sq.n>1){                                                         // the map's frames: a Spine sequence that loops with the animation
+        skin[sn][tex].sequence={count:sq.n,start:0,digits:digits,setup:first};
+        att[sn]={};att[sn][tex]={sequence:[{mode:'loop',index:first,delay:r5(sq.delay)}]};
+      }
       var al=times.map(function(t){return rowAlpha(p,tl.r,t)*lay.alpha;});
       if(Math.max.apply(null,al)-Math.min.apply(null,al)>0.004)st[sn]={rgba:al.map(function(a,q){return {time:r4(times[q]),color:hexA(a)};})};
     });
   });
   var files=[],hz,gr;
-  if(p.haze>0){hz=hazeRect(p);var hcv=gradTex($('csHazeC').value,img);slots.push({name:nm+'_haze',bone:'root',attachment:'haze',color:hexA(p.haze)});
+  if(p.haze>0){hz=hazeRect(p);var hcv=gradTex($('csHazeC').value,img);bones.push({name:nm+'_haze',parent:'root',length:40});
+    slots.push({name:nm+'_haze',bone:nm+'_haze',attachment:'haze',color:hexA(p.haze)});
     skin[nm+'_haze']={haze:{x:r2(hz.x),y:r2(hz.y),scaleX:r4(hz.w/hcv.width),scaleY:r4(hz.h/hcv.height),width:hcv.width,height:hcv.height}};
     files.push({name:'images/haze.png',data:dataURLBytes(hcv.toDataURL('image/png'))});}
-  if(p.glint>0){gr=glintRect(p);var gcv=CS.glintCv||(CS.glintCv=glintTex());slots.push({name:nm+'_glint',bone:'root',attachment:'glint',blend:'additive',color:hexA(glintAlpha(p,0))});
+  if(p.glint>0){gr=glintRect(p);var gcv=CS.glintCv||(CS.glintCv=glintTex());bones.push({name:nm+'_glint',parent:'root',length:40});
+    slots.push({name:nm+'_glint',bone:nm+'_glint',attachment:'glint',blend:'additive',color:hexA(glintAlpha(p,0))});
     skin[nm+'_glint']={glint:{x:r2(gr.x),y:r2(gr.y),scaleX:r4(gr.w/gcv.width),scaleY:r4(gr.h/gcv.height),width:gcv.width,height:gcv.height}};
     st[nm+'_glint']={rgba:times.map(function(t){return {time:r4(t),color:hexA(glintAlpha(p,t))};})};
     files.push({name:'images/glint.png',data:dataURLBytes(gcv.toDataURL('image/png'))});}
   var json={skeleton:{hash:'caustics',spine:'4.2',x:-p.W/2,y:-p.H/2,width:p.W,height:p.H,fps:30,images:'./images/'},
     bones:bones,slots:slots,skins:[{name:'default',attachments:skin}],animations:{loop:{bones:ab,slots:st}}};
-  files.unshift({name:'images/'+tex+'.png',data:dataURLBytes(img.toDataURL('image/png'))});
-  files.unshift({name:nm+'.json',data:strBytes(JSON.stringify(spineForVersion(json)))});
+  if(sq.n>1)json.animations.loop.attachments={'default':att};
+  if(sq.n>1)fr.forEach(function(c,i){var d=String(i);while(d.length<digits)d='0'+d;
+    files.unshift({name:'images/'+path+d+'.png',data:dataURLBytes(c.toDataURL('image/png'))});});
+  else files.unshift({name:'images/'+tex+'.png',data:dataURLBytes(img.toDataURL('image/png'))});
+  var text=JSON.stringify(spineForVersion(json));
+  files.unshift({name:nm+'.json',data:strBytes(text)});
   downloadZip(nm+'_spine.zip',files);
-  $('csStatus').textContent='⬇ Exported '+nm+'_spine.zip — '+(g.layers.length*p.rows*p.cols)+' weighted meshes, '+bones.length+' bones, '+nkeys+' bone keys, loop '+p.L+' s (Spine '+spineVerString()+', set under Export).';
+  var old=sq.n>1&&!/^4\.[1-9]/.test(spineVerString());
+  $('csStatus').textContent='⬇ Exported '+nm+'_spine.zip — '+(g.layers.length*p.rows*p.cols)+' weighted meshes, '+bones.length+' bones, '+nkeys+' bone keys'+
+    (sq.n>1?', '+sq.n+'-frame map':'')+', loop '+p.L+' s (Spine '+spineVerString()+', set under Export), '+(text.length/1048576).toFixed(1)+' MB JSON.'+
+    (old?' Spine '+spineVerString()+' has no sequences, so every frame is a copy of each mesh — use Spine 4.1+ or a still map for a light file.':'');
   return json;
 }
 $('csExport').onclick=function(){try{exportSpineCaustics();}catch(e){$('csStatus').textContent='⚠ Export failed: '+e.message;console.error(e);}};
-window._csTest={build:build,pose:pose,P:P,exportJson:function(){var d=window.downloadZip,out;window.downloadZip=function(){};try{out=exportSpineCaustics();}finally{window.downloadZip=d;}return out;}};
+window._csTest={build:build,pose:pose,P:P,src:function(){return CS.src;},exportJson:function(){var d=window.downloadZip,out;window.downloadZip=function(){};try{out=exportSpineCaustics();}finally{window.downloadZip=d;}return out;}};
 })();
 </script>
 
